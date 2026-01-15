@@ -1,0 +1,85 @@
+# PHASE 1 ORCHESTRATION — TASK PLANNING (STEP 1)
+
+Context has been LOCKED from the previous step.
+
+Your task now is to transform the implementation rules into an executable plan.
+Do NOT write code yet.
+
+---
+
+## 1) Primary Source of Truth
+Use **ONLY** this document as the execution source:
+- `.agent/rules/IMPLEMENTATION_CHECKLIST_PHASE_1.md`
+
+Other documents are for constraints, not for adding tasks.
+
+---
+
+## 2) What You Must Do
+Convert the checklist into a **strictly ordered execution plan**.
+
+For EACH task, define:
+- Task ID (stable, sequential)
+- Module (DB / RPC / Service API / UI / Reporting)
+- Description (what is being implemented)
+- Files to touch (exact paths if known)
+- Dependencies (task IDs)
+- Acceptance Criteria (binary: pass/fail)
+- Required Test Scenario
+
+---
+
+## 3) Execution Rules
+- Do NOT add tasks outside the checklist
+- Do NOT merge multiple checklist items into one task
+- Do NOT reorder tasks unless there is a hard dependency
+- If a checklist item is unclear, mark it as a BLOCKER (do not assume)
+
+---
+
+## 4) Output Format (STRICT)
+
+## PHASE 1 TASK PLAN
+
+### Module: Database
+- [ ] T1 — …
+- [ ] T2 — …
+
+### Module: RPC / Posting Engine
+- [ ] T…
+
+### Module: Service API
+- [ ] T…
+
+### Module: UI
+- [ ] T…
+
+### Module: Reporting & Period Close
+- [ ] T…
+
+---
+
+## TASK DETAIL
+
+### Task ID: T1
+- Module:
+- Description:
+- Files to touch:
+- Depends on:
+- Acceptance Criteria:
+- Test Scenario:
+
+(repeat for all tasks)
+
+---
+
+## BLOCKERS (if any)
+- …
+
+---
+
+## Completion Condition
+Stop after producing the full task plan.
+Do NOT execute any task yet.
+
+Begin now.

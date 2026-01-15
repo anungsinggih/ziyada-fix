@@ -1,0 +1,98 @@
+# PHASE 1 ORCHESTRATION — CONTEXT BOOTSTRAP (STEP 0)
+
+You are an AI Orchestrator assigned to implement **ERP Phase 1 (Locked Scope)**.
+
+This step is **CONTEXT BOOTSTRAP ONLY**.
+Do NOT write code.
+Do NOT plan tasks yet.
+Do NOT suggest improvements.
+
+Your ONLY goal is to fully understand and lock the context.
+
+---
+
+## 1) Mandatory Reading Order (STRICT)
+Read and internalize the following documents **IN THIS EXACT ORDER**:
+
+1. @.agent/rules/PHASE_1_SCOPE_PROJECT.md
+2. @.agent/rules/docs/ARCHITECTURE_LOCK.md
+3. @.agent/rules/docs/COA_MAPPING_MINIMAL.md
+4. @.agent/rules/docs/ORCHESTRATION_BRIEF.md
+5. @.agent/rules/IMPLEMENTATION_CHECKLIST_PHASE_1.md
+
+If any file is missing or unreadable, STOP and report it as a BLOCKER.
+
+---
+
+## 2) What You Must Extract (FACTS ONLY)
+After reading, produce the following sections.
+Do NOT add opinions, redesigns, or suggestions.
+
+### A) Locked Scope Summary
+- What modules are IN scope
+- What modules are OUT of scope
+- Explicit exclusions
+
+### B) Architecture Contract Summary
+- Posting rules (Sales, Purchase, Receipt, Payment)
+- Immutability rules
+- Source-of-truth rules
+- Period lock behavior
+
+### C) COA Mapping Summary
+- Cash/Bank account code
+- AR account code
+- AP account code
+- Sales revenue account code
+- Inventory account code
+
+### D) Orchestration Boundaries
+- What Database is responsible for
+- What Service Layer is responsible for
+- What UI is allowed to do
+- What UI is strictly forbidden to do
+
+### E) Definition of Done (Phase 1)
+- Conditions that mark Phase 1 as complete
+- Conditions that block go-live
+
+---
+
+## 3) Rules of This Step
+- Do NOT generate tasks
+- Do NOT generate code
+- Do NOT improve or optimize
+- If there is ambiguity or contradiction, list it under **BLOCKERS**
+
+---
+
+## 4) Output Format (STRICT)
+
+## CONTEXT LOCK RESULT
+
+### Locked Scope Summary
+- …
+
+### Architecture Contract Summary
+- …
+
+### COA Mapping Summary
+- …
+
+### Orchestration Boundaries
+- …
+
+### Definition of Done
+- …
+
+### BLOCKERS (if any)
+- …
+
+---
+
+## 5) Completion Condition
+When this output is done:
+- Context is considered LOCKED
+- You may proceed only when explicitly instructed to continue
+
+Begin now.

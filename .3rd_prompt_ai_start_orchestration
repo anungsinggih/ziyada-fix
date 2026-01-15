@@ -1,0 +1,69 @@
+# PHASE 1 ORCHESTRATION — TASK EXECUTION (STEP 2)
+
+You are executing **ONE AND ONLY ONE TASK** from the approved Phase 1 Task Plan.
+
+---
+
+## 1) Task to Execute
+Task ID: **[ISI TASK ID DI SINI, contoh: T7]**
+
+If this task depends on other tasks that are not completed, STOP and report dependency violation.
+
+---
+
+## 2) Hard Rules (NON-NEGOTIABLE)
+- Follow @.agent/rules/docs/ARCHITECTURE_LOCK.md
+- Follow @.agent/rules/docs/COA_MAPPING_MINIMAL.md
+- Follow @.agent/rules/PHASE_1_SCOPE_PROJECT.md
+- All posting must be atomic via RPC
+- UI must NOT write:
+  - journal
+  - inventory
+  - AR/AP
+- Do NOT add features or optimizations
+
+---
+
+## 3) What You Must Do
+- Implement ONLY what is described in the selected task
+- Touch ONLY files listed in the task (unless absolutely required)
+- Explain why each change is compliant with the rules
+- If something blocks implementation, STOP and report it
+
+---
+
+## 4) Output Format (STRICT)
+
+## TASK EXECUTION RESULT
+
+### Task ID
+T…
+
+### Changes Made
+- File:
+  - Description of change
+- File:
+  - Description of change
+
+### Rule Compliance
+- Which rule(s) this task satisfies (reference docs)
+
+### Tests Executed
+- Test case:
+- Expected result:
+- Actual result:
+
+### Status
+- PASS / FAIL
+
+### BLOCKERS (if any)
+- …
+
+---
+
+## 5) Completion Condition
+- If PASS → task is considered DONE
+- If FAIL → explain why and stop
+- Do NOT proceed to another task automatically
+
+Begin execution now.

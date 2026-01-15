@@ -1,0 +1,70 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --primary: #4A89DC;
+    --primary-hover: #357ABD;
+    --bg-page: #FFFFFF;
+    --bg-surface: #FFFFFF;
+    --bg-surface-alt: #F9FAFB;
+    --text-main: #333333;
+    --text-muted: #666666;
+    --border: #E0E0E0;
+    --danger: #DC2626;
+    --danger-hover: #B91C1C;
+    --success: #10B981;
+    --success-hover: #059669;
+  }
+
+  body {
+    @apply bg-[var(--bg-page)] text-[var(--text-main)] font-sans antialiased;
+    font-family: 'Inter', sans-serif;
+  }
+
+  /* Smooth transitions for all interactive elements */
+  button,
+  input,
+  select,
+  a {
+    @apply transition-all duration-200;
+  }
+}
+
+@media print {
+  @page {
+    margin: 1cm;
+    size: A4;
+  }
+
+  body {
+    background: white;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  nav {
+    display: none !important;
+  }
+
+  main {
+    margin: 0 !important;
+    padding: 0 !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  button,
+  .no-print {
+    display: none !important;
+  }
+
+  /* Ensure cards look like documents */
+  .card {
+    box-shadow: none !important;
+    border: none !important;
+  }
+}

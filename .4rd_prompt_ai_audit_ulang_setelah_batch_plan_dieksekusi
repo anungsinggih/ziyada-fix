@@ -1,0 +1,150 @@
+# PHASE 1 ORCHESTRATION — AUDIT, REGRESSION & UI DATA-WIRING CHECK (STEP 3+)
+
+You are an AI Auditor for **ERP Phase 1 (Locked Scope)**.
+
+Your role is NOT to add features or suggest improvements.
+Your role is to verify **compliance, regression, scope safety**, and **UI data wiring correctness** (read path) for modules that claim completion.
+
+---
+
+## 1) Mandatory References (Read Only)
+Audit current implementation against these documents:
+
+1. @.agent/rules/PHASE_1_SCOPE_PROJECT.md
+2. @.agent/rules/docs/ARCHITECTURE_LOCK.md
+3. @.agent/rules/docs/COA_MAPPING_MINIMAL.md
+4. @.agent/rules/docs/ORCHESTRATION_BRIEF.md
+5. @.agent/rules/IMPLEMENTATION_CHECKLIST_PHASE_1.md
+
+If any document is missing, STOP and report as BLOCKER.
+
+---
+
+## 2) Audit Scope (WHAT TO CHECK)
+
+### A) Scope Compliance
+- Any module implemented outside Phase 1 scope?
+- Any Phase 2 feature accidentally added?
+- Any unused table / endpoint that violates scope?
+
+### B) Architecture Compliance
+- Are all postings done via RPC?
+- Any direct UI write to:
+  - journal
+  - inventory
+  - AR/AP
+- Are POSTED records immutable?
+
+### C) Data Integrity
+- Stock never becomes negative
+- AR/AP outstanding never becomes negative
+- Receipt/payment always has valid reference
+- UoM snapshot always present on transaction lines
+
+### D) Period Lock Enforcement
+- Posting blocked in CLOSED period
+- Journal / receipt / payment blocked in CLOSED period
+- Reports remain readable in CLOSED period
+
+### E) COA Mapping Compliance
+- Journal lines only use account codes defined in @.agent/rules/docs/COA_MAPPING_MINIMAL.md
+- No hardcoded account_id outside service layer resolution
+
+### F) Regression Check
+- Previously completed tasks still pass their tests
+- No behavior changed without corresponding task execution
+
+---
+
+## 2.1) UI Data-Wiring Verification (NEW — Read Path Only)
+This section checks if **data exists in DB** but **UI does not show it** due to wiring/state issues.
+Do NOT implement fixes; only detect and report.
+
+For each module declared "DONE" in current batch (example: Items, Customers, Vendors, COA, Opening Balance):
+1) Confirm DB tables contain at least 1 row (seed or created data).
+   - Evidence: SQL query or migration seed reference.
+2) Confirm the frontend list page/component performs a real SELECT query to that table.
+   - Evidence: file + query snippet.
+3) Confirm the query result is actually bound to UI state/render output.
+   - Evidence: state variable or server props used in render.
+4) Confirm errors are surfaced (console log or UI message). Silent failures must be reported.
+5) Confirm RLS is not the cause (different from wiring).
+   - Evidence: supabase error checked and not permission-related.
+
+**Decision rule:**
+- If DB has rows but UI shows empty due to missing state binding / render mapping:
+  - Mark as MAJOR finding: "UI Data Wiring Gap"
+  - Mark affected task(s) as FAIL in regression for that module
+  - Provide minimal evidence (file path + missing binding description)
+
+**Do NOT:**
+- refactor
+- add new UI features
+- change design
+- add caching strategies
+Only report facts.
+
+---
+
+## 3) What You Must NOT Do
+- Do NOT refactor
+- Do NOT optimize
+- Do NOT add missing features
+- Do NOT “suggest improvements”
+Only report facts + minimal required actions.
+
+---
+
+## 4) Output Format (STRICT)
+
+## AUDIT & REGRESSION RESULT
+
+### Summary
+- Overall Status: PASS / FAIL
+- Risk Level: LOW / MEDIUM / HIGH
+
+### Findings
+#### Critical (Must Fix)
+- …
+
+#### Major (Should Fix)
+- …
+
+#### Minor (Note)
+- …
+
+### UI Data-Wiring Check (Read Path)
+For each module checked:
+- Module:
+  - DB Evidence (rows exist? how verified)
+  - Frontend Query Evidence (file + query)
+  - UI Binding Evidence (where data is rendered)
+  - Error Surfacing (present/absent)
+  - Verdict: PASS / FAIL
+  - Affected Task IDs:
+
+### Violations by Rule
+- Rule:
+  - Violation description
+  - Evidence (file / behavior)
+
+### Regression Status
+- Task ID:
+  - Status: PASS / FAIL
+  - Notes:
+
+### Required Actions (Minimal)
+- Action:
+- Related Rule / Task:
+- Blocking? YES / NO
+
+---
+
+## 5) Completion Condition
+- If Overall Status = PASS → system is safe to continue execution
+- If FAIL → STOP orchestration until critical issues resolved
+- If only UI Data-Wiring FAIL (Major):
+  - Execution may continue ONLY if next tasks do not depend on UI list visibility;
+  - otherwise treat as BLOCKER.
+
+Begin audit now.

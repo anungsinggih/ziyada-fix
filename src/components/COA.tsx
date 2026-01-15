@@ -1,0 +1,178 @@
+import { useEffect, useState } from 'react'
+import { supabase } from '../supabaseClient'
+import { Card, CardContent, CardHeader, CardTitle } from './ui/Card'
+import { Button } from './ui/Button'
+import { Input } from './ui/Input'
+import { Switch } from './ui/Switch'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/Table'
+import { Badge } from './ui/Badge'
+import { Icons } from './ui/Icons'
+
+type Account = {
+    id: string
+    code: string
+    name: string
+    is_active: boolean
+    is_system_account: boolean
+}
+
+export default function COA() {
+    const [accounts, setAccounts] = useState<Account[]>([])
+    const [loading, setLoading] = useState(false)
+    const [error, setError] = useState<string | null>(null)
+
+    const [editingId, setEditingId] = useState<string | null>(null)
+    const [formData, setFormData] = useState<Partial<Account>>({
+        code: '', name: '', is_active: true, is_system_account: false
+    })
+
+    useEffect(() => {
+        fetchAccounts()
+    }, [])
+
+    async function fetchAccounts() {
+        setLoading(true)
+        const { data, error } = await supabase
+            .from('accounts')
+            .select('*')
+            .order('code', { ascending: true })
+
+        if (error) setError(error.message)
+        else setAccounts(data || [])
+        setLoading(false)
+    }
+
+    async function handleSubmit() {
+        if (!formData.code || !formData.name) return
+        setError(null)
+
+        try {
+            if (editingId) {
+                const { error } = await supabase
+                    .from('accounts')
+                    .update(formData)
+                    .eq('id', editingId)
+                if (error) throw error
+            } else {
+                const { error } = await supabase
+                    .from('accounts')
+                    .insert([formData])
+                if (error) throw error
+            }
+
+            resetForm()
+            fetchAccounts()
+        } catch (err: any) {
+            setError(err.message)
+        }
+    }
+
+    function resetForm() {
+        setEditingId(null)
+        setFormData({
+            code: '', name: '', is_active: true, is_system_account: false
+        })
+    }
+
+    function handleEdit(acc: Account) {
+        setEditingId(acc.id)
+        setFormData(acc)
+    }
+
+    async function handleDelete(id: string) {
+        if (!confirm("Delete account?")) return
+        const { error } = await supabase.from('accounts').delete().eq('id', id)
+        if (error) alert("Could not delete. Try deactivating.")
+        else fetchAccounts()
+    }
+
+    return (
+        <div className="w-full space-y-8">
+            <h2 className="text-3xl font-bold tracking-tight text-gray-900">Chart of Accounts (COA)</h2>
+            {error && <div className="p-4 bg-red-50 text-red-700 border border-red-200 rounded-md flex items-center gap-2"><Icons.Warning className="w-5 h-5 flex-shrink-0" /> Error: {error}</div>}
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-8">
+                <div className="md:col-span-1">
+                    <Card className="shadow-md sticky top-6">
+                        <CardHeader className="bg-gray-50 border-b border-gray-100">
+                            <CardTitle>{editingId ? 'Edit Account' : 'New Account'}</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-4 pt-6">
+                            <Input
+                                label="Code (e.g. 1001)"
+                                value={formData.code}
+                                onChange={e => setFormData({ ...formData, code: e.target.value })}
+                                placeholder="Code"
+                                disabled={!!formData.is_system_account}
+                            />
+                            <Input label="Account Name" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} placeholder="Name" />
+
+                            <div className="flex items-center justify-between p-3 border rounded-lg bg-gray-50">
+                                <span className="text-sm font-medium text-gray-700">Active Status</span>
+                                <Switch
+                                    checked={formData.is_active}
+                                    onCheckedChange={checked => setFormData({ ...formData, is_active: checked })}
+                                />
+                            </div>
+
+                            <div className="flex gap-2 pt-2">
+                                <Button className="w-full bg-blue-600 hover:bg-blue-700" onClick={handleSubmit}>
+                                    {editingId ? 'Update' : 'Create'}
+                                </Button>
+                                {editingId && <Button variant="outline" onClick={resetForm}>Cancel</Button>}
+                            </div>
+                        </CardContent>
+                    </Card>
+                </div>
+
+                <div className="md:col-span-2">
+                    <Card className="shadow-md">
+                        <CardHeader className="bg-gray-50 border-b border-gray-100">
+                            <CardTitle>Account List</CardTitle>
+                        </CardHeader>
+                        <CardContent className="p-0">
+                            <Table>
+                                <TableHead>
+                                    <TableRow>
+                                        <TableHeader>Code</TableHeader>
+                                        <TableHeader>Name</TableHeader>
+                                        <TableHeader>Status</TableHeader>
+                                        <TableHeader>Actions</TableHeader>
+                                    </TableRow>
+                                </TableHead>
+                                <TableBody>
+                                    {loading ? <TableRow><TableCell colSpan={4} className="text-center">Loading...</TableCell></TableRow> : accounts.map(a => (
+                                        <TableRow key={a.id} className={!a.is_active ? 'bg-gray-100 opacity-60' : ''}>
+                                            <TableCell>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="font-mono font-bold text-blue-800">{a.code}</span>
+                                                    {a.is_system_account && <Badge variant="outline">System</Badge>}
+                                                </div>
+                                            </TableCell>
+                                            <TableCell className="font-medium">{a.name}</TableCell>
+                                            <TableCell>
+                                                <Badge variant={a.is_active ? 'success' : 'secondary'}>
+                                                    {a.is_active ? 'Active' : 'Inactive'}
+                                                </Badge>
+                                            </TableCell>
+                                            <TableCell className="space-x-2 flex">
+                                                <Button size="sm" variant="outline" onClick={() => handleEdit(a)} icon={<Icons.Edit className="w-4 h-4" />} />
+                                                <Button
+                                                    size="sm"
+                                                    variant="danger"
+                                                    onClick={() => handleDelete(a.id)}
+                                                    disabled={a.is_system_account}
+                                                    icon={<Icons.Trash className="w-4 h-4" />}
+                                                />
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </CardContent>
+                    </Card>
+                </div>
+            </div>
+        </div>
+    )
+}
