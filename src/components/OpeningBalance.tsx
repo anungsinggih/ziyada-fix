@@ -120,8 +120,9 @@ export default function OpeningBalance() {
             } else {
                 setLines([{ account_id: '', debit: 0, credit: 0 }])
             }
-        } catch (err: any) {
-            setError(err.message)
+        } catch (err: unknown) {
+            if (err instanceof Error) setError(err.message)
+            else setError('Unknown error')
         } finally {
             setLoading(false)
         }
@@ -135,7 +136,7 @@ export default function OpeningBalance() {
         setLines(lines.filter((_, i) => i !== index))
     }
 
-    function updateLine(index: number, field: keyof Line, value: any) {
+    function updateLine(index: number, field: keyof Line, value: string | number) {
         const newLines = [...lines]
         newLines[index] = { ...newLines[index], [field]: value }
         setLines(newLines)
@@ -170,8 +171,9 @@ export default function OpeningBalance() {
             if (error) throw error
             setSuccess("Opening Balance saved successfully!")
             fetchHistory() // Refresh history
-        } catch (err: any) {
-            setError(err.message)
+        } catch (err: unknown) {
+            if (err instanceof Error) setError(err.message)
+            else setError('Unknown error')
         } finally {
             setLoading(false)
         }

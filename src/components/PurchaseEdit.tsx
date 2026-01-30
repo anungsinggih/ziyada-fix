@@ -67,8 +67,9 @@ export default function PurchaseEdit() {
 
             setVendors(venData || [])
             setItems(itemData || [])
-        } catch (err: any) {
-            setError(err.message)
+        } catch (err: unknown) {
+            if (err instanceof Error) setError(err.message)
+            else setError('Unknown error')
         }
     }
 
@@ -115,19 +116,23 @@ export default function PurchaseEdit() {
 
             if (itemsError) throw itemsError
 
-            const loadedLines: PurchaseLine[] = itemsData?.map(item => ({
-                item_id: item.item_id,
-                item_name: (item.items as any)?.name || 'Unknown',
-                sku: (item.items as any)?.sku || '',
-                uom: item.uom_snapshot,
-                qty: item.qty,
-                unit_cost: item.unit_cost,
-                subtotal: item.subtotal
-            })) || []
+            const loadedLines: PurchaseLine[] = itemsData?.map(item => {
+                const iData = Array.isArray(item.items) ? item.items[0] : item.items
+                return {
+                    item_id: item.item_id,
+                    item_name: iData?.name || 'Unknown',
+                    sku: iData?.sku || '',
+                    uom: item.uom_snapshot,
+                    qty: item.qty,
+                    unit_cost: item.unit_cost,
+                    subtotal: item.subtotal
+                }
+            }) || []
 
             setLines(loadedLines)
-        } catch (err: any) {
-            setError(err.message || 'Failed to load purchase')
+        } catch (err: unknown) {
+            const msg = err instanceof Error ? err.message : 'Failed to load purchase'
+            setError(msg)
         } finally {
             setLoading(false)
         }
@@ -233,11 +238,12 @@ export default function PurchaseEdit() {
             if (insertError) throw insertError
 
             navigate(`/purchases/${id}`)
-        } catch (err: any) {
-            if (err.message?.includes('immutable')) {
+        } catch (err: unknown) {
+            const msg = err instanceof Error ? err.message : 'Failed to save'
+            if (msg?.includes('immutable')) {
                 setError('Cannot save: Document is POSTED and immutable')
             } else {
-                setError(err.message || 'Failed to save')
+                setError(msg)
             }
         } finally {
             setSaving(false)
@@ -306,7 +312,7 @@ export default function PurchaseEdit() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <Select label="Vendor *" value={vendorId} onChange={(e) => setVendorId(e.target.value)} options={vendors.map(v => ({ label: v.name, value: v.id }))} />
                         <Input label="Date *" type="date" value={purchaseDate} onChange={(e) => setPurchaseDate(e.target.value)} />
-                        <Select label="Terms *" value={terms} onChange={(e) => setTerms(e.target.value as any)} options={[{ label: 'CASH', value: 'CASH' }, { label: 'CREDIT', value: 'CREDIT' }]} />
+                        <Select label="Terms *" value={terms} onChange={(e) => setTerms(e.target.value as 'CASH' | 'CREDIT')} options={[{ label: 'CASH', value: 'CASH' }, { label: 'CREDIT', value: 'CREDIT' }]} />
                         <div className="flex items-end"><div className="flex-1"><p className="text-sm text-gray-600">Total</p><p className="text-2xl font-bold text-green-600">{formatCurrency(totalAmount)}</p></div></div>
                     </div>
                     <Textarea label="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} placeholder="Add notes..." />

@@ -37,6 +37,15 @@ type ReturnItem = {
     cost_snapshot: number
 }
 
+type DraftReturn = {
+    id: string
+    return_date: string
+    sales?: {
+        sales_no: string
+        customer?: { name: string }
+    }
+}
+
 export default function SalesReturn() {
     const [postedSales, setPostedSales] = useState<Sale[]>([])
     const [selectedSaleId, setSelectedSaleId] = useState('')
@@ -47,7 +56,7 @@ export default function SalesReturn() {
     const [loading, setLoading] = useState(false)
 
     // Drafts
-    const [drafts, setDrafts] = useState<any[]>([])
+    const [drafts, setDrafts] = useState<DraftReturn[]>([])
 
     useEffect(() => {
         fetchPostedSales()
@@ -87,10 +96,10 @@ export default function SalesReturn() {
     }, [selectedSaleId])
 
     async function fetchSalesItems(salesId: string) {
-            const { data, error } = await supabase
-                .from('sales_items')
-                .select('*, avg_cost_snapshot, item:items(sku, name)')
-                .eq('sales_id', salesId)
+        const { data, error } = await supabase
+            .from('sales_items')
+            .select('*, avg_cost_snapshot, item:items(sku, name)')
+            .eq('sales_id', salesId)
 
         if (error) setError(error.message)
         else setSalesItems(data || [])
@@ -166,8 +175,9 @@ export default function SalesReturn() {
             setSuccess(`Return Draft Created: ${retData.id}`)
             setLines([])
             setSelectedSaleId('')
-        } catch (err: any) {
-            setError(err.message)
+        } catch (err: unknown) {
+            if (err instanceof Error) setError(err.message)
+            else setError('Unknown error')
         } finally {
             setLoading(false)
         }
@@ -180,8 +190,9 @@ export default function SalesReturn() {
             const { error } = await supabase.rpc('rpc_post_sales_return', { p_return_id: retId })
             if (error) throw error
             setSuccess("Return POSTED Successfully!")
-        } catch (err: any) {
-            setError(err.message)
+        } catch (err: unknown) {
+            if (err instanceof Error) setError(err.message)
+            else setError('Unknown error')
         } finally {
             setLoading(false)
         }

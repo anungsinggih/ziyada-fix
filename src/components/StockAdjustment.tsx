@@ -49,8 +49,9 @@ export default function StockAdjustment() {
             setDelta(0)
             setReason('')
             setItemId('')
-        } catch (err: any) {
-            setError(err.message)
+        } catch (err: unknown) {
+            if (err instanceof Error) setError(err.message)
+            else setError('Unknown error')
         } finally {
             setLoading(false)
         }

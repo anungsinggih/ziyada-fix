@@ -37,6 +37,15 @@ type ReturnItem = {
     subtotal: number
 }
 
+type DraftReturn = {
+    id: string
+    return_date: string
+    purchases?: {
+        purchase_no: string
+        vendor?: { name: string }
+    }
+}
+
 export default function PurchaseReturn() {
     const [postedPurchases, setPostedPurchases] = useState<Purchase[]>([])
     const [selectedPurchaseId, setSelectedPurchaseId] = useState('')
@@ -48,7 +57,7 @@ export default function PurchaseReturn() {
 
 
     // Drafts
-    const [drafts, setDrafts] = useState<any[]>([])
+    const [drafts, setDrafts] = useState<DraftReturn[]>([])
 
     useEffect(() => {
         fetchPostedPurchases()
@@ -163,8 +172,9 @@ export default function PurchaseReturn() {
             setSuccess(`Return Draft Created: ${retData.id}`)
             setLines([])
             setSelectedPurchaseId('')
-        } catch (err: any) {
-            setError(err.message)
+        } catch (err: unknown) {
+            if (err instanceof Error) setError(err.message)
+            else setError('Unknown error')
         } finally {
             setLoading(false)
         }
@@ -179,8 +189,9 @@ export default function PurchaseReturn() {
             if (error) throw error
             setSuccess("Return POSTED Successfully!")
             fetchDraftReturns()
-        } catch (err: any) {
-            setError(err.message)
+        } catch (err: unknown) {
+            if (err instanceof Error) setError(err.message)
+            else setError('Unknown error')
         } finally {
             setLoading(false)
         }

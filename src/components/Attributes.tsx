@@ -1,10 +1,10 @@
 import { SimpleMasterCRUD } from './SimpleMasterCRUD'
 
-export default function MasterData() {
+export default function Attributes() {
     return (
         <div className="w-full space-y-6">
             <div className="flex justify-between items-center">
-                <h2 className="text-2xl font-bold tracking-tight">Attributes</h2>
+                <h2 className="text-2xl font-bold tracking-tight">Product Attributes</h2>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { supabase } from '../supabaseClient'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/Card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/Table'
@@ -34,6 +34,29 @@ export default function Journals() {
     const [startDate, setStartDate] = useState('')
     const [endDate, setEndDate] = useState('')
 
+    const filterJournals = useCallback(() => {
+        let filtered = [...journals]
+
+        // Filter by search term (memo or ref_type)
+        if (searchTerm) {
+            filtered = filtered.filter(j =>
+                j.memo?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                j.ref_type?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                j.ref_id?.toLowerCase().includes(searchTerm.toLowerCase())
+            )
+        }
+
+        // Filter by date range
+        if (startDate) {
+            filtered = filtered.filter(j => j.journal_date >= startDate)
+        }
+        if (endDate) {
+            filtered = filtered.filter(j => j.journal_date <= endDate)
+        }
+
+        setFilteredJournals(filtered)
+    }, [journals, searchTerm, startDate, endDate])
+
     useEffect(() => {
         fetchJournals()
         // Set default date range to current month
@@ -45,7 +68,7 @@ export default function Journals() {
 
     useEffect(() => {
         filterJournals()
-    }, [searchTerm, startDate, endDate, journals])
+    }, [filterJournals])
 
     async function fetchJournals() {
         setLoading(true)
@@ -80,14 +103,17 @@ export default function Journals() {
 
             // Group lines by journal_id
             const linesMap: { [key: string]: JournalLine[] } = {}
-            linesData?.forEach((line: any) => {
+            linesData?.forEach((line) => {
                 if (!linesMap[line.journal_id]) {
                     linesMap[line.journal_id] = []
                 }
+
+                const account = Array.isArray(line.accounts) ? line.accounts[0] : line.accounts
+
                 linesMap[line.journal_id].push({
                     id: line.id,
-                    account_code: line.accounts?.code || '',
-                    account_name: line.accounts?.name || '',
+                    account_code: account?.code || '',
+                    account_name: account?.name || '',
                     debit: line.debit || 0,
                     credit: line.credit || 0
                 })
@@ -101,34 +127,12 @@ export default function Journals() {
 
             setJournals(enrichedJournals)
             setFilteredJournals(enrichedJournals)
-        } catch (err: any) {
-            setError(err.message || 'Failed to fetch journals')
+        } catch (err: unknown) {
+            const msg = err instanceof Error ? err.message : 'Failed to fetch journals'
+            setError(msg)
         } finally {
             setLoading(false)
         }
-    }
-
-    function filterJournals() {
-        let filtered = [...journals]
-
-        // Filter by search term (memo or ref_type)
-        if (searchTerm) {
-            filtered = filtered.filter(j =>
-                j.memo?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                j.ref_type?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                j.ref_id?.toLowerCase().includes(searchTerm.toLowerCase())
-            )
-        }
-
-        // Filter by date range
-        if (startDate) {
-            filtered = filtered.filter(j => j.journal_date >= startDate)
-        }
-        if (endDate) {
-            filtered = filtered.filter(j => j.journal_date <= endDate)
-        }
-
-        setFilteredJournals(filtered)
     }
 
     function formatCurrency(amount: number) {
@@ -218,7 +222,7 @@ export default function Journals() {
                 <div className="flex flex-wrap gap-2 text-xs text-gray-500">
                     <span>Total: {formatCurrency(journals.reduce((sum, j) => sum + j.lines.reduce((s, l) => s + l.debit + l.credit, 0), 0))}</span>
                     <span className="hidden sm:inline-block">·</span>
-                    <span>Balanced count: {filteredJournals.filter(j => j.lines.reduce((s,l)=>s+l.debit,0) === j.lines.reduce((s,l)=>s+l.credit,0)).length}</span>
+                    <span>Balanced count: {filteredJournals.filter(j => j.lines.reduce((s, l) => s + l.debit, 0) === j.lines.reduce((s, l) => s + l.credit, 0)).length}</span>
                 </div>
             </div>
 

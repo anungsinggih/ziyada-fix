@@ -62,8 +62,9 @@ export default function COA() {
 
             resetForm()
             fetchAccounts()
-        } catch (err: any) {
-            setError(err.message)
+        } catch (err: unknown) {
+            if (err instanceof Error) setError(err.message)
+            else setError('An unknown error occurred')
         }
     }
 

@@ -59,9 +59,10 @@ export function ImageUpload({ value, onChange, folder = 'uploads' }: ImageUpload
             onChange(publicUrl)
             setProgress(100)
 
-        } catch (err: any) {
+        } catch (err: unknown) {
             console.error(err)
-            setError(err.message || 'Upload failed')
+            const msg = err instanceof Error ? err.message : 'Upload failed'
+            setError(msg)
         } finally {
             setUploading(false)
             if (fileInputRef.current) fileInputRef.current.value = '' // Reset input

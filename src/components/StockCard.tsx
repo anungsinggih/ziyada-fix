@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { supabase } from '../supabaseClient'
 import { Button } from './ui/Button'
 import { Input } from './ui/Input'
@@ -23,25 +23,50 @@ export default function StockCard() {
     const [error, setError] = useState<string | null>(null)
 
     // Date Filter
-    const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0])
-    const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0])
+    const [startDate, setStartDate] = useState(() => {
+        const d = new Date(); d.setDate(1);
+        return d.toISOString().split('T')[0]
+    })
+    const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0])
 
-    const [displayList, setDisplayList] = useState<any[]>([])
+    interface DisplayItem {
+        trx_date: string;
+        trx_type: string;
+        ref_no: string;
+        qty_in: number;
+        qty_out: number;
+        balance: number;
+    }
+    const [displayList, setDisplayList] = useState<DisplayItem[]>([])
 
-    useEffect(() => {
-        fetchItems()
-        const d = new Date(); d.setDate(1); setStartDate(d.toISOString().split('T')[0])
-    }, [])
-
-    async function fetchItems() {
+    const fetchItems = useCallback(async () => {
         const { data, error } = await supabase.from('items').select('id, name, sku, uom').order('name')
         if (error) setError(error.message)
         else setItems(data || [])
-    }
+    }, [])
 
-    useEffect(() => { if (itemId) fetchCard() }, [itemId, startDate, endDate])
+    useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        fetchItems()
+    }, [fetchItems])
 
-    async function fetchCard() {
+    const processList = useCallback((opening: number, list: StockMovement[]) => {
+        let running: number = opening
+        const res: DisplayItem[] = []
+        res.push({ trx_date: startDate, trx_type: 'OPENING', ref_no: '-', qty_in: 0, qty_out: 0, balance: opening })
+        list.forEach(m => {
+            running += m.qty_change
+            res.push({
+                trx_date: m.trx_date, trx_type: m.trx_type, ref_no: m.ref_no,
+                qty_in: m.qty_change > 0 ? m.qty_change : 0,
+                qty_out: m.qty_change < 0 ? Math.abs(m.qty_change) : 0,
+                balance: running
+            })
+        })
+        setDisplayList(res)
+    }, [startDate])
+
+    const fetchCard = useCallback(async () => {
         setError(null)
         // 1. Opening
         const { data: openData, error: openError } = await supabase.from('view_stock_card')
@@ -56,23 +81,14 @@ export default function StockCard() {
 
         if (movError) { setError(movError.message); return }
         if (movData) processList(openingQty, movData as StockMovement[])
-    }
+    }, [itemId, startDate, endDate, processList])
 
-    function processList(opening: number, list: StockMovement[]) {
-        let running = opening
-        const res = []
-        res.push({ trx_date: startDate, trx_type: 'OPENING', ref_no: '-', qty_in: 0, qty_out: 0, balance: opening })
-        list.forEach(m => {
-            running += m.qty_change
-            res.push({
-                trx_date: m.trx_date, trx_type: m.trx_type, ref_no: m.ref_no,
-                qty_in: m.qty_change > 0 ? m.qty_change : 0,
-                qty_out: m.qty_change < 0 ? Math.abs(m.qty_change) : 0,
-                balance: running
-            })
-        })
-        setDisplayList(res)
-    }
+    useEffect(() => {
+        if (itemId) {
+            // eslint-disable-next-line react-hooks/set-state-in-effect
+            fetchCard()
+        }
+    }, [itemId, startDate, endDate, fetchCard])
 
     return (
         <div className="w-full space-y-6">

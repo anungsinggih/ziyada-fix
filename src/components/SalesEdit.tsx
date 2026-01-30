@@ -71,8 +71,9 @@ export default function SalesEdit() {
 
             setCustomers(custData || [])
             setItems(itemData || [])
-        } catch (err: any) {
-            setError(err.message)
+        } catch (err: unknown) {
+            if (err instanceof Error) setError(err.message)
+            else setError('Unknown error')
         }
     }
 
@@ -122,19 +123,24 @@ export default function SalesEdit() {
 
             if (itemsError) throw itemsError
 
-            const loadedLines: SalesLine[] = itemsData?.map(item => ({
-                item_id: item.item_id,
-                item_name: (item.items as any)?.name || 'Unknown',
-                sku: (item.items as any)?.sku || '',
-                uom: item.uom_snapshot,
-                qty: item.qty,
-                unit_price: item.unit_price,
-                subtotal: item.subtotal
-            })) || []
+            const loadedLines: SalesLine[] = itemsData?.map(item => {
+                // Determine item name/sku from joined data (singular or array)
+                const iData = Array.isArray(item.items) ? item.items[0] : item.items
+                return {
+                    item_id: item.item_id,
+                    item_name: iData?.name || 'Unknown',
+                    sku: iData?.sku || '',
+                    uom: item.uom_snapshot,
+                    qty: item.qty,
+                    unit_price: item.unit_price,
+                    subtotal: item.subtotal
+                }
+            }) || []
 
             setLines(loadedLines)
-        } catch (err: any) {
-            setError(err.message || 'Failed to load sales')
+        } catch (err: unknown) {
+            const msg = err instanceof Error ? err.message : 'Failed to load sales'
+            setError(msg)
         } finally {
             setLoading(false)
         }
@@ -247,11 +253,12 @@ export default function SalesEdit() {
 
             // Success - redirect to detail
             navigate(`/sales/${id}`)
-        } catch (err: any) {
-            if (err.message?.includes('immutable')) {
+        } catch (err: unknown) {
+            const msg = err instanceof Error ? err.message : 'Failed to save'
+            if (msg?.includes('immutable')) {
                 setError('Cannot save: Document is POSTED and immutable')
             } else {
-                setError(err.message || 'Failed to save')
+                setError(msg)
             }
         } finally {
             setSaving(false)

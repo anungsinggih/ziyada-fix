@@ -1,0 +1,76 @@
+
+> new-mvp-ziyada@0.0.0 lint
+> eslint .
+
+
+/home/ubuntuys/project/new-mvp-ziyada/src/components/PeriodLock.tsx
+  132:5  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/home/ubuntuys/project/new-mvp-ziyada/src/components/PeriodLock.tsx:132:5
+  130 |   // Use effects at the end of definitions
+  131 |   useEffect(() => {
+> 132 |     fetchPeriods();
+      |     ^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  133 |   }, [fetchPeriods]);
+  134 |
+  135 |   return (  react-hooks/set-state-in-effect
+
+/home/ubuntuys/project/new-mvp-ziyada/src/components/PurchaseReturn.tsx
+  51:42  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/home/ubuntuys/project/new-mvp-ziyada/src/components/PurchaseReturnDetail.tsx
+   78:55  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   79:55  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  103:43  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  104:37  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  106:23  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  123:23  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/home/ubuntuys/project/new-mvp-ziyada/src/components/SalesReturn.tsx
+  50:42  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/home/ubuntuys/project/new-mvp-ziyada/src/components/SimpleMasterCRUD.tsx
+  51:43  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/home/ubuntuys/project/new-mvp-ziyada/src/components/StockCard.tsx
+  49:9   error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/home/ubuntuys/project/new-mvp-ziyada/src/components/StockCard.tsx:49:9
+  47 |
+  48 |     useEffect(() => {
+> 49 |         fetchItems()
+     |         ^^^^^^^^^^ Avoid calling setState() directly within an effect
+  50 |     }, [fetchItems])
+  51 |
+  52 |     const processList = useCallback((opening: number, list: StockMovement[]) => {                                                                                    react-hooks/set-state-in-effect
+  85:37  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/home/ubuntuys/project/new-mvp-ziyada/src/components/StockCard.tsx:85:37
+  83 |     }, [itemId, startDate, endDate, processList])
+  84 |
+> 85 |     useEffect(() => { if (itemId) { fetchCard() } }, [itemId, startDate, endDate, fetchCard])
+     |                                     ^^^^^^^^^ Avoid calling setState() directly within an effect
+  86 |
+  87 |     return (
+  88 |         <div className="w-full space-y-6">  react-hooks/set-state-in-effect
+
+✖ 12 problems (12 errors, 0 warnings)
+

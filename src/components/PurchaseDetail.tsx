@@ -97,7 +97,7 @@ export default function PurchaseDetail() {
 
       setPurchase({
         ...purchaseData,
-        vendor_name: (purchaseData.vendors as any)?.name || "Unknown",
+        vendor_name: (purchaseData.vendors as unknown as { name: string })?.name || "Unknown",
       });
 
       // Fetch items
@@ -124,8 +124,8 @@ export default function PurchaseDetail() {
       setItems(
         itemsData?.map((item) => ({
           ...item,
-          item_name: (item.items as any)?.name || "Unknown",
-          sku: (item.items as any)?.sku || "",
+          item_name: (item.items as unknown as { name: string })?.name || "Unknown",
+          sku: (item.items as unknown as { sku: string })?.sku || "",
         })) || [],
       );
 
@@ -164,8 +164,8 @@ export default function PurchaseDetail() {
 
         setRelatedDocs(related);
       }
-    } catch (err: any) {
-      setError(err.message || "Failed to fetch purchase detail");
+    } catch (err: unknown) {
+      if (err instanceof Error) setError(err.message || "Failed to fetch purchase detail");
     } finally {
       setLoading(false);
     }
@@ -185,8 +185,8 @@ export default function PurchaseDetail() {
       if (error) throw error;
       setDeleteSuccess("Draft berhasil dihapus, kembali ke daftar...");
       setTimeout(() => navigate("/purchases/history"), 700);
-    } catch (err: any) {
-      setDeleteError(err.message);
+    } catch (err: unknown) {
+      if (err instanceof Error) setDeleteError(err.message);
     } finally {
       setIsDeleting(false);
     }

@@ -98,8 +98,9 @@ export default function Reporting() {
                 if (error) throw error
                 setData(data || [])
             }
-        } catch (err: any) {
-            setError(err.message)
+        } catch (err: unknown) {
+            const msg = err instanceof Error ? err.message : 'Unknown error'
+            setError(msg)
         } finally {
             setLoading(false)
         }

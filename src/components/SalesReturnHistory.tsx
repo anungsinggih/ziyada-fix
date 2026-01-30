@@ -58,14 +58,14 @@ export default function SalesReturnHistory() {
 
             const enriched = data?.map(ret => ({
                 ...ret,
-                sales_no: (ret.sales as any)?.sales_no || 'N/A',
-                customer_name: (ret.sales as any)?.customers?.name || 'Unknown'
+                sales_no: (ret.sales as unknown as { sales_no: string })?.sales_no || 'N/A',
+                customer_name: (ret.sales as unknown as { customers: { name: string } })?.customers?.name || 'Unknown'
                 , return_no: ret.return_no || ret.id.substring(0, 8)
             })) || []
 
             setReturns(enriched)
-        } catch (err: any) {
-            setError(err.message || 'Failed to fetch sales returns')
+        } catch (err: unknown) {
+            if (err instanceof Error) setError(err.message || 'Failed to fetch sales returns')
         } finally {
             setLoading(false)
         }

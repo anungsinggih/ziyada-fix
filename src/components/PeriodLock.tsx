@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { supabase } from "../supabaseClient";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/Card";
 import { Button } from "./ui/Button";
@@ -47,11 +47,9 @@ export default function PeriodLock() {
   const [selectedPeriodId, setSelectedPeriodId] = useState("");
   const [logs, setLogs] = useState<ExportLog[]>([]);
 
-  useEffect(() => {
-    fetchPeriods();
-  }, []);
-
-  async function fetchPeriods() {
+  // -- 1. PERIODS OPS --
+  // Wrap in useCallback to allow usage in useEffect dependency
+  const fetchPeriods = useCallback(async () => {
     setLoading(true);
     const { data, error } = await supabase
       .from("accounting_periods")
@@ -61,7 +59,7 @@ export default function PeriodLock() {
     if (error) setError(error.message);
     else setPeriods(data || []);
     setLoading(false);
-  }
+  }, []);
 
   async function handleCreate() {
     if (!formData.name || !formData.start_date || !formData.end_date) {
@@ -100,8 +98,8 @@ export default function PeriodLock() {
     else fetchPeriods();
   }
 
-  // Exports (T075, T076)
-  async function fetchLogs(periodId: string) {
+  // -- 2. EXPORTS OPS --
+  const fetchLogs = useCallback(async (periodId: string) => {
     setSelectedPeriodId(periodId);
     const { data, error } = await supabase
       .from("period_exports")
@@ -111,7 +109,7 @@ export default function PeriodLock() {
 
     if (error) setError(error.message);
     else setLogs(data || []);
-  }
+  }, []);
 
   async function handleExport(type: string) {
     if (!selectedPeriodId) return;
@@ -128,6 +126,12 @@ export default function PeriodLock() {
       fetchLogs(selectedPeriodId);
     }
   }
+
+  // Use effects at the end of definitions
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchPeriods();
+  }, [fetchPeriods]);
 
   return (
     <div className="w-full space-y-8">

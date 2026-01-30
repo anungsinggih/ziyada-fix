@@ -75,8 +75,8 @@ export default function SalesReturnDetail() {
 
             setReturnDoc({
                 ...returnData,
-                sales_no: (returnData.sales as any)?.sales_no || 'N/A',
-                customer_name: (returnData.sales as any)?.customers?.name || 'Unknown'
+                sales_no: (returnData.sales as unknown as { sales_no: string })?.sales_no || 'N/A',
+                customer_name: (returnData.sales as unknown as { customers: { name: string } })?.customers?.name || 'Unknown'
             })
 
             // Fetch items
@@ -101,11 +101,11 @@ export default function SalesReturnDetail() {
 
             setItems(itemsData?.map(item => ({
                 ...item,
-                item_name: (item.items as any)?.name || 'Unknown',
-                sku: (item.items as any)?.sku || ''
+                item_name: (item.items as unknown as { name: string })?.name || 'Unknown',
+                sku: (item.items as unknown as { sku: string })?.sku || ''
             })) || [])
-        } catch (err: any) {
-            setError(err.message || 'Failed to fetch return detail')
+        } catch (err: unknown) {
+            if (err instanceof Error) setError(err.message || 'Failed to fetch return detail')
         } finally {
             setLoading(false)
         }

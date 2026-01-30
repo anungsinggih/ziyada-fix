@@ -51,9 +51,10 @@ export default function CompanySettings() {
                     logo_url: ''
                 })
             }
-        } catch (error: any) {
+        } catch (error: unknown) {
             // .single() returns error if no rows found, which is expected for fresh DB
-            if (error.code === 'PGRST116') {
+            const pgError = error as { code?: string, message?: string }
+            if (pgError?.code === 'PGRST116') {
                 setProfile({
                     id: '',
                     name: '',
@@ -117,9 +118,10 @@ export default function CompanySettings() {
             }
 
             setMessage({ type: 'success', text: 'Settings saved successfully' })
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('Error updating profile:', error)
-            setMessage({ type: 'error', text: 'Failed to save settings: ' + error.message })
+            const msg = error instanceof Error ? error.message : 'Unknown error'
+            setMessage({ type: 'error', text: 'Failed to save settings: ' + msg })
         } finally {
             setSaving(false)
         }

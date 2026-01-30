@@ -71,12 +71,12 @@ export default function PurchaseHistory() {
       const enriched =
         data?.map((purchase) => ({
           ...purchase,
-          vendor_name: (purchase.vendors as any)?.name || "Unknown",
+          vendor_name: (purchase.vendors as unknown as { name: string })?.name || "Unknown",
         })) || [];
 
       setPurchases(enriched);
-    } catch (err: any) {
-      setError(err.message || "Failed to fetch purchases");
+    } catch (err: unknown) {
+      if (err instanceof Error) setError(err.message || "Failed to fetch purchases");
     } finally {
       setLoading(false);
     }
@@ -110,9 +110,9 @@ export default function PurchaseHistory() {
 
       setSuccess("Purchase posted successfully!");
       navigate(`/purchases/${purchaseId}`);
-    } catch (err: any) {
+    } catch (err: unknown) {
       setSuccess(null);
-      setError(err.message || "Failed to post purchase");
+      if (err instanceof Error) setError(err.message || "Failed to post purchase");
     } finally {
       setPostingId(null);
     }

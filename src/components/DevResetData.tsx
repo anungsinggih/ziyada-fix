@@ -44,8 +44,9 @@ export default function DevResetData() {
             setSuccess(`Reset completed successfully!\n\nMode: ${data.mode}\nRecords affected: ${data.affected_records}\nTime: ${new Date(data.reset_at).toLocaleString()}`)
             setConfirmText('')
             setNotes('')
-        } catch (err: any) {
-            setError(err.message || 'Failed to reset data')
+        } catch (err: unknown) {
+            const msg = err instanceof Error ? err.message : 'Failed to reset data'
+            setError(msg)
         } finally {
             setLoading(false)
         }

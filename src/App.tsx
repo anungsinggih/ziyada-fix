@@ -36,12 +36,41 @@ const DevResetData = lazy(() => import('./components/DevResetData'))
 const Journals = lazy(() => import('./components/Journals'))
 const Dashboard = lazy(() => import('./components/Dashboard'))
 const CompanySettings = lazy(() => import('./components/CompanySettings'))
-const MasterData = lazy(() => import('./components/MasterData'))
+const Attributes = lazy(() => import('./components/Attributes'))
 const ProductParents = lazy(() => import('./components/ProductParents'))
 const BrandsCategories = lazy(() => import('./components/BrandsCategories'))
 
+import type { Session } from '@supabase/supabase-js'
+
+// ... imports
+
+
+
+function SidebarGroup({ title, children, defaultOpen = false }: { title: string, children: React.ReactNode, defaultOpen?: boolean }) {
+  const [isOpen, setIsOpen] = useState(defaultOpen)
+  return (
+    <div className="mb-2">
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full flex items-center justify-between px-2 py-2 text-xs font-semibold text-slate-500 uppercase tracking-wider hover:text-slate-300 transition-colors focus:outline-none group"
+      >
+        <span>{title}</span>
+        {isOpen ?
+          <Icons.ChevronDown className="w-3 h-3 text-slate-600 group-hover:text-slate-400" /> :
+          <Icons.ChevronRight className="w-3 h-3 text-slate-600 group-hover:text-slate-400" />
+        }
+      </button>
+      {isOpen && (
+        <div className="mt-1 animate-in slide-in-from-top-1 duration-200">
+          {children}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function App() {
-  const [session, setSession] = useState<any>(null)
+  const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
@@ -131,57 +160,52 @@ function App() {
               <span className="font-medium">Dashboard</span>
             </Link>
 
-            <div className="space-y-6">
+            <div className="space-y-4">
               {/* Transactions Group */}
-              <div>
-                <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 px-2">Sales</h3>
+              <SidebarGroup title="Sales">
                 <ul className="space-y-1 px-2">
                   <li><Link to="/sales/history" className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-slate-800 hover:text-white transition-colors text-sm text-slate-300"><Icons.FileText className="w-4 h-4" /> Sales History</Link></li>
                   <li><Link to="/sales-returns/history" className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-slate-800 hover:text-white transition-colors text-sm text-slate-300"><Icons.FileText className="w-4 h-4" /> Sales Return History</Link></li>
                 </ul>
-              </div>
+              </SidebarGroup>
 
-              <div>
-                <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 px-2">Purchases</h3>
+              <SidebarGroup title="Purchases">
                 <ul className="space-y-1 px-2">
                   <li><Link to="/purchases/history" className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-slate-800 hover:text-white transition-colors text-sm text-slate-300"><Icons.FileText className="w-4 h-4" /> Purchase History</Link></li>
                   <li><Link to="/purchase-returns/history" className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-slate-800 hover:text-white transition-colors text-sm text-slate-300"><Icons.FileText className="w-4 h-4" /> Purchase Return History</Link></li>
                 </ul>
-              </div>
-              <div>
-                <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3 px-2">Finance</h3>
-                <ul className="space-y-1">
+              </SidebarGroup>
+
+              <SidebarGroup title="Finance">
+                <ul className="space-y-1 px-2">
                   <li><Link to="/finance" className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-slate-800 hover:text-white transition-colors text-sm text-slate-300"><Icons.DollarSign className="w-4 h-4" /> Finance (AR/AP)</Link></li>
                 </ul>
-              </div>
+              </SidebarGroup>
 
               {/* Inventory Group */}
-              <div>
-                <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3 px-2">Inventory</h3>
-                <ul className="space-y-1">
+              <SidebarGroup title="Inventory">
+                <ul className="space-y-1 px-2">
                   <li><Link to="/stock-adj" className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-slate-800 hover:text-white transition-colors text-sm text-slate-300"><Icons.Edit className="w-4 h-4" /> Stock Adj</Link></li>
                   <li><Link to="/opening-stock" className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-slate-800 hover:text-white transition-colors text-sm text-slate-300"><Icons.Package className="w-4 h-4" /> Opening Stock</Link></li>
                   <li><Link to="/stock-card" className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-slate-800 hover:text-white transition-colors text-sm text-slate-300"><Icons.FileText className="w-4 h-4" /> Stock Card</Link></li>
                 </ul>
-              </div>
+              </SidebarGroup>
 
               {/* Master Data */}
-              <div>
-                <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3 px-2">Master Data</h3>
-                <ul className="space-y-1">
-                  <li><Link to="/items" className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-slate-800 hover:text-white transition-colors text-sm text-slate-300"><Icons.Package className="w-4 h-4" /> Items</Link></li>
-                  <li><Link to="/master-data" className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-slate-800 hover:text-white transition-colors text-sm text-slate-300"><Icons.Settings className="w-4 h-4" /> Attributes & Groups</Link></li>
-                  <li><Link to="/brands-categories" className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-slate-800 hover:text-white transition-colors text-sm text-slate-300"><Icons.Tag className="w-4 h-4" /> Brands & Categories</Link></li>
+              <SidebarGroup title="Master Data">
+                <ul className="space-y-1 px-2">
                   <li><Link to="/product-parents" className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-slate-800 hover:text-white transition-colors text-sm text-slate-300"><Icons.Copy className="w-4 h-4" /> Product Parents</Link></li>
+                  <li><Link to="/items" className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-slate-800 hover:text-white transition-colors text-sm text-slate-300"><Icons.Package className="w-4 h-4" /> Items</Link></li>
+                  <li><Link to="/attributes" className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-slate-800 hover:text-white transition-colors text-sm text-slate-300"><Icons.Settings className="w-4 h-4" /> Attributes & Groups</Link></li>
+                  <li><Link to="/brands-categories" className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-slate-800 hover:text-white transition-colors text-sm text-slate-300"><Icons.Tag className="w-4 h-4" /> Brands & Categories</Link></li>
                   <li><Link to="/customers" className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-slate-800 hover:text-white transition-colors text-sm text-slate-300"><Icons.Users className="w-4 h-4" /> Customers</Link></li>
                   <li><Link to="/vendors" className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-slate-800 hover:text-white transition-colors text-sm text-slate-300"><Icons.Users className="w-4 h-4" /> Vendors</Link></li>
                 </ul>
-              </div>
+              </SidebarGroup>
 
               {/* Accounting */}
-              <div>
-                <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3 px-2">Accounting</h3>
-                <ul className="space-y-1">
+              <SidebarGroup title="Accounting">
+                <ul className="space-y-1 px-2">
                   <li><Link to="/coa" className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-slate-800 hover:text-white transition-colors text-sm text-slate-300"><Icons.FileText className="w-4 h-4" /> COA</Link></li>
                   <li><Link to="/opening-balance" className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-slate-800 hover:text-white transition-colors text-sm text-slate-300"><Icons.DollarSign className="w-4 h-4" /> Opening Balance</Link></li>
                   <li><Link to="/journals" className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-slate-800 hover:text-white transition-colors text-sm text-slate-300"><Icons.FileText className="w-4 h-4" /> Journals</Link></li>
@@ -189,16 +213,15 @@ function App() {
                   <li><Link to="/period-lock" className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-slate-800 hover:text-white transition-colors text-sm text-slate-300"><Icons.Info className="w-4 h-4" /> Period Lock</Link></li>
                   <li><Link to="/period-reports" className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-slate-800 hover:text-white transition-colors text-sm text-slate-300"><Icons.FileText className="w-4 h-4" /> Period Reports</Link></li>
                 </ul>
-              </div>
+              </SidebarGroup>
 
               {/* System */}
-              <div>
-                <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3 px-2">System</h3>
-                <ul className="space-y-1">
+              <SidebarGroup title="System">
+                <ul className="space-y-1 px-2">
                   <li><Link to="/settings" className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-slate-800 hover:text-white transition-colors text-sm text-slate-300"><Icons.Settings className="w-4 h-4" /> Settings</Link></li>
                   <li><button onClick={handleLogout} className="w-full text-left flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-slate-800 hover:text-white transition-colors text-sm text-slate-300"><Icons.Close className="w-4 h-4" /> Sign Out</button></li>
                 </ul>
-              </div>
+              </SidebarGroup>
             </div>
 
             {/* DEV ONLY Section */}
@@ -251,7 +274,7 @@ function App() {
               <Route path="/period-lock" element={<PeriodLock />} />
               <Route path="/period-reports" element={<PeriodLock />} />
               <Route path="/settings" element={<CompanySettings />} />
-              <Route path="/master-data" element={<MasterData />} />
+              <Route path="/attributes" element={<Attributes />} />
               <Route path="/brands-categories" element={<BrandsCategories />} />
               <Route path="/product-parents" element={<ProductParents />} />
               {/* DEV ONLY Route */}

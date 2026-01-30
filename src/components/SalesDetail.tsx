@@ -111,7 +111,7 @@ export default function SalesDetail() {
 
       setSale({
         ...saleData,
-        customer_name: (saleData.customers as any)?.name || "Unknown",
+        customer_name: (saleData.customers as unknown as { name: string })?.name || "Unknown",
       });
 
       // Fetch items
@@ -138,8 +138,8 @@ export default function SalesDetail() {
       setItems(
         itemsData?.map((item) => ({
           ...item,
-          item_name: (item.items as any)?.name || "Unknown",
-          sku: (item.items as any)?.sku || "",
+          item_name: (item.items as unknown as { name: string })?.name || "Unknown",
+          sku: (item.items as unknown as { sku: string })?.sku || "",
         })) || [],
       );
 
@@ -193,8 +193,8 @@ export default function SalesDetail() {
 
         setRelatedDocs(related);
       }
-    } catch (err: any) {
-      setError(err.message || "Failed to fetch sales detail");
+    } catch (err: unknown) {
+      if (err instanceof Error) setError(err.message || "Failed to fetch sales detail");
     } finally {
       setLoading(false);
     }
@@ -222,8 +222,8 @@ export default function SalesDetail() {
       if (error) throw error;
       setDeleteSuccess("Draft berhasil dihapus, kembali ke daftar...");
       setTimeout(() => navigate("/sales/history"), 700);
-    } catch (err: any) {
-      setDeleteError(err.message);
+    } catch (err: unknown) {
+      if (err instanceof Error) setDeleteError(err.message);
     } finally {
       setIsDeleting(false);
     }

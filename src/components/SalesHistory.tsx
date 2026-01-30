@@ -71,12 +71,12 @@ export default function SalesHistory() {
       const enriched =
         data?.map((sale) => ({
           ...sale,
-          customer_name: (sale.customers as any)?.name || "Unknown",
+          customer_name: (sale.customers as unknown as { name: string })?.name || "Unknown",
         })) || [];
 
       setSales(enriched);
-    } catch (err: any) {
-      setError(err.message || "Failed to fetch sales");
+    } catch (err: unknown) {
+      if (err instanceof Error) setError(err.message || "Failed to fetch sales");
     } finally {
       setLoading(false);
     }
@@ -112,9 +112,9 @@ export default function SalesHistory() {
 
       setSuccess("Sales posted successfully!");
       navigate(`/sales/${saleId}`);
-    } catch (err: any) {
+    } catch (err: unknown) {
       setSuccess(null);
-      setError(err.message || "Failed to post sales");
+      if (err instanceof Error) setError(err.message || "Failed to post sales");
     } finally {
       setPostingId(null);
     }

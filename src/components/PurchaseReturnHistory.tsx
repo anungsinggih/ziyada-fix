@@ -58,14 +58,14 @@ export default function PurchaseReturnHistory() {
 
             const enriched = data?.map(ret => ({
                 ...ret,
-                purchase_no: (ret.purchases as any)?.purchase_no || 'N/A',
-                vendor_name: (ret.purchases as any)?.vendors?.name || 'Unknown',
+                purchase_no: (ret.purchases as unknown as { purchase_no: string })?.purchase_no || 'N/A',
+                vendor_name: (ret.purchases as unknown as { vendors: { name: string } })?.vendors?.name || 'Unknown',
                 return_no: ret.return_no || ret.id.substring(0, 8)
             })) || []
 
             setReturns(enriched)
-        } catch (err: any) {
-            setError(err.message || 'Failed to fetch purchase returns')
+        } catch (err: unknown) {
+            if (err instanceof Error) setError(err.message || 'Failed to fetch purchase returns')
         } finally {
             setLoading(false)
         }
@@ -135,15 +135,15 @@ export default function PurchaseReturnHistory() {
                         <div className="overflow-x-auto">
                             <Table>
                                 <TableHead>
-                                <TableRow>
-                                    <TableHeader>Return Date</TableHeader>
-                                    <TableHeader>Return No</TableHeader>
-                                    <TableHeader>Original Purchase</TableHeader>
-                                    <TableHeader>Vendor</TableHeader>
-                                    <TableHeader className="text-right">Total</TableHeader>
-                                    <TableHeader>Status</TableHeader>
-                                    <TableHeader>Actions</TableHeader>
-                                </TableRow>
+                                    <TableRow>
+                                        <TableHeader>Return Date</TableHeader>
+                                        <TableHeader>Return No</TableHeader>
+                                        <TableHeader>Original Purchase</TableHeader>
+                                        <TableHeader>Vendor</TableHeader>
+                                        <TableHeader className="text-right">Total</TableHeader>
+                                        <TableHeader>Status</TableHeader>
+                                        <TableHeader>Actions</TableHeader>
+                                    </TableRow>
                                 </TableHead>
                                 <TableBody>
                                     {returns.map((ret) => (

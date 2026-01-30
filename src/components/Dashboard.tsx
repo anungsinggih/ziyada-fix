@@ -15,8 +15,20 @@ type DashboardMetrics = {
     purchases_count_month: number
     low_stock_count: number
     total_items: number
-    recent_sales: any[]
-    recent_purchases: any[]
+    recent_sales: {
+        id: string
+        sales_no: string
+        customer_name: string
+        total_amount: number
+        status: string
+    }[]
+    recent_purchases: {
+        id: string
+        purchase_no: string
+        vendor_name: string
+        total_amount: number
+        status: string
+    }[]
 }
 
 export default function Dashboard() {

@@ -75,8 +75,8 @@ export default function PurchaseReturnDetail() {
 
             setReturnDoc({
                 ...returnData,
-                purchase_no: (returnData.purchases as any)?.purchase_no || 'N/A',
-                vendor_name: (returnData.purchases as any)?.vendors?.name || 'Unknown'
+                purchase_no: (returnData.purchases as unknown as { purchase_no: string })?.purchase_no || 'N/A',
+                vendor_name: (returnData.purchases as unknown as { vendors: { name: string } })?.vendors?.name || 'Unknown'
             })
 
             // Fetch items
@@ -100,11 +100,11 @@ export default function PurchaseReturnDetail() {
 
             setItems(itemsData?.map(item => ({
                 ...item,
-                item_name: (item.items as any)?.name || 'Unknown',
-                sku: (item.items as any)?.sku || ''
+                item_name: (item.items as unknown as { name: string })?.name || 'Unknown',
+                sku: (item.items as unknown as { sku: string })?.sku || ''
             })) || [])
-        } catch (err: any) {
-            setError(err.message || 'Failed to fetch return detail')
+        } catch (err: unknown) {
+            if (err instanceof Error) setError(err.message || 'Failed to fetch return detail')
         } finally {
             setLoading(false)
         }
@@ -120,8 +120,9 @@ export default function PurchaseReturnDetail() {
             if (error) throw error
             alert("Return POSTED Successfully!")
             fetchReturnDetail(returnDoc.id)
-        } catch (err: any) {
-            setError(err.message)
+        } catch (err: unknown) {
+            if (err instanceof Error) setError(err.message)
+            else setError('Unknown error')
         } finally {
             setPosting(false)
         }
