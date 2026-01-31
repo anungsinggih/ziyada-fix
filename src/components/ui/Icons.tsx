@@ -98,6 +98,9 @@ export const Icons = {
     Check: (props: IconProps) => (
         <IconWrapper {...props}><polyline points="20 6 9 17 4 12" /></IconWrapper>
     ),
+    Upload: (props: IconProps) => (
+        <IconWrapper {...props}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></IconWrapper>
+    ),
     MoreVertical: (props: IconProps) => (
         <IconWrapper {...props}><circle cx="12" cy="12" r="1" /><circle cx="12" cy="5" r="1" /><circle cx="12" cy="19" r="1" /></IconWrapper>
     ),

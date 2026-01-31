@@ -9,6 +9,7 @@ import { Icons } from './ui/Icons'
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/Dialog'
 import ItemForm from './ItemForm'
+import { ItemImportDialog } from './ItemImportDialog'
 
 type Item = {
     id: string
@@ -39,6 +40,7 @@ export default function Items() {
     // Form State
     const [editingItem, setEditingItem] = useState<Item | null>(null)
     const [isModalOpen, setIsModalOpen] = useState(false)
+    const [isImportOpen, setIsImportOpen] = useState(false)
 
     // Bulk Selection
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -92,6 +94,11 @@ export default function Items() {
         setIsModalOpen(true)
     }
 
+    function handleImportSuccess() {
+        setLoading(true)
+        fetchItems()
+    }
+
     async function handleDelete(id: string) {
         if (!confirm("Are you sure?")) return
         const { error } = await supabase.from('items').delete().eq('id', id)
@@ -125,7 +132,10 @@ export default function Items() {
         <div className="w-full space-y-6">
             <div className="flex justify-between items-center">
                 <h2 className="text-2xl font-bold tracking-tight">Items Management</h2>
-                <Button onClick={handleAddItem} icon={<Icons.Plus className="w-4 h-4" />}>Add Item</Button>
+                <div className="flex gap-2">
+                    <Button onClick={() => setIsImportOpen(true)} variant="outline" icon={<Icons.Upload className="w-4 h-4" />}>Import</Button>
+                    <Button onClick={handleAddItem} icon={<Icons.Plus className="w-4 h-4" />}>Add Item</Button>
+                </div>
             </div>
 
             {error && <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative flex items-center gap-2"><Icons.Warning className="w-5 h-5 flex-shrink-0" /> {error}</div>}
@@ -257,6 +267,12 @@ export default function Items() {
                     />
                 </DialogContent>
             </Dialog>
+
+            <ItemImportDialog
+                isOpen={isImportOpen}
+                onClose={() => setIsImportOpen(false)}
+                onSuccess={handleImportSuccess}
+            />
         </div>
     )
 }
