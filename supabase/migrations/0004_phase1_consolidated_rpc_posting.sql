@@ -511,13 +511,15 @@ begin
   if public.is_date_in_closed_period(current_date) then raise exception 'Periode CLOSED'; end if;
   select id into v_inv_acc from public.accounts where code = '1300';
   select id into v_exp_acc from public.accounts where code = '6100';
+  -- Get default price buy as fallback cost
+  select default_price_buy into v_cost from public.items where id = p_item_id;
+
   -- Ensure stock row and lock it for consistent cost lookup
   perform public.ensure_stock_row(p_item_id);
-  select coalesce(inv.avg_cost, i.default_price_buy, 0)
+  select coalesce(avg_cost, v_cost, 0)
     into v_cost
-  from public.items i
-  left join public.inventory_stock inv on inv.item_id = i.id
-  where i.id = p_item_id
+  from public.inventory_stock
+  where item_id = p_item_id
   for update;
 
   insert into public.inventory_adjustments(item_id, qty_delta, reason, adjusted_at)

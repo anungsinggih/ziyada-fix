@@ -49,13 +49,14 @@ begin
     coalesce((select sum(debit - credit) from public.journal_lines where account_id = v_cash_account_id), 0)
   ) into v_cash_balance;
 
-  -- Top 5 Items
+  -- Top 5 Items (by Qty Sold this Month)
   select jsonb_agg(t) into v_top_items from (
-      select si.item_name, sum(si.qty) as total_qty, sum(si.subtotal) as total_amount
+      select i.name as item_name, sum(si.qty) as total_qty, sum(si.subtotal) as total_amount
       from public.sales_items si
       join public.sales s on s.id = si.sales_id
+      join public.items i on i.id = si.item_id
       where s.status = 'POSTED' and date_trunc('month', s.sales_date) = date_trunc('month', current_date)
-      group by si.item_name
+      group by i.name
       order by total_qty desc
       limit 5
   ) t;
