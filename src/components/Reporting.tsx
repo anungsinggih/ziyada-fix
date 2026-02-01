@@ -127,16 +127,16 @@ export default function Reporting() {
 
     return (
         <div className="w-full">
-            <h2 className="text-3xl font-bold tracking-tight text-gray-900 mb-8">Financial Reports</h2>
+            <h2 className="hidden md:block text-3xl font-bold tracking-tight text-gray-900 mb-8">Financial Reports</h2>
 
             <Tabs defaultValue="TB" onValueChange={(val) => setActiveTab(val)}>
                 <div className="flex flex-col gap-4 mb-8">
                     <TabsList className="flex flex-wrap gap-2 overflow-x-auto w-full rounded-lg bg-white border border-gray-100 shadow-sm p-1">
-                        <TabsTrigger value="TB" className="min-w-[80px] flex-1 sm:flex-auto flex items-center gap-1 justify-center"><Icons.FileText className="w-4 h-4" /> TB</TabsTrigger>
-                        <TabsTrigger value="BS" className="min-w-[80px] flex-1 sm:flex-auto flex items-center gap-1 justify-center"><Icons.Chart className="w-4 h-4" /> BS</TabsTrigger>
-                        <TabsTrigger value="PL" className="min-w-[80px] flex-1 sm:flex-auto flex items-center gap-1 justify-center"><Icons.Chart className="w-4 h-4" /> PL</TabsTrigger>
-                        <TabsTrigger value="CF" className="min-w-[80px] flex-1 sm:flex-auto flex items-center gap-1 justify-center"><Icons.DollarSign className="w-4 h-4" /> CF</TabsTrigger>
-                        <TabsTrigger value="GL" className="min-w-[80px] flex-1 sm:flex-auto flex items-center gap-1 justify-center"><Icons.FileText className="w-4 h-4" /> GL</TabsTrigger>
+                        <TabsTrigger value="TB" className="min-w-[80px] flex-1 sm:flex-auto flex items-center gap-1 justify-center"><Icons.FileText className="w-4 h-4" /> Trial Balance</TabsTrigger>
+                        <TabsTrigger value="BS" className="min-w-[80px] flex-1 sm:flex-auto flex items-center gap-1 justify-center"><Icons.Chart className="w-4 h-4" /> Balance Sheet</TabsTrigger>
+                        <TabsTrigger value="PL" className="min-w-[80px] flex-1 sm:flex-auto flex items-center gap-1 justify-center"><Icons.Chart className="w-4 h-4" /> Profit & Loss</TabsTrigger>
+                        <TabsTrigger value="CF" className="min-w-[80px] flex-1 sm:flex-auto flex items-center gap-1 justify-center"><Icons.DollarSign className="w-4 h-4" /> Cash Flow</TabsTrigger>
+                        <TabsTrigger value="GL" className="min-w-[80px] flex-1 sm:flex-auto flex items-center gap-1 justify-center"><Icons.FileText className="w-4 h-4" /> General Ledger</TabsTrigger>
                     </TabsList>
 
                     <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-100 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">

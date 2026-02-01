@@ -12,7 +12,7 @@ type Item = {
     id: string
     sku: string
     name: string
-    type: 'FINISHED_GOOD' | 'RAW_MATERIAL'
+    type: 'FINISHED_GOOD' | 'RAW_MATERIAL' | 'TRADED'
     uom_id: string
     size_id: string
     color_id: string
@@ -81,8 +81,8 @@ export default function ItemForm({ existingItem, initialParentId, onSuccess, onC
     async function fetchMasterData() {
         const [uomRes, sizeRes, colorRes, parentRes] = await Promise.all([
             supabase.from('uoms').select('id, code, name').eq('is_active', true),
-            supabase.from('sizes').select('id, code, name').eq('is_active', true).order('sort_order'),
-            supabase.from('colors').select('id, code, name').eq('is_active', true).order('sort_order'),
+            supabase.from('sizes').select('id, code, name').eq('is_active', true).order('name'),
+            supabase.from('colors').select('id, code, name').eq('is_active', true).order('name'),
             supabase.from('product_parents').select('id, name').eq('is_active', true)
         ])
 
@@ -186,7 +186,8 @@ export default function ItemForm({ existingItem, initialParentId, onSuccess, onC
                         onChange={e => setFormData({ ...formData, type: e.target.value as any })}
                         options={[
                             { label: 'Finished', value: 'FINISHED_GOOD' },
-                            { label: 'Raw Material', value: 'RAW_MATERIAL' }
+                            { label: 'Raw Material', value: 'RAW_MATERIAL' },
+                            { label: 'Traded', value: 'TRADED' }
                         ]}
                     />
                 </div>
@@ -257,7 +258,6 @@ export default function ItemForm({ existingItem, initialParentId, onSuccess, onC
                     onClose={() => setQuickDialog(null)}
                     onSuccess={handleQuickSuccess}
                     hasCode={quickDialog.type !== 'product_parents'}
-                    hasSort={quickDialog.type !== 'product_parents'}
                 />
             )}
         </>

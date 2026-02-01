@@ -10,7 +10,7 @@ create extension if not exists pgcrypto;
 
 -- 1) Enums (idempotent)
 do $$ begin create type app_role as enum ('ADMIN', 'OWNER'); exception when duplicate_object then null; end $$;
-do $$ begin create type item_type as enum ('FINISHED_GOOD', 'RAW_MATERIAL'); exception when duplicate_object then null; end $$;
+do $$ begin create type item_type as enum ('FINISHED_GOOD', 'RAW_MATERIAL', 'TRADED'); exception when duplicate_object then null; end $$;
 do $$ begin create type price_tier as enum ('UMUM', 'KHUSUS'); exception when duplicate_object then null; end $$;
 do $$ begin create type terms_type as enum ('CASH', 'CREDIT'); exception when duplicate_object then null; end $$;
 do $$ begin create type doc_status as enum ('DRAFT', 'POSTED', 'VOID'); exception when duplicate_object then null; end $$;
@@ -112,7 +112,6 @@ create table if not exists public.sizes (
   id uuid primary key default gen_random_uuid(),
   code text not null,
   name text not null,
-  sort_order int not null default 0,
   is_active boolean not null default true,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
@@ -124,7 +123,6 @@ create table if not exists public.colors (
   id uuid primary key default gen_random_uuid(),
   code text not null,
   name text not null,
-  sort_order int not null default 0,
   is_active boolean not null default true,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),

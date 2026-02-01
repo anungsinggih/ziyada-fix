@@ -7,12 +7,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { Icons } from './ui/Icons'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/Dialog'
 import { Checkbox } from './ui/Checkbox'
+import { getSizeSortOrder } from '../lib/constants'
 
 type MasterItem = {
     id: string
     name: string
     code?: string
-    sort_order?: number
     is_active: boolean
 }
 
@@ -20,15 +20,14 @@ type SimpleCRUDProps = {
     table: string
     title: string
     hasCode?: boolean
-    hasSort?: boolean
 }
 
-export function SimpleMasterCRUD({ table, title, hasCode, hasSort }: SimpleCRUDProps) {
+export function SimpleMasterCRUD({ table, title, hasCode }: SimpleCRUDProps) {
     const [items, setItems] = useState<MasterItem[]>([])
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [editingId, setEditingId] = useState<string | null>(null)
-    const [formData, setFormData] = useState<Partial<MasterItem>>({ name: '', code: '', sort_order: 0, is_active: true })
+    const [formData, setFormData] = useState<Partial<MasterItem>>({ name: '', code: '', is_active: true })
     const [searchTerm, setSearchTerm] = useState('')
     const [isModalOpen, setIsModalOpen] = useState(false)
 
@@ -39,15 +38,17 @@ export function SimpleMasterCRUD({ table, title, hasCode, hasSort }: SimpleCRUDP
 
     const fetchItems = useCallback(async () => {
         setLoading(true)
-        let query = supabase.from(table).select('*')
-        if (hasSort) query = query.order('sort_order', { ascending: true })
-        else query = query.order('name', { ascending: true })
-
-        const { data, error } = await query
+        const { data, error } = await supabase.from(table).select('*').order('name', { ascending: true })
         if (error) setError(error.message)
-        else setItems(data || [])
+        else {
+            let normalized = data || []
+            if (table === 'sizes') {
+                normalized = [...normalized].sort((a, b) => getSizeSortOrder(a.name || '') - getSizeSortOrder(b.name || ''))
+            }
+            setItems(normalized)
+        }
         setLoading(false)
-    }, [table, hasSort])
+    }, [table])
 
     useEffect(() => {
         fetchItems()
@@ -60,7 +61,6 @@ export function SimpleMasterCRUD({ table, title, hasCode, hasSort }: SimpleCRUDP
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const payload: Record<string, any> = { name: formData.name, is_active: formData.is_active }
             if (hasCode) payload.code = formData.code
-            if (hasSort) payload.sort_order = formData.sort_order
 
             if (editingId) {
                 const { error } = await supabase.from(table).update(payload).eq('id', editingId)
@@ -91,7 +91,7 @@ export function SimpleMasterCRUD({ table, title, hasCode, hasSort }: SimpleCRUDP
 
     function resetForm() {
         setEditingId(null)
-        setFormData({ name: '', code: '', sort_order: 0, is_active: true })
+        setFormData({ name: '', code: '', is_active: true })
     }
 
     function handleAdd() {
@@ -130,13 +130,13 @@ export function SimpleMasterCRUD({ table, title, hasCode, hasSort }: SimpleCRUDP
 
                 <div className="overflow-auto max-h-[400px]">
                     <Table>
-                        <TableHead>
+                        <TableHeader>
                             <TableRow>
-                                {hasCode && <TableHeader className="whitespace-nowrap">Code</TableHeader>}
-                                <TableHeader className="whitespace-nowrap">Name</TableHeader>
-                                <TableHeader className="w-16 whitespace-nowrap">Act</TableHeader>
+                                {hasCode && <TableHead className="whitespace-nowrap">Code</TableHead>}
+                                <TableHead className="whitespace-nowrap">Name</TableHead>
+                                <TableHead className="w-16 whitespace-nowrap">Act</TableHead>
                             </TableRow>
-                        </TableHead>
+                        </TableHeader>
                         <TableBody>
                             {filteredItems.map(item => (
                                 <TableRow key={item.id}>
@@ -160,7 +160,7 @@ export function SimpleMasterCRUD({ table, title, hasCode, hasSort }: SimpleCRUDP
                         <form onSubmit={handleSubmit} className="space-y-4">
                             {hasCode && <Input label="Code" value={formData.code} onChange={e => setFormData({ ...formData, code: e.target.value })} />}
                             <Input label="Name" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} required />
-                            {hasSort && <Input label="Sort Order" type="number" value={formData.sort_order} onChange={e => setFormData({ ...formData, sort_order: parseInt(e.target.value) || 0 })} />}
+                            {/* sort order no longer persisted; UI sorts using constants */}
 
                             <div className="flex items-center space-x-2">
                                 <Checkbox

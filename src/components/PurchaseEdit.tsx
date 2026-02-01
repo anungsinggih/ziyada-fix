@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../supabaseClient'
 import { useNavigate, useParams } from 'react-router-dom'
-import { Card, CardContent, CardHeader, CardTitle, CardFooter } from './ui/Card'
+import { Card, CardContent, CardHeader, CardTitle } from './ui/Card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/Table'
 import { Button } from './ui/Button'
 import { Input } from './ui/Input'
@@ -9,9 +9,11 @@ import { Select } from './ui/Select'
 import { Textarea } from './ui/Textarea'
 import { Badge } from './ui/Badge'
 import { Icons } from './ui/Icons'
+import { formatCurrency } from '../lib/format'
+import { TotalFooter } from './ui/TotalFooter'
 
 type Vendor = { id: string; name: string }
-type Item = { id: string; name: string; sku: string; uom: string }
+type Item = { id: string; name: string; sku: string; uom: string; default_price_buy: number }
 type PurchaseLine = {
     item_id: string
     item_name: string
@@ -35,6 +37,8 @@ export default function PurchaseEdit() {
     const [vendorId, setVendorId] = useState('')
     const [purchaseDate, setPurchaseDate] = useState('')
     const [terms, setTerms] = useState<'CASH' | 'CREDIT'>('CASH')
+    const [paymentMethods, setPaymentMethods] = useState<{ code: string; name: string }[]>([])
+    const [paymentMethodCode, setPaymentMethodCode] = useState('CASH')
     const [notes, setNotes] = useState('')
     const [status, setStatus] = useState<'DRAFT' | 'POSTED' | 'VOID'>('DRAFT')
 
@@ -50,6 +54,18 @@ export default function PurchaseEdit() {
         }
     }, [id])
 
+    const parseQtyValue = (value: string) => {
+        const parsed = parseInt(value, 10)
+        if (isNaN(parsed)) return 1
+        return Math.max(1, parsed)
+    }
+
+    const parseCostValue = (value: string) => {
+        const parsed = parseFloat(value)
+        if (isNaN(parsed)) return 0
+        return Math.max(0, parsed)
+    }
+
     async function fetchMasterData() {
         try {
             const { data: venData, error: venError } = await supabase
@@ -61,12 +77,22 @@ export default function PurchaseEdit() {
 
             const { data: itemData, error: itemError } = await supabase
                 .from('items')
-                .select('id, name, sku, uom')
+                .select('id, name, sku, uom, default_price_buy')
+                .eq('is_active', true)
 
             if (itemError) throw itemError
 
+            const { data: methodData, error: methodError } = await supabase
+                .from('payment_methods')
+                .select('code, name')
+                .eq('is_active', true)
+                .order('code', { ascending: true })
+
+            if (methodError) throw methodError
+
             setVendors(venData || [])
             setItems(itemData || [])
+            setPaymentMethods(methodData || [])
         } catch (err: unknown) {
             if (err instanceof Error) setError(err.message)
             else setError('Unknown error')
@@ -96,6 +122,7 @@ export default function PurchaseEdit() {
             setVendorId(purchaseData.vendor_id)
             setPurchaseDate(purchaseData.purchase_date)
             setTerms(purchaseData.terms)
+            setPaymentMethodCode(purchaseData.payment_method_code || 'CASH')
             setNotes(purchaseData.notes || '')
             setStatus(purchaseData.status)
 
@@ -147,14 +174,17 @@ export default function PurchaseEdit() {
             return
         }
 
+        const safeQty = Math.max(1, qty)
+        const safeCost = Math.max(0, costPrice)
+
         const newLine: PurchaseLine = {
             item_id: item.id,
             item_name: item.name,
             sku: item.sku,
             uom: item.uom,
-            qty: qty,
-            unit_cost: costPrice,
-            subtotal: qty * costPrice
+            qty: safeQty,
+            unit_cost: safeCost,
+            subtotal: safeQty * safeCost
         }
 
         setLines([...lines, newLine])
@@ -183,9 +213,24 @@ export default function PurchaseEdit() {
 
     const totalAmount = lines.reduce((sum, l) => sum + l.subtotal, 0)
 
+    useEffect(() => {
+        if (terms === 'CREDIT') {
+            setPaymentMethodCode('')
+            return
+        }
+        if (!paymentMethodCode) {
+            const hasCash = paymentMethods.some((m) => m.code === 'CASH')
+            setPaymentMethodCode(hasCash ? 'CASH' : paymentMethods[0]?.code || '')
+        }
+    }, [terms, paymentMethods, paymentMethodCode])
+
     async function handleSave() {
         if (!vendorId) {
             setError('Please select a vendor')
+            return
+        }
+        if (terms === 'CASH' && !paymentMethodCode) {
+            setError('Please select payment method')
             return
         }
         if (lines.length === 0) {
@@ -208,7 +253,8 @@ export default function PurchaseEdit() {
                     purchase_date: purchaseDate,
                     terms: terms,
                     notes: notes || null,
-                    total_amount: totalAmount
+                    total_amount: totalAmount,
+                    payment_method_code: terms === 'CASH' ? paymentMethodCode : null
                 })
                 .eq('id', id)
                 .eq('status', 'DRAFT')
@@ -250,14 +296,6 @@ export default function PurchaseEdit() {
         }
     }
 
-    function formatCurrency(amount: number) {
-        return new Intl.NumberFormat('id-ID', {
-            style: 'currency',
-            currency: 'IDR',
-            minimumFractionDigits: 0
-        }).format(amount)
-    }
-
     if (loading) {
         return (
             <div className="w-full p-8 text-center">
@@ -293,74 +331,181 @@ export default function PurchaseEdit() {
 
     return (
         <div className="w-full space-y-6">
-            <div className="flex justify-between items-center">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                    <h2 className="text-3xl font-bold text-gray-900">Edit Purchase (DRAFT)</h2>
+                    <h2 className="hidden md:block text-3xl font-bold tracking-tight text-gray-900">Edit Purchase (DRAFT)</h2>
                     <p className="text-sm text-gray-600 mt-1">ID: {id?.substring(0, 8)}</p>
                 </div>
-                <div className="flex gap-2">
-                    <Button onClick={() => navigate('/purchases/history')} variant="outline">Cancel</Button>
-                    <Button onClick={handleSave} disabled={saving} icon={<Icons.Save className="w-4 h-4" />}>{saving ? 'Saving...' : 'Save'}</Button>
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center w-full sm:w-auto">
+                    <Button onClick={() => navigate('/purchases/history')} variant="outline" className="w-full sm:w-auto">Cancel</Button>
+                    <Button onClick={handleSave} disabled={saving} icon={<Icons.Save className="w-4 h-4" />} className="w-full sm:w-auto">
+                        {saving ? 'Saving...' : 'Save Changes'}
+                    </Button>
                 </div>
             </div>
 
-            {error && <div className="p-4 bg-red-50 border border-red-200 text-red-700 rounded-md flex items-center gap-2"><Icons.Warning className="w-5 h-5" /> {error}</div>}
+            {error && (
+                <div className="p-4 bg-red-50 border border-red-200 text-red-700 rounded-md flex items-center gap-2">
+                    <Icons.Warning className="w-5 h-5" /> {error}
+                </div>
+            )}
 
             <Card>
-                <CardHeader><CardTitle>Purchase Header</CardTitle></CardHeader>
+                <CardHeader>
+                    <CardTitle>Purchase Header</CardTitle>
+                </CardHeader>
                 <CardContent className="space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <Select label="Vendor *" value={vendorId} onChange={(e) => setVendorId(e.target.value)} options={vendors.map(v => ({ label: v.name, value: v.id }))} />
                         <Input label="Date *" type="date" value={purchaseDate} onChange={(e) => setPurchaseDate(e.target.value)} />
                         <Select label="Terms *" value={terms} onChange={(e) => setTerms(e.target.value as 'CASH' | 'CREDIT')} options={[{ label: 'CASH', value: 'CASH' }, { label: 'CREDIT', value: 'CREDIT' }]} />
-                        <div className="flex items-end"><div className="flex-1"><p className="text-sm text-gray-600">Total</p><p className="text-2xl font-bold text-green-600">{formatCurrency(totalAmount)}</p></div></div>
+                        {terms === 'CASH' && (
+                            <Select
+                                label="Payment Method *"
+                                value={paymentMethodCode}
+                                onChange={(e) => setPaymentMethodCode(e.target.value)}
+                                options={[
+                                    { label: '-- Select Method --', value: '' },
+                                    ...paymentMethods.map((m) => ({
+                                        label: `${m.name} (${m.code})`,
+                                        value: m.code
+                                    }))
+                                ]}
+                            />
+                        )}
+                        <div className="flex items-end">
+                            <div className="flex-1">
+                                <p className="text-sm text-gray-600">Total</p>
+                                <p className="text-2xl font-bold text-green-600">{formatCurrency(totalAmount)}</p>
+                            </div>
+                        </div>
                     </div>
-                    <Textarea label="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} placeholder="Add notes..." />
+                    <Textarea label="Notes (Optional)" value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} placeholder="Add notes..." />
                 </CardContent>
             </Card>
 
             <Card>
-                <CardHeader><CardTitle>Line Items</CardTitle></CardHeader>
+                <CardHeader>
+                    <CardTitle>Line Items</CardTitle>
+                </CardHeader>
                 <CardContent>
-                    {lines.length === 0 ? (
-                        <div className="py-8 text-center text-gray-500"><p>No items</p></div>
-                    ) : (
+                    <div className="bg-purple-50/50 p-4 rounded-lg border border-purple-100 mb-4">
+                        <h4 className="font-semibold mb-3 text-sm text-purple-900 uppercase tracking-wide">
+                            Add Items
+                        </h4>
+                        <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 items-stretch sm:items-end">
+                            <div className="flex-grow">
+                                <Select
+                                    label="Product"
+                                    value={selectedItemId}
+                                    onChange={(e) => {
+                                        const newItemId = e.target.value
+                                        setSelectedItemId(newItemId)
+                                        const selectedItem = items.find(i => i.id === newItemId)
+                                        if (selectedItem) {
+                                            setCostPrice(selectedItem.default_price_buy || 0)
+                                        }
+                                    }}
+                                    options={[
+                                        { label: "-- Select Item --", value: "" },
+                                        ...items.map((i) => ({
+                                            label: `${i.sku} - ${i.name}`,
+                                            value: i.id,
+                                        })),
+                                    ]}
+                                />
+                            </div>
+                            <div className="w-28">
+                                <Input
+                                    label="Qty"
+                                    type="number"
+                                    inputMode="numeric"
+                                    min="1"
+                                    value={qty}
+                                    onChange={(e) => setQty(parseQtyValue(e.target.value))}
+                                />
+                            </div>
+                            <div className="w-32">
+                                <Input
+                                    label="Cost Price"
+                                    type="number"
+                                    inputMode="decimal"
+                                    min="0"
+                                    value={costPrice}
+                                    onChange={(e) => setCostPrice(parseCostValue(e.target.value))}
+                                />
+                            </div>
+                            <div className="pb-1">
+                                <Button
+                                    type="button"
+                                    onClick={addItem}
+                                    className="w-full sm:w-auto min-h-[44px]"
+                                    disabled={!selectedItemId}
+                                >
+                                    Add Item
+                                </Button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="border border-gray-200 rounded-lg overflow-hidden shadow-sm">
                         <Table>
-                            <TableHead>
+                            <TableHeader>
                                 <TableRow>
-                                    <TableHeader>SKU</TableHeader>
-                                    <TableHeader>Item</TableHeader>
-                                    <TableHeader>UoM</TableHeader>
-                                    <TableHeader>Qty</TableHeader>
-                                    <TableHeader>Cost</TableHeader>
-                                    <TableHeader>Subtotal</TableHeader>
-                                    <TableHeader>Actions</TableHeader>
+                                    <TableHead>SKU</TableHead>
+                                    <TableHead>Item</TableHead>
+                                    <TableHead>UoM</TableHead>
+                                    <TableHead className="text-right">Qty</TableHead>
+                                    <TableHead className="text-right">Cost</TableHead>
+                                    <TableHead className="text-right">Subtotal</TableHead>
+                                    <TableHead className="w-12">&nbsp;</TableHead>
                                 </TableRow>
-                            </TableHead>
+                            </TableHeader>
                             <TableBody>
-                                {lines.map((line, idx) => (
-                                    <TableRow key={idx}>
-                                        <TableCell className="font-mono text-sm">{line.sku}</TableCell>
-                                        <TableCell>{line.item_name}</TableCell>
-                                        <TableCell>{line.uom}</TableCell>
-                                        <TableCell><Input type="number" value={line.qty} onChange={(e) => updateLineQuantity(idx, parseFloat(e.target.value) || 0)} min="0" step="1" className="w-20" /></TableCell>
-                                        <TableCell><Input type="number" value={line.unit_cost} onChange={(e) => updateLineCost(idx, parseFloat(e.target.value) || 0)} min="0" step="1000" className="w-28" /></TableCell>
-                                        <TableCell className="font-medium">{formatCurrency(line.subtotal)}</TableCell>
-                                        <TableCell><Button size="sm" variant="danger" onClick={() => removeLine(idx)} icon={<Icons.Trash className="w-4 h-4" />} /></TableCell>
+                                {lines.length === 0 ? (
+                                    <TableRow>
+                                        <TableCell colSpan={7} className="text-center text-gray-400 py-8 italic bg-gray-50/30">
+                                            No items added yet
+                                        </TableCell>
                                     </TableRow>
-                                ))}
+                                ) : (
+                                    lines.map((line, idx) => (
+                                        <TableRow key={idx} className="hover:bg-gray-50/50">
+                                            <TableCell className="font-mono text-sm">{line.sku}</TableCell>
+                                            <TableCell>{line.item_name}</TableCell>
+                                            <TableCell>{line.uom}</TableCell>
+                                            <TableCell className="text-right">
+                                                <Input
+                                                    type="number"
+                                                    value={line.qty}
+                                                    onChange={(e) => updateLineQuantity(idx, parseFloat(e.target.value) || 0)}
+                                                    min="0.001"
+                                                    step="1"
+                                                    className="w-20 text-right"
+                                                />
+                                            </TableCell>
+                                            <TableCell className="text-right">
+                                                <Input
+                                                    type="number"
+                                                    value={line.unit_cost}
+                                                    onChange={(e) => updateLineCost(idx, parseFloat(e.target.value) || 0)}
+                                                    min="0"
+                                                    step="1000"
+                                                    className="w-28 text-right"
+                                                />
+                                            </TableCell>
+                                            <TableCell className="font-medium text-right">{formatCurrency(line.subtotal)}</TableCell>
+                                            <TableCell className="text-right">
+                                                <Button size="sm" variant="danger" onClick={() => removeLine(idx)} icon={<Icons.Trash className="w-4 h-4" />} />
+                                            </TableCell>
+                                        </TableRow>
+                                    ))
+                                )}
                             </TableBody>
                         </Table>
-                    )}
-                </CardContent>
-                <CardFooter className="bg-gray-50 border-t">
-                    <div className="flex gap-4 items-end w-full">
-                        <Select label="Add Item" value={selectedItemId} onChange={(e) => setSelectedItemId(e.target.value)} options={items.map(i => ({ label: `${i.sku} - ${i.name}`, value: i.id }))} className="flex-1" />
-                        <Input label="Qty" type="number" value={qty} onChange={(e) => setQty(parseFloat(e.target.value) || 1)} min="1" className="w-24" />
-                        <Input label="Cost" type="number" value={costPrice} onChange={(e) => setCostPrice(parseFloat(e.target.value) || 0)} min="0" className="w-32" />
-                        <Button onClick={addItem} disabled={!selectedItemId} icon={<Icons.Plus className="w-4 h-4" />}>Add</Button>
+                        <TotalFooter label="Total Amount" amount={totalAmount} amountClassName="text-purple-600" />
                     </div>
-                </CardFooter>
+                </CardContent>
             </Card>
         </div>
     )

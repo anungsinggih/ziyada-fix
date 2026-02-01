@@ -1,17 +1,47 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../supabaseClient'
-import { Card, CardContent, CardHeader, CardTitle, CardFooter } from './ui/Card'
+import { Card, CardContent, CardHeader, CardTitle } from './ui/Card'
 import { Button } from './ui/Button'
 import { Input } from './ui/Input'
 import { Select } from './ui/Select'
 import { Textarea } from './ui/Textarea'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/Table'
 import { Icons } from './ui/Icons'
+import OpeningStock from './OpeningStock'
 
+// --- TYPES ---
 type Item = { id: string; name: string; sku: string }
 
-export default function StockAdjustment() {
+type AdjustmentHistory = {
+    id: string
+    adjusted_at: string
+    qty_delta: number
+    reason: string
+    item_id: string
+    item: {
+        name: string
+        sku: string
+    }
+}
+
+type FormProps = {
+    initialItemId?: string
+    initialItemName?: string
+    onSuccess?: () => void
+    onCancel?: () => void
+    isEmbedded?: boolean
+}
+
+// --- SUB-COMPONENT: FORM ---
+function StockAdjustmentForm({
+    initialItemId,
+    initialItemName,
+    onSuccess,
+    onCancel,
+    isEmbedded = false
+}: FormProps) {
     const [items, setItems] = useState<Item[]>([])
-    const [itemId, setItemId] = useState('')
+    const [itemId, setItemId] = useState(initialItemId || '')
     const [delta, setDelta] = useState(0)
     const [reason, setReason] = useState('')
 
@@ -20,8 +50,12 @@ export default function StockAdjustment() {
     const [success, setSuccess] = useState<string | null>(null)
 
     useEffect(() => {
-        fetchItems()
-    }, [])
+        if (!initialItemId) fetchItems()
+    }, [initialItemId])
+
+    useEffect(() => {
+        if (initialItemId) setItemId(initialItemId)
+    }, [initialItemId])
 
     async function fetchItems() {
         const { data } = await supabase.from('items').select('id, name, sku').order('name')
@@ -31,7 +65,7 @@ export default function StockAdjustment() {
     async function handleSubmit() {
         if (!itemId) { setError("Select Item"); return }
         if (delta === 0) { setError("Delta cannot be 0"); return }
-        if (!reason) { setError("Reason required"); return }
+        if (reason.trim().length === 0) { setError("Reason required"); return }
 
         setLoading(true)
         setError(null)
@@ -45,10 +79,19 @@ export default function StockAdjustment() {
             })
 
             if (error) throw error
-            setSuccess("Adjustment Saved!")
+
+            const msg = "Adjustment Saved Successfully!"
+            setSuccess(msg)
             setDelta(0)
             setReason('')
-            setItemId('')
+
+            // If onSuccess is provided, call it. Otherwise, clear form for new entry.
+            if (onSuccess) {
+                onSuccess()
+            } else {
+                if (!initialItemId) setItemId('')
+                setSuccess(null) // Clear success immediately if we are staying on generic form
+            }
         } catch (err: unknown) {
             if (err instanceof Error) setError(err.message)
             else setError('Unknown error')
@@ -57,54 +100,249 @@ export default function StockAdjustment() {
         }
     }
 
+    const content = (
+        <div className="space-y-6 pt-2">
+            {error && <div className="p-3 bg-red-100 text-red-700 rounded-md text-sm font-medium">{error}</div>}
+            {success && <div className="p-3 bg-green-100 text-green-700 rounded-md text-sm font-medium">{success}</div>}
+
+            <div className="space-y-4">
+                {initialItemId ? (
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Item</label>
+                        <Input value={initialItemName || itemId} disabled className="bg-gray-100" />
+                    </div>
+                ) : (
+                    <Select
+                        label="Item"
+                        value={itemId}
+                        onChange={e => setItemId(e.target.value)}
+                        options={[
+                            { label: "-- Select Item --", value: "" },
+                            ...items.map(i => ({ label: `${i.sku} - ${i.name}`, value: i.id }))
+                        ]}
+                    />
+                )}
+
+                <div>
+                    <Input
+                        label="Qty Change (+/-)"
+                        type="number"
+                        value={delta}
+                        onChange={e => setDelta(parseFloat(e.target.value))}
+                        placeholder="e.g. 5 or -2"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Positive = Gain (Found), Negative = Loss (Damaged)</p>
+                </div>
+
+                <Textarea
+                    label="Reason"
+                    value={reason}
+                    onChange={e => setReason(e.target.value)}
+                    placeholder="Wajib diisi (misal: Stock Opname, Barang Rusak)"
+                    rows={3}
+                />
+
+                <div className="flex gap-3 justify-end pt-4">
+                    {onCancel && (
+                        <Button variant="outline" onClick={onCancel} disabled={loading}>
+                            Cancel
+                        </Button>
+                    )}
+                    <Button
+                        onClick={handleSubmit}
+                        disabled={loading}
+                        isLoading={loading}
+                        className={isEmbedded ? "w-auto" : "w-full"}
+                    >
+                        Confirm Adjustment
+                    </Button>
+                </div>
+            </div>
+        </div>
+    )
+
+    if (isEmbedded) {
+        return content
+    }
+
     return (
         <div className="w-full">
             <Card className="shadow-lg border-gray-200">
                 <CardHeader className="bg-orange-50 border-b border-orange-100 pb-4">
-                    <CardTitle className="text-xl text-orange-800">Stock Adjustment (Owner Only)</CardTitle>
+                    <CardTitle className="text-xl text-orange-800">New Adjustment</CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-6 pt-6">
-                    {error && <div className="p-3 bg-red-100 text-red-700 rounded-md text-sm font-medium">{error}</div>}
-                    {success && <div className="p-3 bg-green-100 text-green-700 rounded-md text-sm font-medium">{success}</div>}
-
-                    <div className="space-y-4">
-                        <Select
-                            label="Item"
-                            value={itemId}
-                            onChange={e => setItemId(e.target.value)}
-                            options={[
-                                { label: "-- Select Item --", value: "" },
-                                ...items.map(i => ({ label: `${i.sku} - ${i.name}`, value: i.id }))
-                            ]}
-                        />
-
-                        <div>
-                            <Input
-                                label="Qty Change (+/-)"
-                                type="number"
-                                value={delta}
-                                onChange={e => setDelta(parseFloat(e.target.value))}
-                                placeholder="e.g. 5 or -2"
-                            />
-                            <p className="text-xs text-gray-500 mt-1">Positive = Gain (Found), Negative = Loss (Damaged/Lost)</p>
-                        </div>
-
-                        <Textarea
-                            label="Reason"
-                            value={reason}
-                            onChange={e => setReason(e.target.value)}
-                            placeholder="Explain the adjustment..."
-                            rows={3}
-                        />
-                    </div>
+                <CardContent>
+                    {content}
                 </CardContent>
-                <CardFooter className="bg-gray-50 border-t border-gray-100 p-6">
-                    <Button onClick={handleSubmit} disabled={loading} className="w-full h-12 text-lg bg-orange-600 hover:bg-orange-700 text-white shadow-sm" icon={loading ? <Icons.Refresh className="animate-spin w-5 h-5" /> : <Icons.Save className="w-5 h-5" />}>
-                        {loading ? 'Processing...' : 'Submit Adjustment'}
-                    </Button>
-                </CardFooter>
             </Card>
         </div>
     )
 }
 
+// --- MAIN COMPONENT: PAGE & ORCHESTRATOR ---
+export default function StockAdjustment(props: FormProps) {
+    // 1. EMBEDDED MODE (Direct Form)
+    if (props.isEmbedded) {
+        return <StockAdjustmentForm {...props} />
+    }
+
+    // 2. PAGE MODE (History + Dialog)
+    return <StockAdjustmentPage />
+}
+
+function StockAdjustmentPage() {
+    const [history, setHistory] = useState<AdjustmentHistory[]>([])
+    const [loading, setLoading] = useState(true)
+    const [showForm, setShowForm] = useState(false)
+    const [showOpeningForm, setShowOpeningForm] = useState(false)
+    const [refreshTrigger, setRefreshTrigger] = useState(0)
+
+    async function fetchHistory() {
+        setLoading(true)
+        const { data, error } = await supabase
+            .from('inventory_adjustments')
+            .select(`
+                id, adjusted_at, qty_delta, reason, item_id,
+                item:items (name, sku)
+            `)
+            .order('adjusted_at', { ascending: false })
+            .limit(50)
+
+        if (!error && data) {
+            // @ts-expect-error: Supabase returns typed rows without strict inference here.
+            setHistory(data)
+        }
+        setLoading(false)
+    }
+
+    useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        fetchHistory()
+    }, [refreshTrigger])
+
+
+
+    function handleFormSuccess() {
+        setShowForm(false)
+        setShowOpeningForm(false)
+        setRefreshTrigger(p => p + 1)
+    }
+
+    return (
+        <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                    <h1 className="hidden md:block text-2xl font-bold text-gray-900">Stock Adjustment History</h1>
+                    <p className="hidden md:block text-gray-500 text-sm">Log penyesuaian stok manual (Opname / Rusak / Hilang)</p>
+                </div>
+                <div className="flex gap-2">
+                    <Button variant="outline" onClick={() => setShowOpeningForm(true)} icon={<Icons.Package className="w-4 h-4" />}>
+                        Set Opening Stock
+                    </Button>
+                    <Button onClick={() => setShowForm(true)} icon={<Icons.Plus className="w-4 h-4" />}>
+                        New Adjustment
+                    </Button>
+                </div>
+            </div>
+
+            {/* HISTORY LIST */}
+            <Card className="shadow-md border-gray-200">
+                <CardContent className="p-0 overflow-hidden">
+                    <Table>
+                        <TableHeader className="bg-gray-50">
+                            <TableRow>
+                                <TableHead>Date</TableHead>
+                                <TableHead>Item (SKU)</TableHead>
+                                <TableHead className="text-right">Qty Delta</TableHead>
+                                <TableHead>Reason</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {loading ? (
+                                <TableRow>
+                                    <TableCell colSpan={4} className="h-24 text-center">Loading...</TableCell>
+                                </TableRow>
+                            ) : history.length === 0 ? (
+                                <TableRow>
+                                    <TableCell colSpan={4} className="h-24 text-center text-gray-500 italic">
+                                        No adjustments found
+                                    </TableCell>
+                                </TableRow>
+                            ) : (
+                                history.map(h => (
+                                    <TableRow key={h.id}>
+                                        <TableCell className="whitespace-nowrap">
+                                            {new Date(h.adjusted_at).toLocaleDateString()}{" "}
+                                            <span className="text-xs text-gray-400">
+                                                {new Date(h.adjusted_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                            </span>
+                                        </TableCell>
+                                        <TableCell>
+                                            <div className="font-medium">{h.item?.name || 'Unknown'}</div>
+                                            <div className="text-xs text-gray-500">{h.item?.sku}</div>
+                                        </TableCell>
+                                        <TableCell className={`text-right font-bold ${h.qty_delta > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                            {h.qty_delta > 0 ? '+' : ''}{h.qty_delta}
+                                        </TableCell>
+                                        <TableCell className="max-w-xs truncate">
+                                            <div title={h.reason} className="truncate text-gray-600">
+                                                {h.reason}
+                                            </div>
+                                        </TableCell>
+                                    </TableRow>
+                                ))
+                            )}
+                        </TableBody>
+                    </Table>
+                </CardContent>
+            </Card>
+
+            {/* ADD ADJUSTMENT DIALOG */}
+            {showForm && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-white rounded-lg shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200">
+                        <div className="bg-orange-50 px-6 py-4 border-b border-orange-100 flex justify-between items-center">
+                            <h3 className="font-bold text-orange-900 flex items-center gap-2">
+                                <Icons.Edit className="w-5 h-5" />
+                                New Stock Adjustment
+                            </h3>
+                            <button onClick={() => setShowForm(false)} className="text-gray-400 hover:text-gray-600">
+                                <Icons.Close className="w-5 h-5" />
+                            </button>
+                        </div>
+                        <div className="p-6">
+                            <StockAdjustmentForm
+                                isEmbedded={true}
+                                onSuccess={handleFormSuccess}
+                                onCancel={() => setShowForm(false)}
+                            />
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* OPENING STOCK DIALOG */}
+            {showOpeningForm && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-white rounded-lg shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200">
+                        <div className="bg-blue-50 px-6 py-4 border-b border-blue-100 flex justify-between items-center">
+                            <h3 className="font-bold text-blue-900 flex items-center gap-2">
+                                <Icons.Package className="w-5 h-5" />
+                                Set Opening Stock (Awal)
+                            </h3>
+                            <button onClick={() => setShowOpeningForm(false)} className="text-gray-400 hover:text-gray-600">
+                                <Icons.Close className="w-5 h-5" />
+                            </button>
+                        </div>
+                        <div className="p-6">
+                            <OpeningStock
+                                isEmbedded={true}
+                                onSuccess={handleFormSuccess}
+                            />
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    )
+}

@@ -89,7 +89,7 @@ export default function COA() {
 
     return (
         <div className="w-full space-y-8">
-            <h2 className="text-3xl font-bold tracking-tight text-gray-900">Chart of Accounts (COA)</h2>
+            <h2 className="hidden md:block text-3xl font-bold tracking-tight text-gray-900">Chart of Accounts (COA)</h2>
             {error && <div className="p-4 bg-red-50 text-red-700 border border-red-200 rounded-md flex items-center gap-2"><Icons.Warning className="w-5 h-5 flex-shrink-0" /> Error: {error}</div>}
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-8">
@@ -133,14 +133,14 @@ export default function COA() {
                         </CardHeader>
                         <CardContent className="p-0">
                             <Table>
-                                <TableHead>
+                                <TableHeader>
                                     <TableRow>
-                                        <TableHeader>Code</TableHeader>
-                                        <TableHeader>Name</TableHeader>
-                                        <TableHeader>Status</TableHeader>
-                                        <TableHeader>Actions</TableHeader>
+                                        <TableHead>Code</TableHead>
+                                        <TableHead>Name</TableHead>
+                                        <TableHead>Status</TableHead>
+                                        <TableHead>Actions</TableHead>
                                     </TableRow>
-                                </TableHead>
+                                </TableHeader>
                                 <TableBody>
                                     {loading ? <TableRow><TableCell colSpan={4} className="text-center">Loading...</TableCell></TableRow> : accounts.map(a => (
                                         <TableRow key={a.id} className={!a.is_active ? 'bg-gray-100 opacity-60' : ''}>

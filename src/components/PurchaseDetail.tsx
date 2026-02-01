@@ -1,19 +1,14 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../supabaseClient";
 import { useNavigate, useParams } from "react-router-dom";
-import { Card, CardContent, CardHeader, CardTitle } from "./ui/Card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "./ui/Table";
 import { Button } from "./ui/Button";
 import { Badge } from "./ui/Badge";
 import { Alert } from "./ui/Alert";
 import { Icons } from "./ui/Icons";
+import { formatCurrency, formatDate, safeDocNo } from "../lib/format";
+import DocumentHeaderCard from "./shared/DocumentHeaderCard";
+import LineItemsTable from "./shared/LineItemsTable";
+import RelatedDocumentsCard, { type RelatedDocumentItem } from "./shared/RelatedDocumentsCard";
 
 type PurchaseDetail = {
   id: string;
@@ -22,6 +17,7 @@ type PurchaseDetail = {
   vendor_id: string;
   vendor_name: string;
   terms: "CASH" | "CREDIT";
+  payment_method_code?: string | null;
   total_amount: number;
   status: "DRAFT" | "POSTED" | "VOID";
   notes: string | null;
@@ -46,6 +42,8 @@ type RelatedDoc = {
   ap_total?: number;
   ap_outstanding?: number;
   ap_status?: string;
+  payment_id?: string;
+  payment_amount?: number;
 };
 
 export default function PurchaseDetail() {
@@ -56,9 +54,19 @@ export default function PurchaseDetail() {
   const [relatedDocs, setRelatedDocs] = useState<RelatedDoc>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [paymentMethodName, setPaymentMethodName] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleteSuccess, setDeleteSuccess] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [postError, setPostError] = useState<string | null>(null);
+  const [postSuccess, setPostSuccess] = useState<string | null>(null);
+  const [isPosting, setIsPosting] = useState(false);
+  const itemsTotal = items.reduce((sum, item) => sum + (item.subtotal || 0), 0);
+  const displayTotal = purchase
+    ? purchase.total_amount > 0
+      ? purchase.total_amount
+      : itemsTotal
+    : itemsTotal;
 
   useEffect(() => {
     if (id) {
@@ -81,6 +89,7 @@ export default function PurchaseDetail() {
                     purchase_no,
                     vendor_id,
                     terms,
+                    payment_method_code,
                     total_amount,
                     status,
                     notes,
@@ -99,6 +108,17 @@ export default function PurchaseDetail() {
         ...purchaseData,
         vendor_name: (purchaseData.vendors as unknown as { name: string })?.name || "Unknown",
       });
+
+      if (purchaseData.terms === "CASH" && purchaseData.payment_method_code) {
+        const { data: methodData } = await supabase
+          .from("payment_methods")
+          .select("name")
+          .eq("code", purchaseData.payment_method_code)
+          .single();
+        setPaymentMethodName(methodData?.name || purchaseData.payment_method_code);
+      } else {
+        setPaymentMethodName(null);
+      }
 
       // Fetch items
       const { data: itemsData, error: itemsError } = await supabase
@@ -137,7 +157,7 @@ export default function PurchaseDetail() {
         const { data: journalData } = await supabase
           .from("journals")
           .select("id, journal_date")
-          .eq("ref_type", "PURCHASE")
+          .eq("ref_type", "purchase")
           .eq("ref_id", purchaseId)
           .single();
 
@@ -159,6 +179,21 @@ export default function PurchaseDetail() {
             related.ap_total = apData.total_amount;
             related.ap_outstanding = apData.outstanding_amount;
             related.ap_status = apData.status;
+          }
+        }
+
+        // Payment (if CASH)
+        if (purchaseData.terms === "CASH") {
+          const { data: paymentData } = await supabase
+            .from("payments")
+            .select("id, amount")
+            .eq("ref_type", "purchase")
+            .eq("ref_id", purchaseId)
+            .maybeSingle();
+
+          if (paymentData) {
+            related.payment_id = paymentData.id;
+            related.payment_amount = paymentData.amount;
           }
         }
 
@@ -192,25 +227,40 @@ export default function PurchaseDetail() {
     }
   }
 
-  function formatCurrency(amount: number) {
-    return new Intl.NumberFormat("id-ID", {
-      style: "currency",
-      currency: "IDR",
-      minimumFractionDigits: 0,
-    }).format(amount);
-  }
+  async function handlePost() {
+    if (!purchase) return;
+    if (
+      !confirm(
+        "Are you sure you want to POST this purchase? This action cannot be undone.",
+      )
+    ) {
+      return;
+    }
 
-  function getStatusBadge(status: string) {
-    const colors = {
-      DRAFT: "bg-gray-100 text-gray-800",
-      POSTED: "bg-green-100 text-green-800",
-      VOID: "bg-red-100 text-red-800",
-    };
-    return (
-      <Badge className={colors[status as keyof typeof colors] || "bg-gray-100"}>
-        {status}
-      </Badge>
-    );
+    setIsPosting(true);
+    setPostError(null);
+    setPostSuccess(null);
+
+    try {
+      const { error: rpcError } = await supabase.rpc("rpc_post_purchase", {
+        p_purchase_id: purchase.id,
+      });
+
+      if (rpcError) {
+        if (rpcError.message?.includes("CLOSED")) {
+          throw new Error("Cannot POST: Period is CLOSED for this date");
+        } else {
+          throw rpcError;
+        }
+      }
+
+      setPostSuccess("Purchase posted successfully!");
+      fetchPurchaseDetail(purchase.id);
+    } catch (err: unknown) {
+      if (err instanceof Error) setPostError(err.message || "Failed to post purchase");
+    } finally {
+      setIsPosting(false);
+    }
   }
 
   if (loading) {
@@ -240,9 +290,212 @@ export default function PurchaseDetail() {
     );
   }
 
+  const headerFields = [
+    {
+      label: "Date",
+      value: formatDate(purchase.purchase_date),
+    },
+    {
+      label: "Vendor",
+      value: purchase.vendor_name,
+    },
+    {
+      label: "Terms",
+      value: (
+        <Badge
+          className={
+            purchase.terms === "CASH"
+              ? "bg-blue-100 text-blue-800"
+              : "bg-orange-100 text-orange-800"
+          }
+        >
+          {purchase.terms}
+        </Badge>
+      ),
+    },
+    ...(purchase.terms === "CASH"
+      ? [
+        {
+          label: "Payment Method",
+          value: paymentMethodName || purchase.payment_method_code || "-",
+        },
+      ]
+      : []),
+    {
+      label: "Total",
+      value: <span className="font-bold text-lg">{formatCurrency(displayTotal)}</span>,
+    },
+  ];
+
+  const lineItemColumns = [
+    {
+      label: "SKU",
+      cellClassName: "font-mono text-sm",
+      render: (item: PurchaseItem) => item.sku,
+    },
+    {
+      label: "Item Name",
+      render: (item: PurchaseItem) => item.item_name,
+    },
+    {
+      label: "UoM",
+      render: (item: PurchaseItem) => item.uom_snapshot,
+    },
+    {
+      label: "Qty",
+      headerClassName: "text-right",
+      cellClassName: "text-right",
+      render: (item: PurchaseItem) => item.qty,
+    },
+    {
+      label: "Unit Cost",
+      headerClassName: "text-right",
+      cellClassName: "text-right",
+      render: (item: PurchaseItem) => formatCurrency(item.unit_cost),
+    },
+    {
+      label: "Subtotal",
+      headerClassName: "text-right",
+      cellClassName: "text-right font-medium",
+      render: (item: PurchaseItem) => formatCurrency(item.subtotal),
+    },
+  ];
+
+  const printLineItems = items.map((item, index) => ({
+    ...item,
+    _index: index + 1,
+  }));
+
+  const printLineItemColumns = [
+    {
+      label: "No",
+      headerClassName: "w-12",
+      render: (row: PurchaseItem & { _index: number }) => row._index,
+    },
+    {
+      label: "Description",
+      render: (row: PurchaseItem & { _index: number }) => (
+        <div>
+          <div className="font-medium">{row.item_name}</div>
+          <div className="text-xs text-gray-500 font-mono">
+            {row.sku} {row.uom_snapshot && `(${row.uom_snapshot})`}
+          </div>
+        </div>
+      ),
+    },
+    {
+      label: "Qty",
+      headerClassName: "text-right",
+      cellClassName: "text-right",
+      render: (row: PurchaseItem & { _index: number }) => row.qty,
+    },
+    {
+      label: "Unit Cost",
+      headerClassName: "text-right",
+      cellClassName: "text-right",
+      render: (row: PurchaseItem & { _index: number }) => formatCurrency(row.unit_cost),
+    },
+    {
+      label: "Amount",
+      headerClassName: "text-right",
+      cellClassName: "text-right font-medium",
+      render: (row: PurchaseItem & { _index: number }) => formatCurrency(row.subtotal),
+    },
+  ];
+
+  const printHeaderFields = [
+    {
+      label: "Date",
+      value: formatDate(purchase.purchase_date),
+    },
+    {
+      label: "Vendor",
+      value: purchase.vendor_name,
+    },
+    {
+      label: "Terms",
+      value: purchase.terms,
+    },
+    ...(purchase.terms === "CASH"
+      ? [
+        {
+          label: "Payment Method",
+          value: paymentMethodName || purchase.payment_method_code || "-",
+        },
+      ]
+      : []),
+    {
+      label: "Total",
+      value: formatCurrency(displayTotal),
+    },
+  ];
+
+  const relatedItems: RelatedDocumentItem[] = [];
+  if (purchase.status === "POSTED") {
+    if (relatedDocs.journal_id) {
+      relatedItems.push({
+        id: relatedDocs.journal_id,
+        title: "Journal Entry",
+        description: (
+          <p>
+            ID: {relatedDocs.journal_id.substring(0, 8)} | Date:{" "}
+            {formatDate(relatedDocs.journal_date)}
+          </p>
+        ),
+        icon: <Icons.FileText className="w-5 h-5" />,
+        toneClassName: "bg-blue-50",
+        iconClassName: "text-blue-500",
+        actionLabel: "Open",
+        onAction: () =>
+          navigate(
+            `/journals?q=${encodeURIComponent(
+              purchase.purchase_no || relatedDocs.journal_id!
+            )}`
+          ),
+      });
+    }
+    if (relatedDocs.ap_bill_id) {
+      relatedItems.push({
+        id: relatedDocs.ap_bill_id,
+        title: "AP Bill (CREDIT)",
+        description: (
+          <p>
+            ID: {relatedDocs.ap_bill_id.substring(0, 8)} | Total:{" "}
+            {formatCurrency(relatedDocs.ap_total!)} | Outstanding:{" "}
+            {formatCurrency(relatedDocs.ap_outstanding!)} | Status:{" "}
+            <Badge className="ml-1">{relatedDocs.ap_status}</Badge>
+          </p>
+        ),
+        icon: <Icons.FileText className="w-5 h-5" />,
+        toneClassName: "bg-orange-50",
+        iconClassName: "text-orange-500",
+        actionLabel: "Open AP",
+        onAction: () =>
+          navigate(
+            `/finance?ap=${encodeURIComponent(relatedDocs.ap_bill_id!)}`
+          ),
+      });
+    }
+    if (relatedDocs.payment_id) {
+      relatedItems.push({
+        id: relatedDocs.payment_id,
+        title: "Payment (CASH)",
+        description: (
+          <p>
+            ID: {relatedDocs.payment_id.substring(0, 8)} | Amount:{" "}
+            {formatCurrency(relatedDocs.payment_amount!)}
+          </p>
+        ),
+        icon: <Icons.DollarSign className="w-5 h-5" />,
+        toneClassName: "bg-green-50",
+        iconClassName: "text-green-500",
+      });
+    }
+  }
+
   return (
     <div className="w-full space-y-6">
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-3 print:hidden">
         <div className="flex justify-between items-center">
           <h2 className="text-3xl font-bold tracking-tight text-gray-900">
             Purchase Detail
@@ -264,6 +517,17 @@ export default function PurchaseDetail() {
             </Button>
             {purchase.status === "DRAFT" && (
               <Button
+                onClick={handlePost}
+                disabled={isPosting}
+                isLoading={isPosting}
+                className="bg-green-600 hover:bg-green-700 text-white"
+                icon={<Icons.Check className="w-4 h-4" />}
+              >
+                POST
+              </Button>
+            )}
+            {purchase.status === "DRAFT" && (
+              <Button
                 onClick={() => navigate(`/purchases/${purchase.id}/edit`)}
                 icon={<Icons.Edit className="w-4 h-4" />}
               >
@@ -282,8 +546,18 @@ export default function PurchaseDetail() {
             )}
           </div>
         </div>
-        {(deleteError || deleteSuccess) && (
+        {(deleteError || deleteSuccess || postError || postSuccess) && (
           <div className="w-full">
+            {postError && (
+              <Alert variant="error" title="Gagal" description={postError} />
+            )}
+            {postSuccess && (
+              <Alert
+                variant="success"
+                title="Berhasil"
+                description={postSuccess}
+              />
+            )}
             {deleteError && (
               <Alert variant="error" title="Gagal" description={deleteError} />
             )}
@@ -306,155 +580,45 @@ export default function PurchaseDetail() {
         </h1>
       </div>
 
-      {/* Header Card */}
-      <Card>
-        <CardHeader className="bg-gray-50">
-          <div className="flex justify-between items-start">
-            <div>
-              <CardTitle>Purchase Document</CardTitle>
-              <p className="text-sm text-gray-600 mt-1">
-                {purchase.purchase_no || `ID: ${purchase.id.substring(0, 8)}`}
-              </p>
-            </div>
-            {getStatusBadge(purchase.status)}
-          </div>
-        </CardHeader>
-        <CardContent className="pt-6">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-            <div>
-              <p className="text-gray-600">Date</p>
-              <p className="font-medium">
-                {new Date(purchase.purchase_date).toLocaleDateString("id-ID")}
-              </p>
-            </div>
-            <div>
-              <p className="text-gray-600">Vendor</p>
-              <p className="font-medium">{purchase.vendor_name}</p>
-            </div>
-            <div>
-              <p className="text-gray-600">Terms</p>
-              <p className="font-medium">
-                <Badge
-                  className={
-                    purchase.terms === "CASH"
-                      ? "bg-blue-100 text-blue-800"
-                      : "bg-orange-100 text-orange-800"
-                  }
-                >
-                  {purchase.terms}
-                </Badge>
-              </p>
-            </div>
-            <div>
-              <p className="text-gray-600">Total</p>
-              <p className="font-bold text-lg">
-                {formatCurrency(purchase.total_amount)}
-              </p>
-            </div>
-          </div>
-          {purchase.notes && (
-            <div className="mt-4 pt-4 border-t">
-              <p className="text-gray-600 text-sm">Notes</p>
-              <p className="text-sm mt-1">{purchase.notes}</p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      <DocumentHeaderCard
+        className="print:hidden"
+        title="Purchase Document"
+        docNo={safeDocNo(purchase.purchase_no, purchase.id, true)}
+        status={purchase.status}
+        fields={headerFields}
+        notes={purchase.notes}
+      />
 
-      {/* Items Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Line Items</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableHeader>SKU</TableHeader>
-                <TableHeader>Item Name</TableHeader>
-                <TableHeader>UoM</TableHeader>
-                <TableHeader className="text-right">Qty</TableHeader>
-                <TableHeader className="text-right">Unit Cost</TableHeader>
-                <TableHeader className="text-right">Subtotal</TableHeader>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {items.map((item) => (
-                <TableRow key={item.id}>
-                  <TableCell className="font-mono text-sm">
-                    {item.sku}
-                  </TableCell>
-                  <TableCell>{item.item_name}</TableCell>
-                  <TableCell>{item.uom_snapshot}</TableCell>
-                  <TableCell className="text-right">{item.qty}</TableCell>
-                  <TableCell className="text-right">
-                    {formatCurrency(item.unit_cost)}
-                  </TableCell>
-                  <TableCell className="text-right font-medium">
-                    {formatCurrency(item.subtotal)}
-                  </TableCell>
-                </TableRow>
-              ))}
-              <TableRow className="bg-gray-50 font-bold border-t-2">
-                <TableCell colSpan={5} className="text-right">
-                  TOTAL:
-                </TableCell>
-                <TableCell className="text-right">
-                  {formatCurrency(purchase.total_amount)}
-                </TableCell>
-              </TableRow>
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+      <LineItemsTable
+        className="print:hidden"
+        rows={items}
+        columns={lineItemColumns}
+        totalValue={formatCurrency(displayTotal)}
+        emptyLabel="No items added"
+      />
 
-      {/* Related Documents (POSTED only) */}
+      <div className="hidden print:block space-y-6 print:space-y-4">
+        <div className="h-2 bg-slate-900 mb-4"></div>
+        <DocumentHeaderCard
+          title="Purchase Document"
+          docNo={safeDocNo(purchase.purchase_no, purchase.id, true)}
+          status={purchase.status}
+          fields={printHeaderFields}
+          notes={purchase.notes}
+          hideStatusOnPrint
+        />
+        <LineItemsTable
+          title="Items"
+          rows={printLineItems}
+          columns={printLineItemColumns}
+          totalLabel="Total Amount"
+          totalValue={formatCurrency(displayTotal)}
+          emptyLabel="No items added"
+        />
+      </div>
+
       {purchase.status === "POSTED" && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Related Documents</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3 text-sm">
-              {relatedDocs.journal_id && (
-                <div className="flex justify-between items-center p-3 bg-blue-50 rounded">
-                  <div className="flex items-start gap-3">
-                    <div className="text-blue-500 mt-1">
-                      <Icons.FileText className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <p className="font-medium">Journal Entry</p>
-                      <p className="text-gray-600">
-                        ID: {relatedDocs.journal_id.substring(0, 8)} | Date:{" "}
-                        {new Date(relatedDocs.journal_date!).toLocaleDateString(
-                          "id-ID",
-                        )}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-              {relatedDocs.ap_bill_id && (
-                <div className="flex justify-between items-center p-3 bg-orange-50 rounded">
-                  <div className="flex items-start gap-3">
-                    <div className="text-orange-500 mt-1">
-                      <Icons.FileText className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <p className="font-medium">AP Bill (CREDIT)</p>
-                      <p className="text-gray-600">
-                        ID: {relatedDocs.ap_bill_id.substring(0, 8)} | Total:{" "}
-                        {formatCurrency(relatedDocs.ap_total!)} | Outstanding:{" "}
-                        {formatCurrency(relatedDocs.ap_outstanding!)} | Status:{" "}
-                        <Badge className="ml-1">{relatedDocs.ap_status}</Badge>
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+        <RelatedDocumentsCard className="print:hidden" items={relatedItems} />
       )}
     </div>
   );

@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Link } from 'react-router-dom'
 import { useEffect, useState, lazy, Suspense } from 'react'
 import { supabase } from './supabaseClient'
 import { Icons } from './components/ui/Icons'
+import { MobileHeader } from './components/MobileHeader'
 
 // Eager load only essential components
 import Login from './components/Login'
@@ -37,7 +38,7 @@ const Journals = lazy(() => import('./components/Journals'))
 const Dashboard = lazy(() => import('./components/Dashboard'))
 const CompanySettings = lazy(() => import('./components/CompanySettings'))
 const Attributes = lazy(() => import('./components/Attributes'))
-const ProductParents = lazy(() => import('./components/ProductParents'))
+const Products = lazy(() => import('./components/Products'))
 const BrandsCategories = lazy(() => import('./components/BrandsCategories'))
 
 import type { Session } from '@supabase/supabase-js'
@@ -110,22 +111,10 @@ function App() {
 
 
         {/* Mobile-only header bar */}
-        <div className="md:hidden fixed top-0 left-0 right-0 z-30 bg-slate-900 border-b border-slate-800 shadow-lg">
-          <div className="flex items-center justify-between px-3 py-2">
-            <button
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="p-1.5 text-white rounded-lg hover:bg-slate-800 transition-colors"
-              aria-label="Toggle menu"
-            >
-              {mobileMenuOpen ? <Icons.Close className="w-5 h-5 text-white" /> : <Icons.Menu className="w-5 h-5 text-white" />}
-            </button>
-            <div className="flex items-center gap-1.5">
-              <img src="/logo.png" alt="Ziyada ERP" className="h-6 w-auto rounded" />
-              <span className="text-white font-semibold text-xs">Ziyada ERP</span>
-            </div>
-            <div className="w-8" /> {/* Spacer for centering */}
-          </div>
-        </div>
+        <MobileHeader
+          mobileMenuOpen={mobileMenuOpen}
+          onToggleMenu={() => setMobileMenuOpen(!mobileMenuOpen)}
+        />
 
 
         {/* Sidebar - Overlay on mobile, fixed on desktop */}
@@ -176,17 +165,10 @@ function App() {
                 </ul>
               </SidebarGroup>
 
-              <SidebarGroup title="Finance">
-                <ul className="space-y-1 px-2">
-                  <li><Link to="/finance" className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-slate-800 hover:text-white transition-colors text-sm text-slate-300"><Icons.DollarSign className="w-4 h-4" /> Finance (AR/AP)</Link></li>
-                </ul>
-              </SidebarGroup>
 
-              {/* Inventory Group */}
               <SidebarGroup title="Inventory">
                 <ul className="space-y-1 px-2">
                   <li><Link to="/stock-adj" className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-slate-800 hover:text-white transition-colors text-sm text-slate-300"><Icons.Edit className="w-4 h-4" /> Stock Adj</Link></li>
-                  <li><Link to="/opening-stock" className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-slate-800 hover:text-white transition-colors text-sm text-slate-300"><Icons.Package className="w-4 h-4" /> Opening Stock</Link></li>
                   <li><Link to="/stock-card" className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-slate-800 hover:text-white transition-colors text-sm text-slate-300"><Icons.FileText className="w-4 h-4" /> Stock Card</Link></li>
                 </ul>
               </SidebarGroup>
@@ -194,7 +176,7 @@ function App() {
               {/* Master Data */}
               <SidebarGroup title="Master Data">
                 <ul className="space-y-1 px-2">
-                  <li><Link to="/product-parents" className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-slate-800 hover:text-white transition-colors text-sm text-slate-300"><Icons.Copy className="w-4 h-4" /> Product Parents</Link></li>
+                  <li><Link to="/products" className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-slate-800 hover:text-white transition-colors text-sm text-slate-300"><Icons.Package className="w-4 h-4" /> Products</Link></li>
                   <li><Link to="/items" className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-slate-800 hover:text-white transition-colors text-sm text-slate-300"><Icons.Package className="w-4 h-4" /> Items</Link></li>
                   <li><Link to="/attributes" className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-slate-800 hover:text-white transition-colors text-sm text-slate-300"><Icons.Settings className="w-4 h-4" /> Attributes & Groups</Link></li>
                   <li><Link to="/brands-categories" className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-slate-800 hover:text-white transition-colors text-sm text-slate-300"><Icons.Tag className="w-4 h-4" /> Brands & Categories</Link></li>
@@ -203,15 +185,14 @@ function App() {
                 </ul>
               </SidebarGroup>
 
-              {/* Accounting */}
               <SidebarGroup title="Accounting">
                 <ul className="space-y-1 px-2">
+                  <li><Link to="/finance" className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-slate-800 hover:text-white transition-colors text-sm text-slate-300"><Icons.DollarSign className="w-4 h-4" /> Finance (AR/AP)</Link></li>
                   <li><Link to="/coa" className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-slate-800 hover:text-white transition-colors text-sm text-slate-300"><Icons.FileText className="w-4 h-4" /> COA</Link></li>
                   <li><Link to="/opening-balance" className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-slate-800 hover:text-white transition-colors text-sm text-slate-300"><Icons.DollarSign className="w-4 h-4" /> Opening Balance</Link></li>
                   <li><Link to="/journals" className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-slate-800 hover:text-white transition-colors text-sm text-slate-300"><Icons.FileText className="w-4 h-4" /> Journals</Link></li>
                   <li><Link to="/reports" className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-slate-800 hover:text-white transition-colors text-sm text-slate-300"><Icons.Chart className="w-4 h-4" /> Reports</Link></li>
                   <li><Link to="/period-lock" className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-slate-800 hover:text-white transition-colors text-sm text-slate-300"><Icons.Info className="w-4 h-4" /> Period Lock</Link></li>
-                  <li><Link to="/period-reports" className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-slate-800 hover:text-white transition-colors text-sm text-slate-300"><Icons.FileText className="w-4 h-4" /> Period Reports</Link></li>
                 </ul>
               </SidebarGroup>
 
@@ -235,7 +216,7 @@ function App() {
             )}
           </div>
         </nav>
-        <main className="flex-1 overflow-y-auto h-screen pt-16 md:pt-0 p-2 sm:p-4 md:p-6 lg:p-8">
+        <main className="flex-1 overflow-y-auto h-screen pt-20 md:pt-0 p-2 sm:p-4 md:p-6 lg:p-8">
           <Suspense fallback={
             <div className="flex items-center justify-center h-full">
               <div className="text-center">
@@ -276,7 +257,7 @@ function App() {
               <Route path="/settings" element={<CompanySettings />} />
               <Route path="/attributes" element={<Attributes />} />
               <Route path="/brands-categories" element={<BrandsCategories />} />
-              <Route path="/product-parents" element={<ProductParents />} />
+              <Route path="/products" element={<Products />} />
               {/* DEV ONLY Route */}
               {import.meta.env.DEV && <Route path="/dev-reset" element={<DevResetData />} />}
               <Route path="/" element={<Dashboard />} />

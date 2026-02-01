@@ -14,6 +14,7 @@ import { Button } from "./ui/Button";
 import { Badge } from "./ui/Badge";
 import { Alert } from "./ui/Alert";
 import { Icons } from "./ui/Icons";
+import RelatedDocumentsCard, { type RelatedDocumentItem } from "./shared/RelatedDocumentsCard";
 
 type SalesDetail = {
   id: string;
@@ -22,6 +23,7 @@ type SalesDetail = {
   customer_id: string;
   customer_name: string;
   terms: "CASH" | "CREDIT";
+  payment_method_code?: string | null;
   total_amount: number;
   status: "DRAFT" | "POSTED" | "VOID";
   notes: string | null;
@@ -67,6 +69,7 @@ export default function SalesDetail() {
   const [items, setItems] = useState<SalesItem[]>([]);
   const [relatedDocs, setRelatedDocs] = useState<RelatedDoc>({});
   const [company, setCompany] = useState<CompanyProfile | null>(null);
+  const [paymentMethodName, setPaymentMethodName] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -95,6 +98,7 @@ export default function SalesDetail() {
                     sales_no,
                     customer_id,
                     terms,
+                    payment_method_code,
                     total_amount,
                     status,
                     notes,
@@ -113,6 +117,17 @@ export default function SalesDetail() {
         ...saleData,
         customer_name: (saleData.customers as unknown as { name: string })?.name || "Unknown",
       });
+
+      if (saleData.terms === "CASH" && saleData.payment_method_code) {
+        const { data: methodData } = await supabase
+          .from("payment_methods")
+          .select("name")
+          .eq("code", saleData.payment_method_code)
+          .single();
+        setPaymentMethodName(methodData?.name || saleData.payment_method_code);
+      } else {
+        setPaymentMethodName(null);
+      }
 
       // Fetch items
       const { data: itemsData, error: itemsError } = await supabase
@@ -151,7 +166,7 @@ export default function SalesDetail() {
         const { data: journalData } = await supabase
           .from("journals")
           .select("id, journal_date")
-          .eq("ref_type", "SALES")
+          .eq("ref_type", "sales")
           .eq("ref_id", saleId)
           .single();
 
@@ -396,16 +411,16 @@ export default function SalesDetail() {
         </CardHeader>
         <CardContent>
           <Table>
-            <TableHead>
+            <TableHeader>
               <TableRow>
-                <TableHeader>SKU</TableHeader>
-                <TableHeader>Item Name</TableHeader>
-                <TableHeader>UoM</TableHeader>
-                <TableHeader className="text-right">Qty</TableHeader>
-                <TableHeader className="text-right">Unit Price</TableHeader>
-                <TableHeader className="text-right">Subtotal</TableHeader>
+                <TableHead>SKU</TableHead>
+                <TableHead>Item Name</TableHead>
+                <TableHead>UoM</TableHead>
+                <TableHead className="text-right">Qty</TableHead>
+                <TableHead className="text-right">Unit Price</TableHead>
+                <TableHead className="text-right">Subtotal</TableHead>
               </TableRow>
-            </TableHead>
+            </TableHeader>
             <TableBody>
               {items.map((item) => (
                 <TableRow key={item.id}>
@@ -438,67 +453,79 @@ export default function SalesDetail() {
 
       {/* Related Documents (POSTED only) */}
       {sale.status === "POSTED" && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Related Documents</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3 text-sm">
-              {relatedDocs.journal_id && (
-                <div className="flex justify-between items-center p-3 bg-blue-50 rounded">
-                  <div className="flex items-start gap-3">
-                    <div className="text-blue-500 mt-1">
-                      <Icons.FileText className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <p className="font-medium">Journal Entry</p>
-                      <p className="text-gray-600">
-                        ID: {relatedDocs.journal_id.substring(0, 8)} | Date:{" "}
-                        {new Date(relatedDocs.journal_date!).toLocaleDateString(
-                          "id-ID",
-                        )}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-              {relatedDocs.receipt_id && (
-                <div className="flex justify-between items-center p-3 bg-green-50 rounded">
-                  <div className="flex items-start gap-3">
-                    <div className="text-green-500 mt-1">
-                      <Icons.DollarSign className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <p className="font-medium">Receipt (CASH)</p>
-                      <p className="text-gray-600">
-                        ID: {relatedDocs.receipt_id.substring(0, 8)} | Amount:{" "}
-                        {formatCurrency(relatedDocs.receipt_amount!)}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-              {relatedDocs.ar_invoice_id && (
-                <div className="flex justify-between items-center p-3 bg-orange-50 rounded">
-                  <div className="flex items-start gap-3">
-                    <div className="text-orange-500 mt-1">
-                      <Icons.FileText className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <p className="font-medium">AR Invoice (CREDIT)</p>
-                      <p className="text-gray-600">
-                        ID: {relatedDocs.ar_invoice_id.substring(0, 8)} | Total:{" "}
-                        {formatCurrency(relatedDocs.ar_total!)} | Outstanding:{" "}
-                        {formatCurrency(relatedDocs.ar_outstanding!)} | Status:{" "}
-                        <Badge className="ml-1">{relatedDocs.ar_status}</Badge>
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+        <RelatedDocumentsCard
+          items={[
+            ...(relatedDocs.journal_id
+              ? [
+                {
+                  id: relatedDocs.journal_id,
+                  title: "Journal Entry",
+                  description: (
+                    <p>
+                      ID: {relatedDocs.journal_id.substring(0, 8)} | Date:{" "}
+                      {new Date(relatedDocs.journal_date!).toLocaleDateString(
+                        "id-ID",
+                      )}
+                    </p>
+                  ),
+                  icon: <Icons.FileText className="w-5 h-5" />,
+                  toneClassName: "bg-blue-50",
+                  iconClassName: "text-blue-500",
+                  actionLabel: "Open",
+                  onAction: () =>
+                    navigate(
+                      `/journals?q=${encodeURIComponent(
+                        sale.sales_no || relatedDocs.journal_id!
+                      )}`
+                    ),
+                } as RelatedDocumentItem,
+              ]
+              : []),
+            ...(relatedDocs.receipt_id
+              ? [
+                {
+                  id: relatedDocs.receipt_id,
+                  title: "Receipt (CASH)",
+                  description: (
+                    <p>
+                      ID: {relatedDocs.receipt_id.substring(0, 8)} | Amount:{" "}
+                      {formatCurrency(relatedDocs.receipt_amount!)}
+                    </p>
+                  ),
+                  icon: <Icons.DollarSign className="w-5 h-5" />,
+                  toneClassName: "bg-green-50",
+                  iconClassName: "text-green-500",
+                } as RelatedDocumentItem,
+              ]
+              : []),
+            ...(relatedDocs.ar_invoice_id
+              ? [
+                {
+                  id: relatedDocs.ar_invoice_id,
+                  title: "AR Invoice (CREDIT)",
+                  description: (
+                    <p>
+                      ID: {relatedDocs.ar_invoice_id.substring(0, 8)} | Total:{" "}
+                      {formatCurrency(relatedDocs.ar_total!)} | Outstanding:{" "}
+                      {formatCurrency(relatedDocs.ar_outstanding!)} | Status:{" "}
+                      <Badge className="ml-1">{relatedDocs.ar_status}</Badge>
+                    </p>
+                  ),
+                  icon: <Icons.FileText className="w-5 h-5" />,
+                  toneClassName: "bg-orange-50",
+                  iconClassName: "text-orange-500",
+                  actionLabel: "Open AR",
+                  onAction: () =>
+                    navigate(
+                      `/finance?ar=${encodeURIComponent(
+                        relatedDocs.ar_invoice_id!
+                      )}`
+                    ),
+                } as RelatedDocumentItem,
+              ]
+              : []),
+          ]}
+        />
       )}
 
       {/* --- PRINT ONLY SECTION --- */}
@@ -563,7 +590,11 @@ export default function SalesDetail() {
               <p className="text-xs uppercase font-bold text-gray-500 mb-1">
                 Payment Method
               </p>
-              <p className="font-bold text-lg mb-2">{sale.terms}</p>
+              <p className="font-bold text-lg mb-2">
+                {sale.terms === "CASH"
+                  ? paymentMethodName || sale.payment_method_code || "CASH"
+                  : sale.terms}
+              </p>
               <p className="text-xs uppercase font-bold text-gray-500 mb-1">
                 Status
               </p>

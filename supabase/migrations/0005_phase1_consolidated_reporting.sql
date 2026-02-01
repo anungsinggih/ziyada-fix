@@ -80,11 +80,17 @@ cross join lateral (
 
   union all
 
-  -- Adjustments (Delta)
+  -- Adjustments (Delta) + Opening (from opening stock/import)
   select
     a.adjusted_at::date as trx_date,
-    'ADJUSTMENT' as trx_type,
-    a.reason as ref_no,
+    case
+      when a.reason ilike 'opening%' or a.reason ilike 'import initial stock%' then 'OPENING'
+      else 'ADJUSTMENT'
+    end as trx_type,
+    case
+      when a.reason ilike 'opening%' or a.reason ilike 'import initial stock%' then '-'
+      else a.reason
+    end as ref_no,
     a.qty_delta as qty_change,
     i.uom as uom,
     a.adjusted_at as created_at

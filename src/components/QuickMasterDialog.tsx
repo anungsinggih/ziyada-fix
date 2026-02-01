@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react'
 import { supabase } from '../supabaseClient'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from './ui/Dialog'
@@ -14,13 +13,12 @@ interface QuickMasterDialogProps {
     onClose: () => void
     onSuccess: (newId: string) => void
     hasCode?: boolean
-    hasSort?: boolean
 }
 
-export function QuickMasterDialog({ table, title, isOpen, onClose, onSuccess, hasCode = true, hasSort = true }: QuickMasterDialogProps) {
+export function QuickMasterDialog({ table, title, isOpen, onClose, onSuccess, hasCode = true }: QuickMasterDialogProps) {
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
-    const [formData, setFormData] = useState({ name: '', code: '', sort_order: 0, is_active: true })
+    const [formData, setFormData] = useState({ name: '', code: '', is_active: true })
 
     async function handleSubmit(e: React.FormEvent) {
         e.preventDefault()
@@ -33,7 +31,6 @@ export function QuickMasterDialog({ table, title, isOpen, onClose, onSuccess, ha
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const payload: Record<string, any> = { name: formData.name, is_active: formData.is_active }
             if (hasCode) payload.code = formData.code?.toUpperCase()
-            if (hasSort) payload.sort_order = formData.sort_order
 
             const { data, error } = await supabase.from(table).insert([payload]).select().single()
 
@@ -50,7 +47,7 @@ export function QuickMasterDialog({ table, title, isOpen, onClose, onSuccess, ha
     }
 
     function handleClose() {
-        setFormData({ name: '', code: '', sort_order: 0, is_active: true })
+        setFormData({ name: '', code: '', is_active: true })
         setError(null)
         onClose()
     }
@@ -92,16 +89,7 @@ export function QuickMasterDialog({ table, title, isOpen, onClose, onSuccess, ha
                         </div>
                     </div>
 
-                    {hasSort && (
-                        <div className="w-1/3">
-                            <Input
-                                type="number"
-                                label="Sort Order"
-                                value={formData.sort_order}
-                                onChange={e => setFormData({ ...formData, sort_order: parseInt(e.target.value) || 0 })}
-                            />
-                        </div>
-                    )}
+
 
                     <Checkbox
                         label="Active"

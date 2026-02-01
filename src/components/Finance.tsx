@@ -1,123 +1,80 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../supabaseClient";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "./ui/Tabs";
-import { Card, CardContent, CardHeader, CardTitle } from "./ui/Card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "./ui/Table";
-import { Button } from "./ui/Button";
-import { Input } from "./ui/Input";
-import { Select } from "./ui/Select";
+import { Card, CardContent } from "./ui/Card";
 import { Alert } from "./ui/Alert";
-import { Switch } from "./ui/Switch";
+import { Button } from "./ui/Button";
 import { Icons } from "./ui/Icons";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 
-type AR = {
-  id: string;
-  invoice_date: string;
-  customer: { name: string };
-  total_amount: number;
-  outstanding_amount: number;
-  status: string;
-};
-
-type AP = {
-  id: string;
-  bill_date: string;
-  vendor: { name: string };
-  total_amount: number;
-  outstanding_amount: number;
-  status: string;
-};
+// Sub-components
+import { FinanceARList } from "./FinanceARList";
+import { FinanceAPList } from "./FinanceAPList";
+import { FinanceReceiptForm } from "./FinanceReceiptForm";
+import { FinancePaymentForm } from "./FinancePaymentForm";
 
 export default function Finance() {
-  // const [tab, setTab] = useState<'AR' | 'AP'>('AR') // Controlled by Tabs component now
-  const [arList, setArList] = useState<AR[]>([]);
-  const [apList, setApList] = useState<AP[]>([]);
-  const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
+  const location = useLocation();
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-  const [isPettyCash, setIsPettyCash] = useState(false);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [activeTab, setActiveTab] = useState<"AR" | "AP">("AR");
 
-  // Form
+  // Shared Form State
   const [selectedId, setSelectedId] = useState("");
-  const [amount, setAmount] = useState(0);
-  const [trxDate, setTrxDate] = useState(
-    new Date().toISOString().split("T")[0],
-  );
-  const [method, setMethod] = useState("CASH");
-  const [paymentMethods, setPaymentMethods] = useState<
-    { code: string; name: string }[]
-  >([]);
+  const [selectedAmount, setSelectedAmount] = useState(0);
+
+  // Payment Methods State (Shared)
+  const [paymentMethods, setPaymentMethods] = useState<{ code: string; name: string }[]>([]);
   const [methodError, setMethodError] = useState<string | null>(null);
 
-  const navigate = useNavigate();
-
-  // Since tabs control visibility, we might need separate effects or just load both.
-  // Or load on tab change if we controlled it.
-  // Let's load both initially for simplicity or stick to effect.
-  // Ideally we want to refresh when success happens.
-
   useEffect(() => {
-    fetchAR();
-    fetchAP();
     fetchPaymentMethods();
   }, []);
 
   useEffect(() => {
-    if (success) {
-      fetchAR();
-      fetchAP();
+    const params = new URLSearchParams(location.search);
+    const arId = params.get("ar");
+    const apId = params.get("ap");
+
+    if (arId) {
+      setActiveTab("AR");
+      selectFromQuery("AR", arId);
+      return;
     }
-  }, [success]);
-
-  useEffect(() => {
-    if (paymentMethods.length) {
-      setMethod((prev) =>
-        paymentMethods.some((m) => m.code === prev)
-          ? prev
-          : paymentMethods[0].code,
-      );
+    if (apId) {
+      setActiveTab("AP");
+      selectFromQuery("AP", apId);
     }
-  }, [paymentMethods]);
+  }, [location.search]);
 
-  useEffect(() => {
-    if (isPettyCash && method !== "CASH") {
-      setMethod("CASH");
+  async function selectFromQuery(type: "AR" | "AP", id: string) {
+    setError(null);
+    try {
+      if (type === "AR") {
+        const { data, error: fetchError } = await supabase
+          .from("ar_invoices")
+          .select("id, outstanding_amount")
+          .eq("id", id)
+          .single();
+        if (fetchError) throw fetchError;
+        setSelectedId(data.id);
+        setSelectedAmount(data.outstanding_amount || 0);
+      } else {
+        const { data, error: fetchError } = await supabase
+          .from("ap_bills")
+          .select("id, outstanding_amount")
+          .eq("id", id)
+          .single();
+        if (fetchError) throw fetchError;
+        setSelectedId(data.id);
+        setSelectedAmount(data.outstanding_amount || 0);
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to load document";
+      setError(msg);
     }
-  }, [isPettyCash, method]);
-
-  async function fetchAR() {
-    setLoading(true);
-    const { data, error } = await supabase
-      .from("ar_invoices")
-      .select("*, customer:customers(name)")
-      .gt("outstanding_amount", 0)
-      .order("invoice_date", { ascending: true });
-
-    if (error) setError(error.message);
-    else setArList(data || []);
-    setLoading(false);
-  }
-
-  async function fetchAP() {
-    setLoading(true);
-    const { data, error } = await supabase
-      .from("ap_bills")
-      .select("*, vendor:vendors(name)")
-      .gt("outstanding_amount", 0)
-      .order("bill_date", { ascending: true });
-
-    if (error) setError(error.message);
-    else setApList(data || []);
-    setLoading(false);
   }
 
   async function fetchPaymentMethods() {
@@ -128,9 +85,7 @@ export default function Finance() {
       .order("code", { ascending: true });
 
     if (error) {
-      setMethodError(
-        "Gagal memuat metode pembayaran; gunakan default CASH/BANK.",
-      );
+      setMethodError("Gagal memuat metode pembayaran; gunakan default CASH/BANK.");
       setPaymentMethods([
         { code: "CASH", name: "Kas (Default)" },
         { code: "BANK", name: "Bank (Default)" },
@@ -141,102 +96,27 @@ export default function Finance() {
     }
   }
 
-  function handleSelect(id: string, outstanding: number) {
+  function handleSelect(id: string, amount: number) {
     setSelectedId(id);
-    setAmount(outstanding);
+    setSelectedAmount(amount);
     setError(null);
     setSuccess(null);
   }
 
-  function handleAmountChange(value: string) {
-    const parsed = parseFloat(value);
-    if (isNaN(parsed)) {
-      setAmount(0);
-      return;
-    }
-
-    if (isPettyCash) {
-      setAmount(Math.min(parsed, 500000));
-    } else {
-      setAmount(parsed);
-    }
+  function handleSuccess(msg: string) {
+    setSuccess(msg);
+    setSelectedId("");
+    setSelectedAmount(0);
+    setRefreshTrigger(prev => prev + 1); // Trigger List Refresh
   }
 
-  const getErrorMessage = (error: unknown) =>
-    error instanceof Error ? error.message : String(error);
-
-  async function handleSubmit(type: "AR" | "AP") {
-    if (!selectedId) return;
-    if (amount <= 0) {
-      setError("Amount must be > 0");
-      return;
-    }
-
-    const normalizedMethod = (method || "CASH").toUpperCase();
-
-    if (isPettyCash && normalizedMethod !== "CASH") {
-      setError("Petty cash receipts must use CASH method");
-      return;
-    }
-
-    if (isPettyCash && amount > 500000) {
-      setError("Petty cash receipts limited to 500.000");
-      return;
-    }
-
-    setMethod(normalizedMethod);
-
-    setLoading(true);
-    setSubmitting(true);
-    setError(null);
-    setSuccess(null);
-
-    try {
-      if (type === "AR") {
-        const { error } = await supabase.rpc("rpc_create_receipt_ar", {
-          p_ar_invoice_id: selectedId,
-          p_amount: amount,
-          p_receipt_date: trxDate,
-          p_method: normalizedMethod,
-          p_is_petty_cash: isPettyCash,
-        });
-        if (error) throw error;
-        setSuccess("Receipt Created Successfully!");
-      } else {
-        const { error } = await supabase.rpc("rpc_create_payment_ap", {
-          p_ap_bill_id: selectedId,
-          p_amount: amount,
-          p_payment_date: trxDate,
-          p_method: method,
-        });
-        if (error) throw error;
-        setSuccess("Payment Created Successfully!");
-      }
-      setSelectedId("");
-      setAmount(0);
-    } catch (err: unknown) {
-      setSuccess(null);
-      setError(getErrorMessage(err));
-    } finally {
-      setSubmitting(false);
-      setLoading(false);
-    }
+  function handleError(msg: string) {
+    setError(msg);
   }
-
-  const methodOptions =
-    paymentMethods.length > 0
-      ? paymentMethods.map((m) => ({
-          label: `${m.code} - ${m.name}`,
-          value: m.code,
-        }))
-      : [
-          { label: "CASH", value: "CASH" },
-          { label: "BANK", value: "BANK" },
-        ];
 
   return (
     <div className="w-full space-y-8">
-      <h2 className="text-3xl font-bold tracking-tight text-gray-900">
+      <h2 className="hidden md:block text-3xl font-bold tracking-tight text-gray-900">
         Finance & Cash Flow
       </h2>
 
@@ -274,7 +154,9 @@ export default function Finance() {
 
       <Tabs
         defaultValue="AR"
-        onValueChange={() => {
+        value={activeTab}
+        onValueChange={(value) => {
+          setActiveTab(value as "AR" | "AP");
           setSelectedId("");
           setSuccess(null);
           setError(null);
@@ -299,139 +181,22 @@ export default function Finance() {
 
         <TabsContent value="AR">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-8">
-            <div
-              className={`transition-all duration-300 ${selectedId ? "lg:col-span-2" : "lg:col-span-3"}`}
-            >
-              <Card className="shadow-sm">
-                <CardHeader className="bg-green-50/50 border-b border-green-100">
-                  <CardTitle className="text-green-800">
-                    Outstanding Invoices (Receivables)
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-0">
-                  <div className="overflow-x-auto w-full">
-                    <Table className="w-full min-w-[640px]">
-                      <TableHead>
-                        <TableRow>
-                          <TableHeader>Date</TableHeader>
-                          <TableHeader>Customer</TableHeader>
-                          <TableHeader>Total</TableHeader>
-                          <TableHeader>Outstanding</TableHeader>
-                          <TableHeader>Action</TableHeader>
-                        </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        {arList.length === 0 ? (
-                          <TableRow>
-                            <TableCell
-                              colSpan={5}
-                              className="text-center italic py-8 text-gray-500"
-                            >
-                              No outstanding invoices
-                            </TableCell>
-                          </TableRow>
-                        ) : (
-                          arList.map((item) => (
-                            <TableRow
-                              key={item.id}
-                              className={
-                                selectedId === item.id ? "bg-blue-50" : ""
-                              }
-                            >
-                              <TableCell>{item.invoice_date}</TableCell>
-                              <TableCell className="font-medium">
-                                {item.customer?.name}
-                              </TableCell>
-                              <TableCell>
-                                {item.total_amount.toLocaleString()}
-                              </TableCell>
-                              <TableCell className="font-bold text-green-600">
-                                {item.outstanding_amount.toLocaleString()}
-                              </TableCell>
-                              <TableCell>
-                                <Button
-                                  size="sm"
-                                  variant={
-                                    selectedId === item.id
-                                      ? "primary"
-                                      : "outline"
-                                  }
-                                  onClick={() =>
-                                    handleSelect(
-                                      item.id,
-                                      item.outstanding_amount,
-                                    )
-                                  }
-                                  className="w-full sm:w-auto"
-                                >
-                                  {selectedId === item.id
-                                    ? "Selected"
-                                    : "Select"}
-                                </Button>
-                              </TableCell>
-                            </TableRow>
-                          ))
-                        )}
-                      </TableBody>
-                    </Table>
-                  </div>
-                </CardContent>
-              </Card>
+            <div className={`transition-all duration-300 ${selectedId ? "lg:col-span-2" : "lg:col-span-3"}`}>
+              <FinanceARList
+                selectedId={selectedId}
+                onSelect={handleSelect}
+                refreshTrigger={refreshTrigger}
+              />
             </div>
             {selectedId && (
               <div className="lg:col-span-1">
-                <Card className="border-green-200 shadow-md sticky top-6">
-                  <CardHeader className="bg-green-100/50 border-b border-green-100">
-                    <CardTitle className="text-green-900">
-                      Process Receipt
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4 pt-6">
-                    <div className="text-xs text-gray-500 font-mono mb-2">
-                      REF: {selectedId}
-                    </div>
-                    <Input
-                      label="Date"
-                      type="date"
-                      value={trxDate}
-                      onChange={(e) => setTrxDate(e.target.value)}
-                    />
-                    <Input
-                      label="Amount Received"
-                      type="number"
-                      value={amount}
-                      max={isPettyCash ? 500000 : undefined}
-                      onChange={(e) => handleAmountChange(e.target.value)}
-                    />
-                    <Select
-                      label="Method"
-                      value={method}
-                      onChange={(e) => setMethod(e.target.value)}
-                      options={methodOptions}
-                      disabled={isPettyCash}
-                    />
-                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 mt-2">
-                      <Switch
-                        label="Petty Cash"
-                        checked={isPettyCash}
-                        onCheckedChange={(checked) => setIsPettyCash(checked)}
-                      />
-                      <p className="text-xs text-gray-500">
-                        {isPettyCash
-                          ? "Petty cash hanya untuk Kas dan maksimal Rp 500.000."
-                          : "Gunakan toggle ini bila ingin mencatat petty cash receipt."}
-                      </p>
-                    </div>
-                    <Button
-                      className="w-full mt-4 bg-green-600 hover:bg-green-700"
-                      onClick={() => handleSubmit("AR")}
-                      disabled={loading || submitting}
-                      isLoading={submitting}
-                    >
-                      Confirm Receipt
-                    </Button>
-                  </CardContent>
-                </Card>
+                <FinanceReceiptForm
+                  invoiceId={selectedId}
+                  initialAmount={selectedAmount}
+                  paymentMethods={paymentMethods}
+                  onSuccess={handleSuccess}
+                  onError={handleError}
+                />
               </div>
             )}
           </div>
@@ -439,132 +204,27 @@ export default function Finance() {
 
         <TabsContent value="AP">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-8">
-            <div
-              className={`transition-all duration-300 ${selectedId ? "lg:col-span-2" : "lg:col-span-3"}`}
-            >
-              <Card className="shadow-sm">
-                <CardHeader className="bg-red-50/50 border-b border-red-100">
-                  <CardTitle className="text-red-800">
-                    Unpaid Bills (Payables)
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-0">
-                  <div className="overflow-x-auto w-full">
-                    <Table className="w-full min-w-[640px]">
-                      <TableHead>
-                        <TableRow>
-                          <TableHeader>Date</TableHeader>
-                          <TableHeader>Vendor</TableHeader>
-                          <TableHeader>Total</TableHeader>
-                          <TableHeader>Outstanding</TableHeader>
-                          <TableHeader>Action</TableHeader>
-                        </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        {apList.length === 0 ? (
-                          <TableRow>
-                            <TableCell
-                              colSpan={5}
-                              className="text-center italic py-8 text-gray-500"
-                            >
-                              No unpaid bills
-                            </TableCell>
-                          </TableRow>
-                        ) : (
-                          apList.map((item) => (
-                            <TableRow
-                              key={item.id}
-                              className={
-                                selectedId === item.id ? "bg-red-50" : ""
-                              }
-                            >
-                              <TableCell>{item.bill_date}</TableCell>
-                              <TableCell className="font-medium">
-                                {item.vendor?.name}
-                              </TableCell>
-                              <TableCell>
-                                {item.total_amount.toLocaleString()}
-                              </TableCell>
-                              <TableCell className="font-bold text-red-600">
-                                {item.outstanding_amount.toLocaleString()}
-                              </TableCell>
-                              <TableCell>
-                                <Button
-                                  size="sm"
-                                  variant={
-                                    selectedId === item.id
-                                      ? "primary"
-                                      : "outline"
-                                  }
-                                  onClick={() =>
-                                    handleSelect(
-                                      item.id,
-                                      item.outstanding_amount,
-                                    )
-                                  }
-                                  className="w-full sm:w-auto"
-                                >
-                                  {selectedId === item.id
-                                    ? "Selected"
-                                    : "Select"}
-                                </Button>
-                              </TableCell>
-                            </TableRow>
-                          ))
-                        )}
-                      </TableBody>
-                    </Table>
-                  </div>
-                </CardContent>
-              </Card>
+            <div className={`transition-all duration-300 ${selectedId ? "lg:col-span-2" : "lg:col-span-3"}`}>
+              <FinanceAPList
+                selectedId={selectedId}
+                onSelect={handleSelect}
+                refreshTrigger={refreshTrigger}
+              />
             </div>
             {selectedId && (
               <div className="lg:col-span-1">
-                <Card className="border-red-200 shadow-md sticky top-6">
-                  <CardHeader className="bg-red-100/50 border-b border-red-100">
-                    <CardTitle className="text-red-900">
-                      Process Payment
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4 pt-6">
-                    <div className="text-xs text-gray-500 font-mono mb-2">
-                      REF: {selectedId}
-                    </div>
-                    <Input
-                      label="Date"
-                      type="date"
-                      value={trxDate}
-                      onChange={(e) => setTrxDate(e.target.value)}
-                    />
-                    <Input
-                      label="Amount Paid"
-                      type="number"
-                      value={amount}
-                      onChange={(e) => setAmount(parseFloat(e.target.value))}
-                    />
-                    <Select
-                      label="Method"
-                      value={method}
-                      onChange={(e) => setMethod(e.target.value)}
-                      options={methodOptions}
-                    />
-                    <Button
-                      className="w-full mt-4 bg-red-600 hover:bg-red-700"
-                      onClick={() => handleSubmit("AP")}
-                      disabled={loading || submitting}
-                      isLoading={submitting}
-                    >
-                      Confirm Payment
-                    </Button>
-                  </CardContent>
-                </Card>
+                <FinancePaymentForm
+                  billId={selectedId}
+                  initialAmount={selectedAmount}
+                  paymentMethods={paymentMethods}
+                  onSuccess={handleSuccess}
+                  onError={handleError}
+                />
               </div>
             )}
           </div>
         </TabsContent>
       </Tabs>
-
-      {/* Summary cards and receipt list removed per request */}
     </div>
   );
 }

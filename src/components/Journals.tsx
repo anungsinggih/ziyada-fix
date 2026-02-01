@@ -6,6 +6,8 @@ import { Input } from './ui/Input'
 import { Badge } from './ui/Badge'
 import { Button } from './ui/Button'
 import { Icons } from './ui/Icons'
+import { useLocation } from 'react-router-dom'
+import { formatCurrency, formatDate } from '../lib/format'
 
 type JournalEntry = {
     id: string
@@ -25,14 +27,124 @@ type JournalLine = {
     credit: number
 }
 
+// --- SUB-COMPONENT: JOURNAL ITEM WITH ACCORDION ---
+function JournalEntryItem({ journal, formatCurrency, getRefTypeBadge }: {
+    journal: JournalEntry,
+    formatCurrency: (n: number) => string,
+    getRefTypeBadge: (t: string) => React.ReactNode
+}) {
+    const [isExpanded, setIsExpanded] = useState(false)
+    const totalDebit = journal.lines.reduce((sum, line) => sum + line.debit, 0)
+    const totalCredit = journal.lines.reduce((sum, line) => sum + line.credit, 0)
+    const isBalanced = Math.abs(totalDebit - totalCredit) < 0.01
+
+    return (
+        <Card className="shadow-md transition-all hover:shadow-lg">
+            <CardHeader
+                className="bg-gray-50 border-b border-gray-200 cursor-pointer hover:bg-gray-100 transition-colors py-4"
+                onClick={() => setIsExpanded(!isExpanded)}
+            >
+                <div className="flex items-center gap-4">
+                    {/* Icon Column */}
+                    <div className="flex-shrink-0">
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            className={`
+                                p-0 h-10 w-10 rounded-xl transition-all duration-200 border shadow-sm
+                                ${isExpanded
+                                    ? 'bg-blue-50 text-blue-700 border-blue-200 rotate-0'
+                                    : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50 hover:text-gray-900 hover:border-gray-300'
+                                }
+                            `}
+                        >
+                            {isExpanded ? <Icons.ChevronDown className="w-6 h-6" /> : <Icons.ChevronRight className="w-6 h-6" />}
+                        </Button>
+                    </div>
+
+                    {/* Content Column */}
+                    <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-3 mb-1 flex-wrap">
+                            <h3 className="text-lg font-semibold text-gray-900">
+                                {journal.ref_type} - {journal.ref_id.substring(0, 8)}
+                            </h3>
+                            {getRefTypeBadge(journal.ref_type)}
+                            {isBalanced ? (
+                                <Badge className="bg-green-100 text-green-800 flex items-center gap-1"><Icons.Check className="w-3 h-3" /> Balanced</Badge>
+                            ) : (
+                                <Badge className="bg-red-100 text-red-800 flex items-center gap-1"><Icons.Warning className="w-3 h-3" /> Unbalanced</Badge>
+                            )}
+                        </div>
+                        <p className="text-sm text-gray-600 truncate">{journal.memo || 'No description'}</p>
+                    </div>
+
+                    {/* Right Info Column */}
+                    <div className="text-right flex-shrink-0 pl-2">
+                        <p className="text-sm font-medium text-gray-900">
+                            {formatDate(journal.journal_date)}
+                        </p>
+                        <p className="text-xs text-gray-500 mb-1">
+                            {new Date(journal.created_at).toLocaleString('id-ID')}
+                        </p>
+                        <p className="font-bold text-gray-700">
+                            {formatCurrency(totalDebit)}
+                        </p>
+                    </div>
+                </div>
+            </CardHeader>
+
+            {isExpanded && (
+                <CardContent className="pt-0 animate-in slide-in-from-top-2 duration-200">
+                    <div className="overflow-x-auto border-t border-gray-200">
+                        <Table>
+                            <TableHeader className="bg-gray-50/50">
+                                <TableRow>
+                                    <TableHead className="pl-6">Account Code</TableHead>
+                                    <TableHead>Account Name</TableHead>
+                                    <TableHead className="text-right">Debit</TableHead>
+                                    <TableHead className="text-right pr-6">Credit</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {journal.lines.map((line) => (
+                                    <TableRow key={line.id}>
+                                        <TableCell className="font-mono text-sm pl-6">{line.account_code}</TableCell>
+                                        <TableCell>{line.account_name}</TableCell>
+                                        <TableCell className="text-right font-medium">
+                                            {line.debit > 0 ? formatCurrency(line.debit) : '-'}
+                                        </TableCell>
+                                        <TableCell className="text-right font-medium pr-6">
+                                            {line.credit > 0 ? formatCurrency(line.credit) : '-'}
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                                {/* Totals Row */}
+                                <TableRow className="bg-gray-50 font-bold border-t-2 border-gray-300">
+                                    <TableCell colSpan={2} className="text-right">TOTAL:</TableCell>
+                                    <TableCell className="text-right">{formatCurrency(totalDebit)}</TableCell>
+                                    <TableCell className="text-right pr-6">{formatCurrency(totalCredit)}</TableCell>
+                                </TableRow>
+                            </TableBody>
+                        </Table>
+                    </div>
+                </CardContent>
+            )}
+        </Card>
+    )
+}
+
 export default function Journals() {
     const [journals, setJournals] = useState<JournalEntry[]>([])
+    // ... (rest of the component state is fine, just replacing the return block mostly)
+
+    // ... (keep fetchJournals and other hooks)
     const [filteredJournals, setFilteredJournals] = useState<JournalEntry[]>([])
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
     const [searchTerm, setSearchTerm] = useState('')
     const [startDate, setStartDate] = useState('')
     const [endDate, setEndDate] = useState('')
+    const location = useLocation()
 
     const filterJournals = useCallback(() => {
         let filtered = [...journals]
@@ -40,6 +152,7 @@ export default function Journals() {
         // Filter by search term (memo or ref_type)
         if (searchTerm) {
             filtered = filtered.filter(j =>
+                j.id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                 j.memo?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                 j.ref_type?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                 j.ref_id?.toLowerCase().includes(searchTerm.toLowerCase())
@@ -65,6 +178,16 @@ export default function Journals() {
         setStartDate(firstDay.toISOString().split('T')[0])
         setEndDate(now.toISOString().split('T')[0])
     }, [])
+
+    useEffect(() => {
+        const params = new URLSearchParams(location.search)
+        const q = params.get('q')
+        if (q) {
+            setSearchTerm(q)
+            setStartDate('')
+            setEndDate('')
+        }
+    }, [location.search])
 
     useEffect(() => {
         filterJournals()
@@ -135,15 +258,8 @@ export default function Journals() {
         }
     }
 
-    function formatCurrency(amount: number) {
-        return new Intl.NumberFormat('id-ID', {
-            style: 'currency',
-            currency: 'IDR',
-            minimumFractionDigits: 0
-        }).format(amount)
-    }
-
     function getRefTypeBadge(refType: string) {
+        const normalized = (refType || '').toUpperCase()
         const colors: { [key: string]: string } = {
             'SALES': 'bg-green-100 text-green-800',
             'PURCHASE': 'bg-blue-100 text-blue-800',
@@ -153,8 +269,8 @@ export default function Journals() {
             'ADJUSTMENT': 'bg-gray-100 text-gray-800'
         }
         return (
-            <Badge className={colors[refType] || 'bg-gray-100 text-gray-800'}>
-                {refType}
+            <Badge className={colors[normalized] || 'bg-gray-100 text-gray-800'}>
+                {normalized}
             </Badge>
         )
     }
@@ -171,7 +287,7 @@ export default function Journals() {
     return (
         <div className="w-full space-y-6">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <h2 className="text-3xl font-bold tracking-tight text-gray-900">Journal Entries</h2>
+                <h2 className="hidden md:block text-3xl font-bold tracking-tight text-gray-900">Journal Entries</h2>
                 <Button
                     onClick={fetchJournals}
                     variant="outline"
@@ -226,7 +342,7 @@ export default function Journals() {
                 </div>
             </div>
 
-            {/* Journal List */}
+            {/* Journal List with Accordion */}
             <div className="space-y-4">
                 {filteredJournals.length === 0 ? (
                     <Card>
@@ -236,76 +352,14 @@ export default function Journals() {
                         </CardContent>
                     </Card>
                 ) : (
-                    filteredJournals.map((journal) => {
-                        const totalDebit = journal.lines.reduce((sum, line) => sum + line.debit, 0)
-                        const totalCredit = journal.lines.reduce((sum, line) => sum + line.credit, 0)
-                        const isBalanced = Math.abs(totalDebit - totalCredit) < 0.01
-
-                        return (
-                            <Card key={journal.id} className="shadow-md">
-                                <CardHeader className="bg-gray-50 border-b border-gray-200">
-                                    <div className="flex justify-between items-start">
-                                        <div>
-                                            <div className="flex items-center gap-3 mb-1">
-                                                <h3 className="text-lg font-semibold text-gray-900">
-                                                    {journal.ref_type} - {journal.ref_id.substring(0, 8)}
-                                                </h3>
-                                                {getRefTypeBadge(journal.ref_type)}
-                                                {isBalanced ? (
-                                                    <Badge className="bg-green-100 text-green-800 flex items-center gap-1"><Icons.Check className="w-3 h-3" /> Balanced</Badge>
-                                                ) : (
-                                                    <Badge className="bg-red-100 text-red-800 flex items-center gap-1"><Icons.Warning className="w-3 h-3" /> Unbalanced</Badge>
-                                                )}
-                                            </div>
-                                            <p className="text-sm text-gray-600">{journal.memo || 'No description'}</p>
-                                        </div>
-                                        <div className="text-right">
-                                            <p className="text-sm font-medium text-gray-900">
-                                                {new Date(journal.journal_date).toLocaleDateString('id-ID')}
-                                            </p>
-                                            <p className="text-xs text-gray-500">
-                                                {new Date(journal.created_at).toLocaleString('id-ID')}
-                                            </p>
-                                        </div>
-                                    </div>
-                                </CardHeader>
-                                <CardContent className="pt-4">
-                                    <div className="overflow-x-auto">
-                                        <Table>
-                                            <TableHead>
-                                                <TableRow>
-                                                    <TableHeader>Account Code</TableHeader>
-                                                    <TableHeader>Account Name</TableHeader>
-                                                    <TableHeader className="text-right">Debit</TableHeader>
-                                                    <TableHeader className="text-right">Credit</TableHeader>
-                                                </TableRow>
-                                            </TableHead>
-                                            <TableBody>
-                                                {journal.lines.map((line) => (
-                                                    <TableRow key={line.id}>
-                                                        <TableCell className="font-mono text-sm">{line.account_code}</TableCell>
-                                                        <TableCell>{line.account_name}</TableCell>
-                                                        <TableCell className="text-right font-medium">
-                                                            {line.debit > 0 ? formatCurrency(line.debit) : '-'}
-                                                        </TableCell>
-                                                        <TableCell className="text-right font-medium">
-                                                            {line.credit > 0 ? formatCurrency(line.credit) : '-'}
-                                                        </TableCell>
-                                                    </TableRow>
-                                                ))}
-                                                {/* Totals Row */}
-                                                <TableRow className="bg-gray-50 font-bold border-t-2 border-gray-300">
-                                                    <TableCell colSpan={2} className="text-right">TOTAL:</TableCell>
-                                                    <TableCell className="text-right">{formatCurrency(totalDebit)}</TableCell>
-                                                    <TableCell className="text-right">{formatCurrency(totalCredit)}</TableCell>
-                                                </TableRow>
-                                            </TableBody>
-                                        </Table>
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        )
-                    })
+                    filteredJournals.map((journal) => (
+                        <JournalEntryItem
+                            key={journal.id}
+                            journal={journal}
+                            formatCurrency={formatCurrency}
+                            getRefTypeBadge={getRefTypeBadge}
+                        />
+                    ))
                 )}
             </div>
         </div>

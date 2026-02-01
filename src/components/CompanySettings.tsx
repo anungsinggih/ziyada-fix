@@ -132,7 +132,7 @@ export default function CompanySettings() {
     return (
         <div className="max-w-4xl mx-auto space-y-6">
             <div>
-                <h2 className="text-3xl font-bold tracking-tight">Settings</h2>
+                <h2 className="hidden md:block text-3xl font-bold tracking-tight">Settings</h2>
                 <p className="text-gray-500">Manage your company profile and invoice settings.</p>
             </div>
 

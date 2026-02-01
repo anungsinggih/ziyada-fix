@@ -10,7 +10,7 @@ export function Table({ children, className = '' }: { children: React.ReactNode,
     )
 }
 
-export function TableHead({ children, className = '' }: { children: React.ReactNode, className?: string }) {
+export function TableHeader({ children, className = '' }: { children: React.ReactNode, className?: string }) {
     return <thead className={`bg-[var(--bg-surface-alt)] uppercase text-xs font-semibold text-[var(--text-muted)] border-b border-[var(--border)] ${className}`}>{children}</thead>
 }
 
@@ -29,7 +29,7 @@ export function TableRow({ children, className = '', onClick }: { children: Reac
     )
 }
 
-export function TableHeader({ children, className = '' }: { children: React.ReactNode, className?: string }) {
+export function TableHead({ children, className = '' }: { children: React.ReactNode, className?: string }) {
     return <th className={`px-4 py-3 font-semibold text-[var(--text-main)] ${className}`}>{children}</th>
 }
 

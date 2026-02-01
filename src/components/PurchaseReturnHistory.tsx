@@ -4,8 +4,10 @@ import { useNavigate } from 'react-router-dom'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/Card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/Table'
 import { Button } from './ui/Button'
-import { Badge } from './ui/Badge'
 import { Icons } from './ui/Icons'
+import { EmptyState } from './ui/EmptyState'
+import { StatusBadge } from './ui/StatusBadge'
+import { formatCurrency, formatDate } from '../lib/format'
 
 type PurchaseReturnRecord = {
     id: string
@@ -71,27 +73,6 @@ export default function PurchaseReturnHistory() {
         }
     }
 
-    function getStatusBadge(status: string) {
-        const colors = {
-            'DRAFT': 'bg-gray-100 text-gray-800',
-            'POSTED': 'bg-green-100 text-green-800',
-            'VOID': 'bg-red-100 text-red-800'
-        }
-        return (
-            <Badge className={colors[status as keyof typeof colors] || 'bg-gray-100'}>
-                {status}
-            </Badge>
-        )
-    }
-
-    function formatCurrency(amount: number) {
-        return new Intl.NumberFormat('id-ID', {
-            style: 'currency',
-            currency: 'IDR',
-            minimumFractionDigits: 0
-        }).format(amount)
-    }
-
     if (loading) {
         return (
             <div className="w-full p-8 text-center">
@@ -104,7 +85,7 @@ export default function PurchaseReturnHistory() {
     return (
         <div className="w-full space-y-6">
             <div className="flex justify-between items-center">
-                <h2 className="text-3xl font-bold tracking-tight text-gray-900">Purchase Return History</h2>
+                <h2 className="hidden md:block text-3xl font-bold tracking-tight text-gray-900">Purchase Return History</h2>
                 <div className="flex gap-2">
                     <Button onClick={fetchReturns} variant="outline" icon={<Icons.Refresh className="w-4 h-4" />}>
                         Refresh
@@ -127,30 +108,29 @@ export default function PurchaseReturnHistory() {
                 </CardHeader>
                 <CardContent>
                     {returns.length === 0 ? (
-                        <div className="py-12 text-center text-gray-500">
-                            <p className="text-lg flex items-center justify-center gap-2"><Icons.FileText className="w-5 h-5" /> No purchase return documents found</p>
-                            <p className="text-sm mt-2">Create your first return to get started</p>
-                        </div>
+                        <EmptyState
+                            icon={<Icons.FileText className="w-5 h-5" />}
+                            title="No purchase return documents found"
+                            description="Create your first return to get started"
+                        />
                     ) : (
                         <div className="overflow-x-auto">
                             <Table>
-                                <TableHead>
+                                <TableHeader>
                                     <TableRow>
-                                        <TableHeader>Return Date</TableHeader>
-                                        <TableHeader>Return No</TableHeader>
-                                        <TableHeader>Original Purchase</TableHeader>
-                                        <TableHeader>Vendor</TableHeader>
-                                        <TableHeader className="text-right">Total</TableHeader>
-                                        <TableHeader>Status</TableHeader>
-                                        <TableHeader>Actions</TableHeader>
+                                        <TableHead>Return Date</TableHead>
+                                        <TableHead>Return No</TableHead>
+                                        <TableHead>Original Purchase</TableHead>
+                                        <TableHead>Vendor</TableHead>
+                                        <TableHead className="text-right">Total</TableHead>
+                                        <TableHead>Status</TableHead>
+                                        <TableHead>Actions</TableHead>
                                     </TableRow>
-                                </TableHead>
+                                </TableHeader>
                                 <TableBody>
                                     {returns.map((ret) => (
                                         <TableRow key={ret.id}>
-                                            <TableCell>
-                                                {new Date(ret.return_date).toLocaleDateString('id-ID')}
-                                            </TableCell>
+                                            <TableCell>{formatDate(ret.return_date)}</TableCell>
                                             <TableCell className="font-mono text-sm">
                                                 {ret.return_no}
                                             </TableCell>
@@ -161,7 +141,7 @@ export default function PurchaseReturnHistory() {
                                             <TableCell className="text-right font-medium">
                                                 {formatCurrency(ret.total_amount)}
                                             </TableCell>
-                                            <TableCell>{getStatusBadge(ret.status)}</TableCell>
+                                            <TableCell><StatusBadge status={ret.status} /></TableCell>
                                             <TableCell>
                                                 <Button
                                                     size="sm"

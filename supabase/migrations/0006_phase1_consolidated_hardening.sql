@@ -161,10 +161,15 @@ begin
   delete from public.period_exports;
   
   -- Reset Sequences
-  update public.tx_doc_sequences set last_sequence = 0;
+  update public.tx_doc_sequences set last_seq = 0;
 
   -- Clear OB (Optional? usually reset clears everything generated, OB is setup)
   -- 016 cleared EVERYTHING. keeping it consistent.
   delete from public.opening_balances;
 
 end $$;
+
+-- ============================================================
+-- 5. MISC CLEANUP
+-- ============================================================
+-- sort_order columns already removed from schema (0001)

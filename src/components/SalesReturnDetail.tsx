@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../supabaseClient'
 import { useNavigate, useParams } from 'react-router-dom'
-import { Card, CardContent, CardHeader, CardTitle } from './ui/Card'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/Table'
 import { Button } from './ui/Button'
-import { Badge } from './ui/Badge'
 import { Icons } from './ui/Icons'
+import { formatCurrency, formatDate, safeDocNo } from '../lib/format'
+import DocumentHeaderCard from './shared/DocumentHeaderCard'
+import LineItemsTable from './shared/LineItemsTable'
 
 type SalesReturnDetail = {
     id: string
@@ -111,27 +111,6 @@ export default function SalesReturnDetail() {
         }
     }
 
-    function formatCurrency(amount: number) {
-        return new Intl.NumberFormat('id-ID', {
-            style: 'currency',
-            currency: 'IDR',
-            minimumFractionDigits: 0
-        }).format(amount)
-    }
-
-    function getStatusBadge(status: string) {
-        const colors = {
-            'DRAFT': 'bg-gray-100 text-gray-800',
-            'POSTED': 'bg-green-100 text-green-800',
-            'VOID': 'bg-red-100 text-red-800'
-        }
-        return (
-            <Badge className={colors[status as keyof typeof colors] || 'bg-gray-100'}>
-                {status}
-            </Badge>
-        )
-    }
-
     if (loading) {
         return (
             <div className="w-full p-8 text-center">
@@ -154,96 +133,89 @@ export default function SalesReturnDetail() {
         )
     }
 
+    const headerFields = [
+        {
+            label: 'Return Date',
+            value: formatDate(returnDoc.return_date),
+        },
+        {
+            label: 'Original Sales',
+            value: <span className="font-mono text-sm">{safeDocNo(returnDoc.sales_no, returnDoc.sales_id)}</span>,
+        },
+        {
+            label: 'Customer',
+            value: returnDoc.customer_name,
+        },
+        {
+            label: 'Total',
+            value: <span className="font-bold text-lg">{formatCurrency(returnDoc.total_amount)}</span>,
+        },
+    ]
+
+    const lineItemColumns = [
+        {
+            label: 'SKU',
+            cellClassName: 'font-mono text-sm',
+            render: (item: ReturnItem) => item.sku,
+        },
+        {
+            label: 'Item Name',
+            render: (item: ReturnItem) => item.item_name,
+        },
+        {
+            label: 'UoM',
+            render: (item: ReturnItem) => item.uom_snapshot,
+        },
+        {
+            label: 'Qty',
+            headerClassName: 'text-right',
+            cellClassName: 'text-right',
+            render: (item: ReturnItem) => item.qty,
+        },
+        {
+            label: 'Avg Cost',
+            headerClassName: 'text-right',
+            cellClassName: 'text-right',
+            render: (item: ReturnItem) => formatCurrency(item.cost_snapshot),
+        },
+        {
+            label: 'Unit Price',
+            headerClassName: 'text-right',
+            cellClassName: 'text-right',
+            render: (item: ReturnItem) => formatCurrency(item.unit_price),
+        },
+        {
+            label: 'Subtotal',
+            headerClassName: 'text-right',
+            cellClassName: 'text-right font-medium',
+            render: (item: ReturnItem) => formatCurrency(item.subtotal),
+        },
+    ]
+
     return (
         <div className="w-full space-y-6">
             <div className="flex justify-between items-center">
-                <h2 className="text-3xl font-bold tracking-tight text-gray-900">Sales Return Detail</h2>
+                <h2 className="hidden md:block text-3xl font-bold tracking-tight text-gray-900">Sales Return</h2>
                 <Button onClick={() => navigate('/sales-returns/history')} variant="outline">
                     ← Back to List
                 </Button>
             </div>
 
-            {/* Header Card */}
-            <Card>
-                <CardHeader className="bg-gray-50">
-                    <div className="flex justify-between items-start">
-                        <div>
-                            <CardTitle>Return Document</CardTitle>
-                            <p className="text-sm text-gray-600 mt-1">
-                                ID: {returnDoc.id.substring(0, 8)}
-                            </p>
-                        </div>
-                        {getStatusBadge(returnDoc.status)}
-                    </div>
-                </CardHeader>
-                <CardContent className="pt-6">
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                        <div>
-                            <p className="text-gray-600">Return Date</p>
-                            <p className="font-medium">{new Date(returnDoc.return_date).toLocaleDateString('id-ID')}</p>
-                        </div>
-                        <div>
-                            <p className="text-gray-600">Original Sales</p>
-                            <p className="font-mono text-sm">{returnDoc.sales_no}</p>
-                        </div>
-                        <div>
-                            <p className="text-gray-600">Customer</p>
-                            <p className="font-medium">{returnDoc.customer_name}</p>
-                        </div>
-                        <div>
-                            <p className="text-gray-600">Total</p>
-                            <p className="font-bold text-lg">{formatCurrency(returnDoc.total_amount)}</p>
-                        </div>
-                    </div>
-                    {returnDoc.notes && (
-                        <div className="mt-4 pt-4 border-t">
-                            <p className="text-gray-600 text-sm">Notes</p>
-                            <p className="text-sm mt-1">{returnDoc.notes}</p>
-                        </div>
-                    )}
-                </CardContent>
-            </Card>
+            <DocumentHeaderCard
+                title="Sales Return"
+                docNo={safeDocNo(null, returnDoc.id, true)}
+                status={returnDoc.status}
+                fields={headerFields}
+                notes={returnDoc.notes}
+            />
 
-            {/* Items Table */}
-            <Card>
-                <CardHeader>
-                    <CardTitle>Return Line Items</CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <div className="overflow-x-auto">
-                        <Table>
-                            <TableHead>
-                                <TableRow>
-                                    <TableHeader>SKU</TableHeader>
-                                    <TableHeader>Item Name</TableHeader>
-                                    <TableHeader>UoM</TableHeader>
-                                    <TableHeader className="text-right">Qty</TableHeader>
-                                    <TableHeader className="text-right">Avg Cost</TableHeader>
-                                    <TableHeader className="text-right">Unit Price</TableHeader>
-                                    <TableHeader className="text-right">Subtotal</TableHeader>
-                                </TableRow>
-                            </TableHead>
-                            <TableBody>
-                                {items.map((item) => (
-                                    <TableRow key={item.id}>
-                                        <TableCell className="font-mono text-sm">{item.sku}</TableCell>
-                                        <TableCell>{item.item_name}</TableCell>
-                                        <TableCell>{item.uom_snapshot}</TableCell>
-                                        <TableCell className="text-right">{item.qty}</TableCell>
-                                        <TableCell className="text-right">{formatCurrency(item.cost_snapshot)}</TableCell>
-                                        <TableCell className="text-right">{formatCurrency(item.unit_price)}</TableCell>
-                                        <TableCell className="text-right font-medium">{formatCurrency(item.subtotal)}</TableCell>
-                                    </TableRow>
-                                ))}
-                                <TableRow className="bg-gray-50 font-bold border-t-2">
-                                    <TableCell colSpan={6} className="text-right">TOTAL:</TableCell>
-                                    <TableCell className="text-right">{formatCurrency(returnDoc.total_amount)}</TableCell>
-                                </TableRow>
-                            </TableBody>
-                        </Table>
-                    </div>
-                </CardContent>
-            </Card>
+            <LineItemsTable
+                title="Return Items"
+                rows={items}
+                columns={lineItemColumns}
+                totalValue={formatCurrency(returnDoc.total_amount)}
+                emptyLabel="No items added"
+            />
         </div>
     )
 }

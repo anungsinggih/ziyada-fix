@@ -185,7 +185,7 @@ export default function OpeningBalance() {
 
     return (
         <div className="w-full space-y-8 pb-10">
-            <h2 className="text-3xl font-bold tracking-tight text-gray-900">Opening Balance Setup</h2>
+            <h2 className="hidden md:block text-3xl font-bold tracking-tight text-gray-900">Opening Balance Setup</h2>
             {error && (
                 <div className="p-4 bg-red-50 text-red-700 border border-red-200 rounded-md flex items-center gap-2">
                     <Icons.Warning className="w-5 h-5 flex-shrink-0" /> {error}
@@ -213,25 +213,23 @@ export default function OpeningBalance() {
                 </CardHeader>
                 <CardContent className="p-0">
                     <Table>
-                        <TableHead>
+                        <TableHeader>
                             <TableRow>
-                                <TableHeader className="w-[40%]">Account</TableHeader>
-                                <TableHeader className="w-[20%]">Debit</TableHeader>
-                                <TableHeader className="w-[20%]">Credit</TableHeader>
-                                <TableHeader className="w-[10%]">Action</TableHeader>
+                                <TableHead className="w-[40%]">Account</TableHead>
+                                <TableHead className="w-[20%]">Debit</TableHead>
+                                <TableHead className="w-[20%]">Credit</TableHead>
+                                <TableHead className="w-[10%]">Action</TableHead>
                             </TableRow>
-                        </TableHead>
+                        </TableHeader>
                         <TableBody>
                             {lines.map((line, i) => (
                                 <TableRow key={i}>
                                     <TableCell>
                                         <Select
-                                            value={line.account_id}
+                                            value={line.account_id || undefined}
                                             onChange={e => updateLine(i, 'account_id', e.target.value)}
-                                            options={[
-                                                { label: "-- Select --", value: "" },
-                                                ...accounts.map(a => ({ label: `${a.code} - ${a.name}`, value: a.id }))
-                                            ]}
+                                            placeholder="-- Select Account --"
+                                            options={accounts.map(a => ({ label: `${a.code} - ${a.name}`, value: a.id }))}
                                         />
                                     </TableCell>
                                     <TableCell>
@@ -284,15 +282,15 @@ export default function OpeningBalance() {
                 <Card className="shadow-sm">
                     <CardContent className="p-0">
                         <Table>
-                            <TableHead>
+                            <TableHeader>
                                 <TableRow>
-                                    <TableHeader>As of Date</TableHeader>
-                                    <TableHeader>Total Debit</TableHeader>
-                                    <TableHeader>Total Credit</TableHeader>
-                                    <TableHeader>Entries</TableHeader>
-                                    <TableHeader className="text-right">Action</TableHeader>
+                                    <TableHead>As of Date</TableHead>
+                                    <TableHead>Total Debit</TableHead>
+                                    <TableHead>Total Credit</TableHead>
+                                    <TableHead>Entries</TableHead>
+                                    <TableHead className="text-right">Action</TableHead>
                                 </TableRow>
-                            </TableHead>
+                            </TableHeader>
                             <TableBody>
                                 {history.length === 0 ? (
                                     <TableRow>
@@ -326,13 +324,13 @@ export default function OpeningBalance() {
                                                     <TableCell colSpan={5} className="bg-gray-50 p-4">
                                                         <div className="text-sm font-semibold mb-2">Detail per Akun</div>
                                                         <Table className="bg-white border">
-                                                            <TableHead>
+                                                            <TableHeader>
                                                                 <TableRow>
-                                                                    <TableHeader>Akun</TableHeader>
-                                                                    <TableHeader>Debit</TableHeader>
-                                                                    <TableHeader>Credit</TableHeader>
+                                                                    <TableHead>Akun</TableHead>
+                                                                    <TableHead>Debit</TableHead>
+                                                                    <TableHead>Credit</TableHead>
                                                                 </TableRow>
-                                                            </TableHead>
+                                                            </TableHeader>
                                                             <TableBody>
                                                                 {historyDetails[h.date].map(detail => (
                                                                     <TableRow key={`${detail.account_id}-${detail.debit}-${detail.credit}`}>

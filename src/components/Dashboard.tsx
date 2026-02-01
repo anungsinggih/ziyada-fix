@@ -4,8 +4,9 @@ import { useNavigate } from 'react-router-dom'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/Card'
 import { Button } from './ui/Button'
 import { Icons } from './ui/Icons'
-import { Badge } from './ui/Badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/Table'
+import { StatusBadge } from './ui/StatusBadge'
+import { formatCurrency, safeDocNo } from '../lib/format'
 
 type DashboardMetrics = {
     sales_today: number
@@ -15,6 +16,18 @@ type DashboardMetrics = {
     purchases_count_month: number
     low_stock_count: number
     total_items: number
+    // Finance Health
+    total_ar: number
+    total_ap: number
+    cash_balance: number
+    top_items?: {
+        item_name: string
+        total_qty: number
+        total_amount: number
+    }[]
+    // Stale Drafts
+    stale_draft_sales: number
+    stale_draft_purchases: number
     recent_sales: {
         id: string
         sales_no: string
@@ -52,14 +65,6 @@ export default function Dashboard() {
         }
     }
 
-    function formatCurrency(amount: number) {
-        return new Intl.NumberFormat('id-ID', {
-            style: 'currency',
-            currency: 'IDR',
-            minimumFractionDigits: 0
-        }).format(amount)
-    }
-
     if (loading) {
         return (
             <div className="flex items-center justify-center min-h-[400px]">
@@ -76,13 +81,87 @@ export default function Dashboard() {
             {/* Header */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900">Dashboard Overview</h1>
-                    <p className="text-gray-500 text-sm">Welcome back! Here's what's happening today.</p>
+                    <h1 className="hidden md:block text-2xl font-bold text-gray-900">Dashboard Overview</h1>
+                    <p className="hidden md:block text-gray-500 text-sm">Welcome back! Here's what's happening today.</p>
                 </div>
                 <div className="flex gap-2">
                     <Button onClick={() => navigate('/sales')} icon={<Icons.Plus className="w-4 h-4" />}>New Sale</Button>
                     <Button onClick={() => navigate('/purchases')} variant="outline" icon={<Icons.Package className="w-4 h-4" />}>New Purchase</Button>
                 </div>
+            </div>
+
+            {/* Stale Draft Alerts */}
+            {((metrics?.stale_draft_sales || 0) > 0 || (metrics?.stale_draft_purchases || 0) > 0) && (
+                <div className="space-y-2">
+                    {(metrics?.stale_draft_sales || 0) > 0 && (
+                        <div className="bg-orange-50 border border-orange-200 rounded-md p-3 flex items-start gap-3">
+                            <Icons.Warning className="w-5 h-5 text-orange-600 mt-0.5" />
+                            <div className="flex-1">
+                                <h4 className="text-sm font-semibold text-orange-800">Review Required: {metrics?.stale_draft_sales} Pending Sales Drafts</h4>
+                                <p className="text-xs text-orange-700 mt-1">There are sales drafts older than 48 hours. Please review and finalize or delete them to keep inventory accurate.</p>
+                            </div>
+                            <Button size="sm" variant="outline" className="bg-white border-orange-200 text-orange-700 h-8 text-xs hover:bg-orange-100" onClick={() => navigate('/sales')}>Review</Button>
+                        </div>
+                    )}
+                    {(metrics?.stale_draft_purchases || 0) > 0 && (
+                        <div className="bg-orange-50 border border-orange-200 rounded-md p-3 flex items-start gap-3">
+                            <Icons.Warning className="w-5 h-5 text-orange-600 mt-0.5" />
+                            <div className="flex-1">
+                                <h4 className="text-sm font-semibold text-orange-800">Review Required: {metrics?.stale_draft_purchases} Pending Purchase Drafts</h4>
+                                <p className="text-xs text-orange-700 mt-1">There are purchase drafts older than 48 hours. Please review and finalize or delete them.</p>
+                            </div>
+                            <Button size="sm" variant="outline" className="bg-white border-orange-200 text-orange-700 h-8 text-xs hover:bg-orange-100" onClick={() => navigate('/purchases')}>Review</Button>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* Finance Health (Priority) */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Card className="bg-gradient-to-br from- emerald-50 to-white border-emerald-100">
+                    <CardContent className="p-6">
+                        <div className="flex justify-between items-start">
+                            <div>
+                                <p className="text-sm font-medium text-emerald-600">Cash Balance (Est)</p>
+                                <h3 className="text-2xl font-bold text-gray-900 mt-1">{formatCurrency(metrics?.cash_balance || 0)}</h3>
+                                <p className="text-xs text-gray-500 mt-1">Cash on Hand</p>
+                            </div>
+                            <div className="p-2 bg-emerald-100 rounded-lg text-emerald-600">
+                                <Icons.DollarSign className="w-5 h-5" />
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+
+                <Card className="bg-gradient-to-br from-indigo-50 to-white border-indigo-100">
+                    <CardContent className="p-6">
+                        <div className="flex justify-between items-start">
+                            <div>
+                                <p className="text-sm font-medium text-indigo-600">Total Receivables (AR)</p>
+                                <h3 className="text-2xl font-bold text-gray-900 mt-1">{formatCurrency(metrics?.total_ar || 0)}</h3>
+                                <p className="text-xs text-gray-500 mt-1">Outstanding Invoices</p>
+                            </div>
+                            <div className="p-2 bg-indigo-100 rounded-lg text-indigo-600">
+                                <Icons.TrendingUp className="w-5 h-5" />
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+
+                <Card className="bg-gradient-to-br from-amber-50 to-white border-amber-100">
+                    <CardContent className="p-6">
+                        <div className="flex justify-between items-start">
+                            <div>
+                                <p className="text-sm font-medium text-amber-600">Total Payables (AP)</p>
+                                <h3 className="text-2xl font-bold text-gray-900 mt-1">{formatCurrency(metrics?.total_ap || 0)}</h3>
+                                <p className="text-xs text-gray-500 mt-1">Unpaid Bills</p>
+                            </div>
+                            <div className="p-2 bg-amber-100 rounded-lg text-amber-600">
+                                <Icons.TrendingDown className="w-5 h-5" />
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
             </div>
 
             {/* Metrics Cards */}
@@ -151,8 +230,43 @@ export default function Dashboard() {
                 </Card>
             </div>
 
-            {/* Recent Activity */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Recent Activity & Top Items */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+                {/* Top Performing Items */}
+                <Card>
+                    <CardHeader className="flex flex-row items-center justify-between pb-2">
+                        <CardTitle className="text-lg font-medium text-amber-700 flex items-center gap-2">
+                            <Icons.Award className="w-5 h-5" /> Top Sale Items (Month)
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Item</TableHead>
+                                    <TableHead className="text-right">Qty</TableHead>
+                                    <TableHead className="text-right">Revenue</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {metrics?.top_items?.map((item, i) => (
+                                    <TableRow key={i}>
+                                        <TableCell className="font-medium text-sm">{item.item_name}</TableCell>
+                                        <TableCell className="text-right font-medium">{item.total_qty}</TableCell>
+                                        <TableCell className="text-right text-xs text-gray-500">{formatCurrency(item.total_amount)}</TableCell>
+                                    </TableRow>
+                                ))}
+                                {!metrics?.top_items?.length && (
+                                    <TableRow>
+                                        <TableCell colSpan={3} className="text-center py-8 text-gray-400 italic">No sales data this month</TableCell>
+                                    </TableRow>
+                                )}
+                            </TableBody>
+                        </Table>
+                    </CardContent>
+                </Card>
+
                 {/* Recent Sales */}
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -161,24 +275,22 @@ export default function Dashboard() {
                     </CardHeader>
                     <CardContent>
                         <Table>
-                            <TableHead>
+                            <TableHeader>
                                 <TableRow>
-                                    <TableHeader>ID</TableHeader>
-                                    <TableHeader>Customer</TableHeader>
-                                    <TableHeader className="text-right">Amount</TableHeader>
-                                    <TableHeader>Status</TableHeader>
+                                    <TableHead>ID</TableHead>
+                                    <TableHead>Customer</TableHead>
+                                    <TableHead className="text-right">Amount</TableHead>
+                                    <TableHead>Status</TableHead>
                                 </TableRow>
-                            </TableHead>
+                            </TableHeader>
                             <TableBody>
                                 {metrics?.recent_sales?.map((sale) => (
                                     <TableRow key={sale.id} className="cursor-pointer hover:bg-gray-50" onClick={() => navigate(`/sales/${sale.id}`)}>
-                                        <TableCell className="font-mono text-xs">{sale.sales_no || sale.id.substring(0, 8)}</TableCell>
+                                        <TableCell className="font-mono text-xs">{safeDocNo(sale.sales_no, sale.id)}</TableCell>
                                         <TableCell className="text-sm truncate max-w-[120px]">{sale.customer_name}</TableCell>
                                         <TableCell className="text-right font-medium text-sm">{formatCurrency(sale.total_amount)}</TableCell>
                                         <TableCell>
-                                            <Badge className={sale.status === 'POSTED' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}>
-                                                {sale.status}
-                                            </Badge>
+                                            <StatusBadge status={sale.status} />
                                         </TableCell>
                                     </TableRow>
                                 ))}
@@ -200,24 +312,22 @@ export default function Dashboard() {
                     </CardHeader>
                     <CardContent>
                         <Table>
-                            <TableHead>
+                            <TableHeader>
                                 <TableRow>
-                                    <TableHeader>ID</TableHeader>
-                                    <TableHeader>Vendor</TableHeader>
-                                    <TableHeader className="text-right">Amount</TableHeader>
-                                    <TableHeader>Status</TableHeader>
+                                    <TableHead>ID</TableHead>
+                                    <TableHead>Vendor</TableHead>
+                                    <TableHead className="text-right">Amount</TableHead>
+                                    <TableHead>Status</TableHead>
                                 </TableRow>
-                            </TableHead>
+                            </TableHeader>
                             <TableBody>
                                 {metrics?.recent_purchases?.map((purchase) => (
                                     <TableRow key={purchase.id} className="cursor-pointer hover:bg-gray-50" onClick={() => navigate(`/purchases/${purchase.id}`)}>
-                                        <TableCell className="font-mono text-xs">{purchase.purchase_no || purchase.id.substring(0, 8)}</TableCell>
+                                        <TableCell className="font-mono text-xs">{safeDocNo(purchase.purchase_no, purchase.id)}</TableCell>
                                         <TableCell className="text-sm truncate max-w-[120px]">{purchase.vendor_name}</TableCell>
                                         <TableCell className="text-right font-medium text-sm">{formatCurrency(purchase.total_amount)}</TableCell>
                                         <TableCell>
-                                            <Badge className={purchase.status === 'POSTED' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}>
-                                                {purchase.status}
-                                            </Badge>
+                                            <StatusBadge status={purchase.status} />
                                         </TableCell>
                                     </TableRow>
                                 ))}

@@ -12,9 +12,12 @@ import {
 } from "./ui/Table";
 import { Button } from "./ui/Button";
 import { Alert } from "./ui/Alert";
-import { DocumentStatusBadge } from "./ui/StatusBadge";
+import { StatusBadge } from "./ui/StatusBadge";
 import { Badge } from "./ui/Badge";
 import { Icons } from "./ui/Icons";
+import { ResponsiveTable } from "./ui/ResponsiveTable";
+import { EmptyState } from "./ui/EmptyState";
+import { formatCurrency, formatDate, safeDocNo } from "../lib/format";
 
 type PurchaseRecord = {
   id: string;
@@ -118,14 +121,6 @@ export default function PurchaseHistory() {
     }
   }
 
-  function formatCurrency(amount: number) {
-    return new Intl.NumberFormat("id-ID", {
-      style: "currency",
-      currency: "IDR",
-      minimumFractionDigits: 0,
-    }).format(amount);
-  }
-
   if (loading) {
     return (
       <div className="w-full p-8 text-center">
@@ -138,7 +133,7 @@ export default function PurchaseHistory() {
   return (
     <div className="w-full space-y-6">
       <div className="flex justify-between items-center">
-        <h2 className="text-3xl font-bold tracking-tight text-gray-900">
+        <h2 className="hidden md:block text-3xl font-bold tracking-tight text-gray-900">
           Purchase History
         </h2>
         <div className="flex gap-2">
@@ -169,38 +164,31 @@ export default function PurchaseHistory() {
         </CardHeader>
         <CardContent>
           {purchases.length === 0 ? (
-            <div className="py-12 text-center text-gray-500">
-              <p className="text-lg flex items-center justify-center gap-2">
-                <Icons.FileText className="w-5 h-5" /> No purchase records found
-              </p>
-              <p className="text-sm mt-2">
-                Create your first purchase to get started
-              </p>
-            </div>
+            <EmptyState
+              icon={<Icons.FileText className="w-5 h-5" />}
+              title="No purchase records found"
+              description="Create your first purchase to get started"
+            />
           ) : (
-            <div className="overflow-x-auto -mx-2 sm:mx-0">
-              <Table className="min-w-[640px]">
-                <TableHead>
+            <ResponsiveTable minWidth="640px">
+              <Table>
+                <TableHeader>
                   <TableRow>
-                    <TableHeader>Date</TableHeader>
-                    <TableHeader>Doc No</TableHeader>
-                    <TableHeader>Vendor</TableHeader>
-                    <TableHeader>Terms</TableHeader>
-                    <TableHeader className="text-right">Total</TableHeader>
-                    <TableHeader>Status</TableHeader>
-                    <TableHeader>Actions</TableHeader>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Doc No</TableHead>
+                    <TableHead>Vendor</TableHead>
+                    <TableHead>Terms</TableHead>
+                    <TableHead className="text-right">Total</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Actions</TableHead>
                   </TableRow>
-                </TableHead>
+                </TableHeader>
                 <TableBody>
                   {purchases.map((purchase) => (
                     <TableRow key={purchase.id}>
-                      <TableCell>
-                        {new Date(purchase.purchase_date).toLocaleDateString(
-                          "id-ID",
-                        )}
-                      </TableCell>
+                      <TableCell>{formatDate(purchase.purchase_date)}</TableCell>
                       <TableCell className="font-mono text-sm">
-                        {purchase.purchase_no || purchase.id.substring(0, 8)}
+                        {safeDocNo(purchase.purchase_no, purchase.id)}
                       </TableCell>
                       <TableCell>{purchase.vendor_name}</TableCell>
                       <TableCell>
@@ -218,7 +206,7 @@ export default function PurchaseHistory() {
                         {formatCurrency(purchase.total_amount)}
                       </TableCell>
                       <TableCell>
-                        <DocumentStatusBadge status={purchase.status} />
+                        <StatusBadge status={purchase.status} />
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-wrap gap-2">
@@ -263,7 +251,7 @@ export default function PurchaseHistory() {
                   ))}
                 </TableBody>
               </Table>
-            </div>
+            </ResponsiveTable>
           )}
         </CardContent>
       </Card>

@@ -12,7 +12,7 @@ import {
   TableRow,
 } from "./ui/Table";
 import { Alert } from "./ui/Alert";
-import { PeriodStatusBadge } from "./ui/StatusBadge";
+import { StatusBadge } from "./ui/StatusBadge";
 
 type Period = {
   id: string;
@@ -37,11 +37,20 @@ export default function PeriodLock() {
   const [success, setSuccess] = useState<string | null>(null);
 
   // Form
-  const [formData, setFormData] = useState({
-    name: "",
-    start_date: "",
-    end_date: "",
-  });
+  const buildCurrentPeriodDefaults = () => {
+    const now = new Date();
+    const start = new Date(now.getFullYear(), now.getMonth(), 1);
+    const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    const toDate = (d: Date) => d.toISOString().split("T")[0];
+    const name = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, "0")}`;
+    return {
+      name,
+      start_date: toDate(start),
+      end_date: toDate(end),
+    };
+  };
+
+  const [formData, setFormData] = useState(buildCurrentPeriodDefaults);
 
   // Exports
   const [selectedPeriodId, setSelectedPeriodId] = useState("");
@@ -78,7 +87,7 @@ export default function PeriodLock() {
     if (error) setError(error.message);
     else {
       setSuccess("Period Created");
-      setFormData({ name: "", start_date: "", end_date: "" });
+      setFormData(buildCurrentPeriodDefaults());
       fetchPeriods();
     }
   }
@@ -135,7 +144,7 @@ export default function PeriodLock() {
 
   return (
     <div className="w-full space-y-8">
-      <h2 className="text-3xl font-bold tracking-tight text-gray-900">
+      <h2 className="hidden md:block text-3xl font-bold tracking-tight text-gray-900">
         Period Management
       </h2>
 
@@ -191,15 +200,15 @@ export default function PeriodLock() {
           <CardContent className="p-0">
             <div className="overflow-x-auto">
               <Table>
-                <TableHead>
+                <TableHeader>
                   <TableRow>
-                    <TableHeader>Name</TableHeader>
-                    <TableHeader>Start</TableHeader>
-                    <TableHeader>End</TableHeader>
-                    <TableHeader>Status</TableHeader>
-                    <TableHeader>Actions</TableHeader>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Start</TableHead>
+                    <TableHead>End</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Actions</TableHead>
                   </TableRow>
-                </TableHead>
+                </TableHeader>
                 <TableBody>
                   {periods.map((p) => (
                     <TableRow
@@ -212,7 +221,7 @@ export default function PeriodLock() {
                       <TableCell>{p.start_date}</TableCell>
                       <TableCell>{p.end_date}</TableCell>
                       <TableCell>
-                        <PeriodStatusBadge status={p.status} />
+                        <StatusBadge status={p.status} />
                       </TableCell>
                       <TableCell className="flex gap-2">
                         <Button
@@ -272,13 +281,13 @@ export default function PeriodLock() {
             <div className="rounded-md border border-gray-200 overflow-hidden">
               <div className="overflow-x-auto">
                 <Table>
-                  <TableHead className="bg-gray-50">
+                  <TableHeader className="bg-gray-50">
                     <TableRow>
-                      <TableHeader>Timestamp</TableHeader>
-                      <TableHeader>Report</TableHeader>
-                      <TableHeader>Notes</TableHeader>
+                      <TableHead>Timestamp</TableHead>
+                      <TableHead>Report</TableHead>
+                      <TableHead>Notes</TableHead>
                     </TableRow>
-                  </TableHead>
+                  </TableHeader>
                   <TableBody>
                     {logs.length === 0 ? (
                       <TableRow>

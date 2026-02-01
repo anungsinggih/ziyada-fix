@@ -1,0 +1,51 @@
+# For detailed configuration reference documentation, visit:
+# https://supabase.com/docs/guides/local-development/cli/config
+
+# A string used to distinguish different Supabase projects on the same host.
+project_id = "new-mvp-ziyada"
+
+[api]
+# Port to use for the API URL.
+port = 54321
+# Schemas exposed through the REST and GraphQL API.
+schemas = ["public", "storage", "graphql_public"]
+# Extra schemas that should stay in the search_path of every request.
+extra_search_path = ["public", "extensions"]
+# Maximum rows returned from views, tables, or stored procedures to limit payload size.
+max_rows = 1000
+
+[db]
+# Port used by the local Postgres instance.
+port = 54322
+# Port used by `db diff` to initialize the shadow database.
+shadow_port = 54320
+# This should match your remote Postgres major version.
+major_version = 15
+
+[db.seed]
+# Seed after migrations when running `supabase db reset`.
+enabled = true
+# Ordered list of SQL files to load during reset, relative to `supabase/`.
+sql_paths = ['./seed.sql']
+
+[auth]
+# Base URL for the app so Supabase can build redirect URIs and email links.
+site_url = "http://localhost:4173"
+# Allowed redirect targets for auth providers.
+additional_redirect_urls = ["http://localhost:4173"]
+# Token lifetime in seconds.
+jwt_expiry = 3600
+# Allow new signups (Owner/Admin will still gate production access).
+enable_signup = true
+
+[auth.email]
+# Email signups follow the same flag.
+enable_signup = true
+# A change to an email address does not require double confirmation.
+double_confirm_changes = false
+# New accounts must confirm their email before signing in.
+enable_confirmations = true
+
+[auth.external.github]
+# GitHub auth is not enabled for the local stack.
+enabled = false

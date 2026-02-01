@@ -28,12 +28,12 @@ insert into public.uoms (code, name)
 select 'PCS', 'Pieces'
 where not exists (select 1 from public.uoms where code = 'PCS');
 
-insert into public.sizes (code, name, sort_order)
-select 'ALL', 'All Size', 0
+insert into public.sizes (code, name)
+select 'ALL', 'All Size'
 where not exists (select 1 from public.sizes where code = 'ALL');
 
-insert into public.colors (code, name, sort_order)
-select 'NA', 'No Color', 0
+insert into public.colors (code, name)
+select 'NA', 'No Color'
 where not exists (select 1 from public.colors where code = 'NA');
 
 -- 3) PAYMENT METHODS
@@ -57,3 +57,77 @@ select
     '883-098-7766',
     'PT. KONVEKSI MAJU JAYA'
 where not exists (select 1 from public.company_profile);
+
+-- Note: Sizes and Colors sorting is now handled by application constants (src/lib/constants.ts)
+
+-- ============================================================
+-- 6) COMPREHENSIVE MASTER DATA SEEDS (Consolidated from 0011)
+-- ============================================================
+
+-- Seed UoMs
+INSERT INTO uoms (code, name, is_active) VALUES
+('PCS', 'PCS', true),
+('SET', 'SET', true),
+('STEL', 'STEL', true),
+('PAKET', 'PAKET', true)
+ON CONFLICT (code) DO NOTHING;
+
+-- Seed Colors
+INSERT INTO colors (code, name, is_active) VALUES
+('PUTIH', 'Putih', true),
+('KUNING', 'Kuning', true),
+('KUNING_T', 'Kuning .T', true),
+('ORANGE', 'Orange', true),
+('HIJAU', 'Hijau', true),
+('BIRU', 'Biru', true),
+('BIRU_TA', 'Biru T.A', true),
+('BIRU_BCA', 'Biru Bca', true),
+('BIRU_G', 'Biru. G', true),
+('UNGU', 'Ungu', true),
+('COKLAT', 'Coklat', true),
+('HITAM', 'Hitam', true),
+('BIRU_P', 'Biru.P', true)
+ON CONFLICT (code) DO NOTHING;
+
+-- Seed Sizes
+INSERT INTO sizes (code, name, is_active) VALUES
+('00', '00', true),
+('0', '0', true),
+('1', '1', true),
+('1_5', '1,5', true),
+('2', '2', true),
+('2_5', '2,5', true),
+('3', '3', true),
+('3_5', '3,5', true),
+('4', '4', true),
+('4_5', '4,5', true),
+('5', '5', true),
+('5_5', '5,5', true),
+('6', '6', true),
+('6_5', '6,5', true),
+('7', '7', true),
+('7_5', '7,5', true),
+('8', '8', true),
+('8_5', '8,5', true),
+('9', '9', true),
+('9_5', '9,5', true),
+('10', '10', true),
+('11', '11', true),
+('12', '12', true),
+('13', '13', true),
+('14', '14', true),
+('15', '15', true),
+('ALL', 'ALL', true),
+('OS', 'OS', true),
+('3S', '3S', true),
+('2S', '2S', true),
+('S', 'S', true),
+('SM', 'SM', true),
+('M', 'M', true),
+('L', 'L', true),
+('XL', 'XL', true),
+('2XL', '2XL', true),
+('3XL', '3XL', true),
+('4XL', '4XL', true),
+('5XL', '5XL', true)
+ON CONFLICT (code) DO NOTHING;

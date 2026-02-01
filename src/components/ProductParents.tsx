@@ -211,7 +211,7 @@ export default function ProductParents() {
     return (
         <div className="w-full space-y-6">
             <div className="flex justify-between items-center">
-                <h2 className="text-2xl font-bold tracking-tight">Product Parents</h2>
+                <h2 className="hidden md:block text-2xl font-bold tracking-tight">Product Parents</h2>
                 <Button onClick={handleAddParent} icon={<Icons.Plus className="w-4 h-4" />}>Add Parent</Button>
             </div>
 
@@ -235,16 +235,16 @@ export default function ProductParents() {
                 <CardContent>
                     <div className="overflow-auto max-h-[600px]">
                         <Table>
-                            <TableHead>
+                            <TableHeader>
                                 <TableRow>
-                                    <TableHeader className="w-8"><span className="sr-only">Expand</span></TableHeader>
-                                    <TableHeader className="whitespace-nowrap">Code</TableHeader>
-                                    <TableHeader className="whitespace-nowrap">Name</TableHeader>
-                                    <TableHeader className="whitespace-nowrap">Brand/Cat</TableHeader>
-                                    <TableHeader className="whitespace-nowrap">Active</TableHeader>
-                                    <TableHeader className="whitespace-nowrap">Actions</TableHeader>
+                                    <TableHead className="w-8"><span className="sr-only">Expand</span></TableHead>
+                                    <TableHead className="whitespace-nowrap">Code</TableHead>
+                                    <TableHead className="whitespace-nowrap">Name</TableHead>
+                                    <TableHead className="whitespace-nowrap">Brand/Cat</TableHead>
+                                    <TableHead className="whitespace-nowrap">Active</TableHead>
+                                    <TableHead className="whitespace-nowrap">Actions</TableHead>
                                 </TableRow>
-                            </TableHead>
+                            </TableHeader>
                             <TableBody>
                                 {filteredParents.map(p => (
                                     <>

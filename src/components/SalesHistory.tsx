@@ -12,9 +12,12 @@ import {
 } from "./ui/Table";
 import { Button } from "./ui/Button";
 import { Alert } from "./ui/Alert";
-import { DocumentStatusBadge } from "./ui/StatusBadge";
+import { StatusBadge } from "./ui/StatusBadge";
 import { Badge } from "./ui/Badge";
-import { Icons } from "./ui/Icons";
+import { Icons } from './ui/Icons'
+import { ResponsiveTable } from './ui/ResponsiveTable';
+import { EmptyState } from "./ui/EmptyState";
+import { formatCurrency, formatDate, safeDocNo } from "../lib/format";
 
 type SalesRecord = {
   id: string;
@@ -120,14 +123,6 @@ export default function SalesHistory() {
     }
   }
 
-  function formatCurrency(amount: number) {
-    return new Intl.NumberFormat("id-ID", {
-      style: "currency",
-      currency: "IDR",
-      minimumFractionDigits: 0,
-    }).format(amount);
-  }
-
   if (loading) {
     return (
       <div className="w-full p-8 text-center">
@@ -140,7 +135,7 @@ export default function SalesHistory() {
   return (
     <div className="w-full space-y-6">
       <div className="flex justify-between items-center">
-        <h2 className="text-3xl font-bold tracking-tight text-gray-900">
+        <h2 className="hidden md:block text-3xl font-bold tracking-tight text-gray-900">
           Sales History
         </h2>
         <div className="flex gap-2">
@@ -171,36 +166,31 @@ export default function SalesHistory() {
         </CardHeader>
         <CardContent>
           {sales.length === 0 ? (
-            <div className="py-12 text-center text-gray-500">
-              <p className="text-lg flex items-center justify-center gap-2">
-                <Icons.FileText className="w-5 h-5" /> No sales records found
-              </p>
-              <p className="text-sm mt-2">
-                Create your first sale to get started
-              </p>
-            </div>
+            <EmptyState
+              icon={<Icons.FileText className="w-5 h-5" />}
+              title="No sales records found"
+              description="Create your first sale to get started"
+            />
           ) : (
-            <div className="overflow-x-auto -mx-2 sm:mx-0">
-              <Table className="min-w-[640px]">
-                <TableHead>
+            <ResponsiveTable minWidth="640px">
+              <Table>
+                <TableHeader>
                   <TableRow>
-                    <TableHeader>Date</TableHeader>
-                    <TableHeader>Doc No</TableHeader>
-                    <TableHeader>Customer</TableHeader>
-                    <TableHeader>Terms</TableHeader>
-                    <TableHeader className="text-right">Total</TableHeader>
-                    <TableHeader>Status</TableHeader>
-                    <TableHeader>Actions</TableHeader>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Doc No</TableHead>
+                    <TableHead>Customer</TableHead>
+                    <TableHead>Terms</TableHead>
+                    <TableHead className="text-right">Total</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Actions</TableHead>
                   </TableRow>
-                </TableHead>
+                </TableHeader>
                 <TableBody>
                   {sales.map((sale) => (
                     <TableRow key={sale.id}>
-                      <TableCell>
-                        {new Date(sale.sales_date).toLocaleDateString("id-ID")}
-                      </TableCell>
+                      <TableCell>{formatDate(sale.sales_date)}</TableCell>
                       <TableCell className="font-mono text-sm">
-                        {sale.sales_no || sale.id.substring(0, 8)}
+                        {safeDocNo(sale.sales_no, sale.id)}
                       </TableCell>
                       <TableCell>{sale.customer_name}</TableCell>
                       <TableCell>
@@ -218,7 +208,7 @@ export default function SalesHistory() {
                         {formatCurrency(sale.total_amount)}
                       </TableCell>
                       <TableCell>
-                        <DocumentStatusBadge status={sale.status} />
+                        <StatusBadge status={sale.status} />
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-wrap gap-2">
@@ -235,6 +225,7 @@ export default function SalesHistory() {
                               <Button
                                 size="sm"
                                 variant="outline"
+                                onClick={() => navigate(`/sales/${sale.id}/edit`)}
                                 icon={<Icons.Edit className="w-4 h-4" />}
                                 className="w-full sm:w-auto"
                               >
@@ -258,7 +249,7 @@ export default function SalesHistory() {
                   ))}
                 </TableBody>
               </Table>
-            </div>
+            </ResponsiveTable>
           )}
         </CardContent>
       </Card>

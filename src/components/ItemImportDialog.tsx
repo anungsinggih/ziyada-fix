@@ -72,13 +72,85 @@ export function ItemImportDialog({ isOpen, onClose, onSuccess }: ImportDialogPro
 
     const downloadTemplate = () => {
         const headers = [
-            'sku', 'name', 'parent_name', 'brand_name', 'category_name',
+            'sku', 'name',
+            'parent_code', 'parent_name', // Added parent_code
+            'brand_name', 'category_name',
             'uom_name', 'size_name', 'color_name', 'type',
-            'price_umum', 'price_khusus', 'purchase_price', 'min_stock'
+            'price_umum', 'price_khusus', 'purchase_price', 'min_stock', 'initial_stock'
         ]
-        const ws = XLSX.utils.aoa_to_sheet([headers])
+        const sampleData = [
+            // Finished Goods - menggunakan UOM dan atribut sesuai seed
+            ['TS-001', 'Kaos Polos Cotton 30s Hitam L', 'P-TS-001', 'Kaos Polos Basic', 'Ziyada', 'Fashion', 'PCS', 'L', 'Hitam', 'FINISHED_GOOD', 50000, 45000, 30000, 10, 100],
+            ['TS-002', 'Kaos Polos Cotton 30s Putih M', 'P-TS-001', 'Kaos Polos Basic', 'Ziyada', 'Fashion', 'PCS', 'M', 'Putih', 'FINISHED_GOOD', 50000, 45000, 30000, 10, 150],
+
+            // Raw Materials
+            ['RM-FAB-BLK', 'Kain Cotton Combed 30s Hitam', 'P-RM-FAB', 'Kain Cotton Roll', 'Gracindo', 'Bahan Baku', 'PCS', 'ALL', 'Hitam', 'RAW_MATERIAL', 0, 0, 85000, 50, 500],
+            ['RM-BTN-S', 'Kancing Kemeja Small', '', '', 'Local', 'Aksesoris', 'PCS', 'S', 'Putih', 'RAW_MATERIAL', 0, 0, 5000, 100, 1000],
+
+            // Karate Niche Samples (TRADED)
+            ['KA-GI-KUMITE-L', 'Baju Karate Kumite Size L', 'P-KA-GI-KUMITE', 'Baju Karate Kumite', 'Hokido', 'Karate Gi', 'STEL', 'L', 'Putih', 'TRADED', 450000, 400000, 250000, 5, 50],
+            ['KA-BELT-BLK', 'Sabuk Karate Hitam Standar', 'P-KA-BELT', 'Sabuk Karate', 'Ziyada', 'Accessories', 'PCS', 'ALL', 'Hitam', 'TRADED', 75000, 65000, 40000, 20, 200],
+            ['KA-PROT-CHEST-M', 'Chest Protector Size M', 'P-KA-PROT-CHEST', 'Chest Protector', 'Muvon', 'Protector', 'SET', 'M', 'Putih', 'TRADED', 350000, 310000, 200000, 3, 30]
+        ]
+
+        const ws = XLSX.utils.aoa_to_sheet([headers, ...sampleData])
+
+        // Formatting Template Sheet
+        ws['!cols'] = [
+            { wch: 15 }, // sku
+            { wch: 35 }, // name
+            { wch: 15 }, // parent_code (NEW)
+            { wch: 20 }, // parent_name
+            { wch: 15 }, // brand_name
+            { wch: 15 }, // category_name
+            { wch: 10 }, // uom_name
+            { wch: 10 }, // size_name
+            { wch: 10 }, // color_name
+            { wch: 15 }, // type
+            { wch: 15 }, // price_umum
+            { wch: 15 }, // price_khusus
+            { wch: 15 }, // purchase_price
+            { wch: 10 }, // min_stock
+            { wch: 12 }  // initial_stock
+        ]
+        ws['!views'] = [{ state: 'frozen', xSplit: 0, ySplit: 1 }] // Freeze top row
+
         const wb = XLSX.utils.book_new()
         XLSX.utils.book_append_sheet(wb, ws, "Template")
+
+        // Instructions Sheet
+        const instructionsHeader = ["Column Name", "Required?", "Description", "Valid Values / Notes"]
+        const instructionsData = [
+            ["sku", "YES", "Kode unik produk", "Harus unik, tidak boleh duplikat"],
+            ["name", "YES", "Nama produk", "Contoh: Baju Karate Kumite L"],
+            ["parent_code", "NO", "Kode Induk Produk", "Kode unik untuk grouping varian. Jika kosong, tidak ada grouping."],
+            ["parent_name", "NO", "Nama Induk Produk", "Nama untuk grouping varian. Wajib isi jika parent_code diisi."],
+            ["brand_name", "NO", "Merk / Brand", "Otomatis dibuat jika belum ada"],
+            ["category_name", "NO", "Kategori Produk", "Otomatis dibuat jika belum ada"],
+            ["uom_name", "YES", "Satuan Unit", "Contoh: Pcs, Set, Meter, Kg"],
+            ["size_name", "NO", "Ukuran", "Contoh: S, M, L, XL, All Size"],
+            ["color_name", "NO", "Warna", "Contoh: Red, Blue, Black, White"],
+            ["type", "YES", "Tipe Item", "FINISHED_GOOD (Barang Jadi), RAW_MATERIAL (Bahan Baku), TRADED (Beli Jadi di Vendor)"],
+            ["price_umum", "NO", "Harga Jual Umum", "Angka, >= 0"],
+            ["price_khusus", "NO", "Harga Jual Khusus/Reseller", "Angka, >= 0"],
+            ["purchase_price", "NO", "Harga Beli / HPP", "Angka, >= 0"],
+            ["min_stock", "NO", "Minimum Stock Alert", "Angka, >= 0"],
+            ["initial_stock", "NO", "Stok Awal", "Qty awal saat import. Dicatat sebagai Opening Stock (OPENING) di Stock Card. Angka, >= 0"]
+        ]
+
+        const wsInstructions = XLSX.utils.aoa_to_sheet([instructionsHeader, ...instructionsData])
+
+        // Auto-width for instructions
+        wsInstructions['!cols'] = [
+            { wch: 15 }, // Column Name
+            { wch: 10 }, // Required
+            { wch: 30 }, // Description
+            { wch: 50 }  // Notes
+        ]
+        wsInstructions['!views'] = [{ state: 'frozen', xSplit: 0, ySplit: 1 }] // Freeze top row
+
+        XLSX.utils.book_append_sheet(wb, wsInstructions, "Keterangan")
+
         XLSX.writeFile(wb, "import_items_template.xlsx")
     }
 
