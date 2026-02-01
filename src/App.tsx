@@ -8,7 +8,6 @@ import { MobileHeader } from './components/MobileHeader'
 import Login from './components/Login'
 
 // Lazy load all page components
-const Items = lazy(() => import('./components/Items'))
 const Customers = lazy(() => import('./components/Customers'))
 const Vendors = lazy(() => import('./components/Vendors'))
 const COA = lazy(() => import('./components/COA'))
@@ -177,7 +176,6 @@ function App() {
               <SidebarGroup title="Master Data">
                 <ul className="space-y-1 px-2">
                   <li><Link to="/products" className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-slate-800 hover:text-white transition-colors text-sm text-slate-300"><Icons.Package className="w-4 h-4" /> Products</Link></li>
-                  <li><Link to="/items" className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-slate-800 hover:text-white transition-colors text-sm text-slate-300"><Icons.Package className="w-4 h-4" /> Items</Link></li>
                   <li><Link to="/attributes" className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-slate-800 hover:text-white transition-colors text-sm text-slate-300"><Icons.Settings className="w-4 h-4" /> Attributes & Groups</Link></li>
                   <li><Link to="/brands-categories" className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-slate-800 hover:text-white transition-colors text-sm text-slate-300"><Icons.Tag className="w-4 h-4" /> Brands & Categories</Link></li>
                   <li><Link to="/customers" className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-slate-800 hover:text-white transition-colors text-sm text-slate-300"><Icons.Users className="w-4 h-4" /> Customers</Link></li>
@@ -226,7 +224,6 @@ function App() {
             </div>
           }>
             <Routes>
-              <Route path="/items" element={<Items />} />
               <Route path="/customers" element={<Customers />} />
               <Route path="/vendors" element={<Vendors />} />
               <Route path="/coa" element={<COA />} />

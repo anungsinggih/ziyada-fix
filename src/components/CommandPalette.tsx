@@ -36,7 +36,6 @@ const COMMANDS: CommandInfo[] = [
 
     // Master Data
     { id: 'products', title: 'Products', url: '/products', icon: <Icons.Package className="w-4 h-4" />, section: 'Master Data' },
-    { id: 'items', title: 'Items (SKU)', url: '/items', icon: <Icons.Package className="w-4 h-4" />, section: 'Master Data' },
     { id: 'customers', title: 'Customers', url: '/customers', icon: <Icons.Users className="w-4 h-4" />, section: 'Master Data' },
     { id: 'vendors', title: 'Vendors', url: '/vendors', icon: <Icons.Users className="w-4 h-4" />, section: 'Master Data' },
 
