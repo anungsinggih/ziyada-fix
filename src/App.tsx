@@ -39,6 +39,7 @@ const CompanySettings = lazy(() => import('./components/CompanySettings'))
 const Attributes = lazy(() => import('./components/Attributes'))
 const Products = lazy(() => import('./components/Products'))
 const BrandsCategories = lazy(() => import('./components/BrandsCategories'))
+const Inventory = lazy(() => import('./components/Inventory'))
 
 import type { Session } from '@supabase/supabase-js'
 
@@ -167,8 +168,8 @@ function App() {
 
               <SidebarGroup title="Inventory">
                 <ul className="space-y-1 px-2">
-                  <li><Link to="/stock-adj" className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-slate-800 hover:text-white transition-colors text-sm text-slate-300"><Icons.Edit className="w-4 h-4" /> Stock Adj</Link></li>
-                  <li><Link to="/stock-card" className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-slate-800 hover:text-white transition-colors text-sm text-slate-300"><Icons.FileText className="w-4 h-4" /> Stock Card</Link></li>
+                  <li><Link to="/inventory" className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-slate-800 hover:text-white transition-colors text-sm text-slate-300"><Icons.Chart className="w-4 h-4" /> Overview</Link></li>
+                  <li><Link to="/stock-adj" className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-slate-800 hover:text-white transition-colors text-sm text-slate-300"><Icons.Edit className="w-4 h-4" /> Stock Adj (History)</Link></li>
                 </ul>
               </SidebarGroup>
 
@@ -243,6 +244,7 @@ function App() {
               <Route path="/purchase-returns/history" element={<PurchaseReturnHistory />} />
               <Route path="/purchase-returns/:id" element={<PurchaseReturnDetail />} />
               <Route path="/finance" element={<Finance />} />
+              <Route path="/inventory" element={<Inventory />} />
               <Route path="/stock-adj" element={<StockAdjustment />} />
               <Route path="/opening-stock" element={<OpeningStock />} />
               <Route path="/stock-card" element={<StockCard />} />
