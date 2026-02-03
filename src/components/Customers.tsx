@@ -5,8 +5,10 @@ import { Icons } from './ui/Icons'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/Dialog'
 import CustomerForm, { type Customer } from './CustomerForm'
 import CustomerList from './CustomerList'
+import { useNavigate } from 'react-router-dom'
 
 export default function Customers() {
+    const navigate = useNavigate()
     const [customers, setCustomers] = useState<Customer[]>([])
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
@@ -47,6 +49,10 @@ export default function Customers() {
         setIsModalOpen(true)
     }
 
+    function handlePrices(customer: Customer) {
+        navigate(`/customers/${customer.id}/pricing`)
+    }
+
     async function handleDelete(id: string) {
         if (!confirm("Delete customer?")) return
         const { error } = await supabase.from('customers').delete().eq('id', id)
@@ -68,6 +74,7 @@ export default function Customers() {
                 loading={loading}
                 onEdit={handleEdit}
                 onDelete={handleDelete}
+                onPrices={handlePrices}
             />
 
             <Dialog isOpen={isModalOpen} onClose={() => setIsModalOpen(false)}>
@@ -82,6 +89,7 @@ export default function Customers() {
                     />
                 </DialogContent>
             </Dialog>
+
         </div>
     )
 }

@@ -25,7 +25,7 @@ export function usePageTitle() {
         '/stock-adjustment': 'Stock Adjustment',
         '/opening-stock': 'Opening Stock',
         '/stock-card': 'Stock Card',
-        '/products': 'Products',
+        '/items': 'Items',
         '/attributes': 'Attributes',
         '/brands-categories': 'Brands & Categories',
         '/customers': 'Customers',

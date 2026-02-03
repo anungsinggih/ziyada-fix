@@ -12,8 +12,8 @@ import { Icons } from './ui/Icons'
 import { formatCurrency } from '../lib/format'
 import { TotalFooter } from './ui/TotalFooter'
 
-type Customer = { id: string; name: string; price_tier: 'UMUM' | 'KHUSUS' }
-type Item = { id: string; name: string; sku: string; uom: string; price_umum: number; price_khusus: number }
+type Customer = { id: string; name: string }
+type Item = { id: string; name: string; sku: string; uom: string; price_default: number }
 type SalesLine = {
     item_id: string
     item_name: string
@@ -33,6 +33,7 @@ export default function SalesEdit() {
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
     const [error, setError] = useState<string | null>(null)
+    const [customerPriceMap, setCustomerPriceMap] = useState<Record<string, number>>({})
 
     // Header State
     const [customerId, setCustomerId] = useState('')
@@ -61,14 +62,14 @@ export default function SalesEdit() {
         try {
             const { data: custData, error: custError } = await supabase
                 .from('customers')
-                .select('id, name, price_tier')
+                .select('id, name')
                 .eq('is_active', true)
 
             if (custError) throw custError
 
             const { data: itemData, error: itemError } = await supabase
                 .from('items')
-                .select('id, name, sku, uom, price_umum, price_khusus')
+                .select('id, name, sku, uom, price_default')
                 .eq('is_active', true)
 
             if (itemError) throw itemError
@@ -165,12 +166,11 @@ export default function SalesEdit() {
         const item = items.find(i => i.id === selectedItemId)
         if (!item) return
 
-        const customer = customers.find(c => c.id === customerId)
         let price = 0
-        if (customer) {
-            price = customer.price_tier === 'KHUSUS' ? item.price_khusus : item.price_umum
+        if (customerId && customerPriceMap[selectedItemId] !== undefined) {
+            price = customerPriceMap[selectedItemId]
         } else {
-            price = item.price_umum
+            price = item.price_default
         }
 
         const newLine: SalesLine = {
@@ -218,6 +218,30 @@ export default function SalesEdit() {
             setPaymentMethodCode(hasCash ? 'CASH' : paymentMethods[0]?.code || '')
         }
     }, [terms, paymentMethods, paymentMethodCode])
+
+    useEffect(() => {
+        if (!customerId) {
+            setCustomerPriceMap({})
+            return
+        }
+        const loadPrices = async () => {
+            const { data, error } = await supabase
+                .from('customer_item_prices')
+                .select('item_id, price')
+                .eq('customer_id', customerId)
+                .eq('is_active', true)
+            if (error) {
+                setError(error.message)
+                return
+            }
+            const map: Record<string, number> = {}
+            ;(data || []).forEach((row) => {
+                map[row.item_id as string] = Number(row.price)
+            })
+            setCustomerPriceMap(map)
+        }
+        loadPrices()
+    }, [customerId])
 
     async function handleSave() {
         if (!customerId) {

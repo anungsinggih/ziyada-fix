@@ -10,6 +10,7 @@ import Login from './components/Login'
 // Lazy load all page components
 const Customers = lazy(() => import('./components/Customers'))
 const Vendors = lazy(() => import('./components/Vendors'))
+const CustomerPricePage = lazy(() => import('./components/CustomerPricePage'))
 const COA = lazy(() => import('./components/COA'))
 const OpeningBalance = lazy(() => import('./components/OpeningBalance'))
 const Sales = lazy(() => import('./components/Sales'))
@@ -37,7 +38,7 @@ const Journals = lazy(() => import('./components/Journals'))
 const Dashboard = lazy(() => import('./components/Dashboard'))
 const CompanySettings = lazy(() => import('./components/CompanySettings'))
 const Attributes = lazy(() => import('./components/Attributes'))
-const Products = lazy(() => import('./components/Products'))
+const Items = lazy(() => import('./components/Items'))
 const BrandsCategories = lazy(() => import('./components/BrandsCategories'))
 const Inventory = lazy(() => import('./components/Inventory'))
 
@@ -176,7 +177,7 @@ function App() {
               {/* Master Data */}
               <SidebarGroup title="Master Data">
                 <ul className="space-y-1 px-2">
-                  <li><Link to="/products" className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-slate-800 hover:text-white transition-colors text-sm text-slate-300"><Icons.Package className="w-4 h-4" /> Products</Link></li>
+                  <li><Link to="/items" className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-slate-800 hover:text-white transition-colors text-sm text-slate-300"><Icons.Package className="w-4 h-4" /> Items</Link></li>
                   <li><Link to="/attributes" className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-slate-800 hover:text-white transition-colors text-sm text-slate-300"><Icons.Settings className="w-4 h-4" /> Attributes & Groups</Link></li>
                   <li><Link to="/brands-categories" className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-slate-800 hover:text-white transition-colors text-sm text-slate-300"><Icons.Tag className="w-4 h-4" /> Brands & Categories</Link></li>
                   <li><Link to="/customers" className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-slate-800 hover:text-white transition-colors text-sm text-slate-300"><Icons.Users className="w-4 h-4" /> Customers</Link></li>
@@ -226,6 +227,7 @@ function App() {
           }>
             <Routes>
               <Route path="/customers" element={<Customers />} />
+              <Route path="/customers/:id/pricing" element={<CustomerPricePage />} />
               <Route path="/vendors" element={<Vendors />} />
               <Route path="/coa" element={<COA />} />
               <Route path="/opening-balance" element={<OpeningBalance />} />
@@ -256,7 +258,7 @@ function App() {
               <Route path="/settings" element={<CompanySettings />} />
               <Route path="/attributes" element={<Attributes />} />
               <Route path="/brands-categories" element={<BrandsCategories />} />
-              <Route path="/products" element={<Products />} />
+              <Route path="/items" element={<Items />} />
               {/* DEV ONLY Route */}
               {import.meta.env.DEV && <Route path="/dev-reset" element={<DevResetData />} />}
               <Route path="/" element={<Dashboard />} />

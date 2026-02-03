@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../supabaseClient'
 import { Button } from './ui/Button'
 import { Input } from './ui/Input'
-import { Select } from './ui/Select'
 import { Switch } from './ui/Switch'
 import { Textarea } from './ui/Textarea'
 
@@ -11,7 +10,6 @@ export type Customer = {
     name: string
     phone: string
     address: string
-    price_tier: 'UMUM' | 'KHUSUS'
     is_active: boolean
 }
 
@@ -23,7 +21,7 @@ interface CustomerFormProps {
 
 export default function CustomerForm({ initialData, onSuccess, onCancel }: CustomerFormProps) {
     const [formData, setFormData] = useState<Partial<Customer>>({
-        name: '', phone: '', address: '', price_tier: 'UMUM', is_active: true
+        name: '', phone: '', address: '', is_active: true
     })
     const [error, setError] = useState<string | null>(null)
     const [loading, setLoading] = useState(false)
@@ -32,7 +30,7 @@ export default function CustomerForm({ initialData, onSuccess, onCancel }: Custo
         if (initialData) {
             setFormData(initialData)
         } else {
-            setFormData({ name: '', phone: '', address: '', price_tier: 'UMUM', is_active: true })
+            setFormData({ name: '', phone: '', address: '', is_active: true })
         }
     }, [initialData])
 
@@ -71,16 +69,6 @@ export default function CustomerForm({ initialData, onSuccess, onCancel }: Custo
             <Input label="Name" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} required placeholder="Company or Person Name" />
             <Input label="Phone" value={formData.phone} onChange={e => setFormData({ ...formData, phone: e.target.value })} placeholder="Optional" />
             <Textarea label="Address" value={formData.address} onChange={e => setFormData({ ...formData, address: e.target.value })} placeholder="Full Address" />
-            <Select
-                label="Price Tier (T013)"
-                value={formData.price_tier}
-                onChange={e => setFormData({ ...formData, price_tier: e.target.value as 'UMUM' | 'KHUSUS' })}
-                options={[
-                    { label: 'Umum (General)', value: 'UMUM' },
-                    { label: 'Khusus (VIP/Special)', value: 'KHUSUS' }
-                ]}
-            />
-
             <div className="flex items-center justify-between p-3 border rounded-lg bg-gray-50">
                 <span className="text-sm font-medium text-gray-700">Active Status &nbsp;</span>
                 <Switch

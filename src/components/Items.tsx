@@ -2,7 +2,6 @@ import { useEffect, useState, useCallback } from 'react'
 import { supabase } from '../supabaseClient'
 import { Button } from './ui/Button'
 import { Input } from './ui/Input'
-import { Select } from './ui/Select'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/Card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/Table'
 import { Icons } from './ui/Icons'
@@ -19,9 +18,7 @@ type Item = {
     uom_id: string
     size_id: string
     color_id: string
-    parent_id?: string
-    price_umum: number
-    price_khusus: number
+    price_default: number
     default_price_buy: number
     min_stock: number
     is_active: boolean
@@ -29,7 +26,8 @@ type Item = {
     uom?: { name: string, code: string }
     size?: { name: string, code: string }
     color?: { name: string, code: string }
-    parent?: { name: string }
+    brand?: { name: string }
+    category?: { name: string }
 }
 
 export default function Items() {
@@ -41,12 +39,6 @@ export default function Items() {
     const [editingItem, setEditingItem] = useState<Item | null>(null)
     const [isModalOpen, setIsModalOpen] = useState(false)
     const [isImportOpen, setIsImportOpen] = useState(false)
-
-    // Bulk Selection
-    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
-    const [showBulkPrice, setShowBulkPrice] = useState(false)
-    const [bulkPriceType, setBulkPriceType] = useState<'price_umum' | 'price_khusus' | 'default_price_buy'>('price_umum')
-    const [bulkPriceValue, setBulkPriceValue] = useState(0)
 
     const [searchTerm, setSearchTerm] = useState('')
 
@@ -60,10 +52,11 @@ export default function Items() {
             .from('items')
             .select(`
                 *,
+                brand:brands(name),
+                category:categories(name),
                 uom:uoms(name, code),
                 size:sizes(name, code),
-                color:colors(name, code),
-                parent:product_parents(name)
+                color:colors(name, code)
             `)
             .order('sku', { ascending: true })
 
@@ -106,28 +99,6 @@ export default function Items() {
         else fetchItems()
     }
 
-    async function handleBulkUpdate() {
-        if (selectedIds.size === 0) return
-        if (bulkPriceValue < 0) { setError("Price must be >= 0"); return }
-
-        const updates = { [bulkPriceType]: bulkPriceValue }
-        const { error } = await supabase.from('items').update(updates).in('id', Array.from(selectedIds))
-
-        if (error) setError(error.message)
-        else {
-            setShowBulkPrice(false)
-            setSelectedIds(new Set())
-            fetchItems()
-        }
-    }
-
-    function toggleSelection(id: string) {
-        const newSet = new Set(selectedIds)
-        if (newSet.has(id)) newSet.delete(id)
-        else newSet.add(id)
-        setSelectedIds(newSet)
-    }
-
     return (
         <div className="w-full space-y-6">
             <div className="flex justify-between items-center">
@@ -167,52 +138,17 @@ export default function Items() {
                                 containerClassName="mb-0"
                             />
                         </div>
-                        {selectedIds.size > 0 && (
-                            <div className="flex items-center gap-2">
-                                <span className="text-sm text-gray-500">{selectedIds.size} selected</span>
-                                <Button size="sm" variant="outline" onClick={() => setShowBulkPrice(true)}>Bulk Price</Button>
-                            </div>
-                        )}
                     </div>
                 </CardHeader>
                 <CardContent>
-                    {showBulkPrice && (
-                        <div className="bg-blue-50 p-4 rounded mb-4 border border-blue-200">
-                            <h4 className="font-semibold mb-2 text-sm text-blue-900">Bulk Price Update</h4>
-                            <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-end">
-                                <div className="flex-1">
-                                    <Select
-                                        options={[
-                                            { label: 'Price Umum', value: 'price_umum' },
-                                            { label: 'Price Khusus', value: 'price_khusus' },
-                                            { label: 'Buy Price', value: 'default_price_buy' }
-                                        ]}
-                                        value={bulkPriceType}
-                                        onChange={e => setBulkPriceType(e.target.value as 'price_umum' | 'price_khusus' | 'default_price_buy')}
-                                    />
-                                </div>
-                                <div className="flex-1">
-                                    <Input type="number" value={bulkPriceValue} onChange={e => setBulkPriceValue(parseFloat(e.target.value))} placeholder="New Price" />
-                                </div>
-                                <div className="flex space-x-2 mb-2">
-                                    <Button size="sm" onClick={handleBulkUpdate}>Apply</Button>
-                                    <Button size="sm" variant="secondary" onClick={() => setShowBulkPrice(false)}>Cancel</Button>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
                     {loading ? <p className="text-center py-8 text-gray-500">Loading...</p> : (
                         <Table>
                             <TableHeader>
                                 <TableRow>
-                                    <TableHead className="w-10">
-                                        <input type="checkbox" disabled />
-                                    </TableHead>
                                     <TableHead>SKU</TableHead>
                                     <TableHead>Name / Variant</TableHead>
                                     <TableHead>Type</TableHead>
-                                    <TableHead>Price</TableHead>
+                                    <TableHead>Default Price</TableHead>
                                     <TableHead>Stock</TableHead>
                                     <TableHead>Actions</TableHead>
                                 </TableRow>
@@ -220,19 +156,12 @@ export default function Items() {
                             <TableBody>
                                 {filteredItems.map(item => (
                                     <TableRow key={item.id}>
-                                        <TableCell className="w-10">
-                                            <input
-                                                type="checkbox"
-                                                checked={selectedIds.has(item.id)}
-                                                onChange={() => toggleSelection(item.id)}
-                                                className="rounded text-blue-600 focus:ring-blue-500"
-                                            />
-                                        </TableCell>
                                         <TableCell className="font-medium text-xs font-mono">{item.sku}</TableCell>
                                         <TableCell>
                                             <div className="font-medium">{item.name}</div>
                                             <div className="text-xs text-gray-500 flex gap-1 mt-0.5">
-                                                {item.parent && <span className="bg-purple-100 text-purple-700 px-1 rounded">{item.parent.name}</span>}
+                                                {item.brand && <span className="bg-slate-100 px-1 rounded">{item.brand.name}</span>}
+                                                {item.category && <span className="bg-slate-100 px-1 rounded">{item.category.name}</span>}
                                                 {item.size && <span className="bg-gray-100 px-1 rounded">{item.size.code}</span>}
                                                 {item.color && <span className="bg-gray-100 px-1 rounded">{item.color.code}</span>}
                                                 {item.uom && <span className="bg-gray-100 px-1 rounded">{item.uom.code}</span>}
@@ -244,7 +173,7 @@ export default function Items() {
                                             </span>
                                         </TableCell>
                                         <TableCell>
-                                            <div className="text-sm">{item.price_umum.toLocaleString()}</div>
+                                            <div className="text-sm">{item.price_default.toLocaleString()}</div>
                                         </TableCell>
                                         <TableCell>
                                             {item.is_active

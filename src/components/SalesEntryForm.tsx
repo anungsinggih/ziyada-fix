@@ -9,15 +9,16 @@ import { Textarea } from "./ui/Textarea";
 import { Icons } from "./ui/Icons";
 import { useNavigate } from "react-router-dom";
 import { TotalFooter } from "./ui/TotalFooter";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/Dialog";
+import CustomerForm from "./CustomerForm";
 
-type Customer = { id: string; name: string; price_tier: "UMUM" | "KHUSUS" };
+type Customer = { id: string; name: string };
 type Item = {
     id: string;
     name: string;
     sku: string;
     uom: string;
-    price_umum: number;
-    price_khusus: number;
+    price_default: number;
 };
 type SalesLine = {
     item_id: string;
@@ -39,6 +40,7 @@ export function SalesEntryForm({ onSuccess, onError }: Props) {
     const [customers, setCustomers] = useState<Customer[]>([]);
     const [items, setItems] = useState<Item[]>([]);
     const [loading, setLoading] = useState(false);
+    const [customerPriceMap, setCustomerPriceMap] = useState<Record<string, number>>({});
 
     // Form State
     const [customerId, setCustomerId] = useState("");
@@ -48,6 +50,7 @@ export function SalesEntryForm({ onSuccess, onError }: Props) {
     const [paymentMethodCode, setPaymentMethodCode] = useState("CASH");
     const [notes, setNotes] = useState("");
     const [lines, setLines] = useState<SalesLine[]>([]);
+    const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
 
     // Line Input State
     const [selectedItemId, setSelectedItemId] = useState("");
@@ -60,13 +63,13 @@ export function SalesEntryForm({ onSuccess, onError }: Props) {
         try {
             const { data: custData, error: custError } = await supabase
                 .from("customers")
-                .select("id, name, price_tier")
+                .select("id, name")
                 .eq("is_active", true);
             if (custError) throw custError;
 
             const { data: itemData, error: itemError } = await supabase
                 .from("items")
-                .select("id, name, sku, uom, price_umum, price_khusus")
+                .select("id, name, sku, uom, price_default")
                 .eq("is_active", true);
             if (itemError) throw itemError;
 
@@ -89,6 +92,21 @@ export function SalesEntryForm({ onSuccess, onError }: Props) {
         fetchMasterData();
     }, [fetchMasterData]);
 
+    async function handleCustomerCreated() {
+        setIsCustomerModalOpen(false);
+        await fetchMasterData();
+        const { data, error } = await supabase
+            .from("customers")
+            .select("id")
+            .eq("is_active", true)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .single();
+        if (!error && data?.id) {
+            setCustomerId(data.id);
+        }
+    }
+
     useEffect(() => {
         if (terms === "CREDIT") {
             setPaymentMethodCode("");
@@ -100,17 +118,58 @@ export function SalesEntryForm({ onSuccess, onError }: Props) {
         }
     }, [terms, paymentMethods, paymentMethodCode]);
 
+    useEffect(() => {
+        if (!customerId) {
+            setCustomerPriceMap({});
+            return;
+        }
+        const loadPrices = async () => {
+            const { data, error } = await supabase
+                .from("customer_item_prices")
+                .select("item_id, price")
+                .eq("customer_id", customerId)
+                .eq("is_active", true);
+            if (error) {
+                onError(getErrorMessage(error));
+                return;
+            }
+            const map: Record<string, number> = {};
+            (data || []).forEach((row) => {
+                map[row.item_id as string] = Number(row.price);
+            });
+            setCustomerPriceMap(map);
+        };
+        loadPrices();
+    }, [customerId, onError]);
+
+    useEffect(() => {
+        if (!customerId || lines.length === 0) return;
+        setLines((prev) =>
+            prev.map((line) => {
+                const item = items.find((i) => i.id === line.item_id);
+                if (!item) return line;
+                const override = customerPriceMap[line.item_id];
+                const unitPrice = override !== undefined ? override : item.price_default;
+                if (unitPrice === line.unit_price) return line;
+                return {
+                    ...line,
+                    unit_price: unitPrice,
+                    subtotal: unitPrice * line.qty,
+                };
+            })
+        );
+    }, [customerId, customerPriceMap, items, lines.length]);
+
     function addItem() {
         if (!selectedItemId) return;
         const item = items.find((i) => i.id === selectedItemId);
         if (!item) return;
 
-        const customer = customers.find((c) => c.id === customerId);
         let price = 0;
-        if (customer) {
-            price = customer.price_tier === "KHUSUS" ? item.price_khusus : item.price_umum;
+        if (customerId && customerPriceMap[selectedItemId] !== undefined) {
+            price = customerPriceMap[selectedItemId];
         } else {
-            price = item.price_umum;
+            price = item.price_default;
         }
 
         const newLine: SalesLine = {
@@ -210,18 +269,31 @@ export function SalesEntryForm({ onSuccess, onError }: Props) {
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                         {/* Left Section */}
                         <div className="lg:col-span-1 space-y-4">
-                            <Select
-                                label="Customer"
-                                value={customerId}
-                                onChange={(e) => setCustomerId(e.target.value)}
-                                options={[
-                                    { label: "-- Select Customer --", value: "" },
-                                    ...customers.map((c) => ({
-                                        label: `${c.name} (${c.price_tier})`,
-                                        value: c.id,
-                                    })),
-                                ]}
-                            />
+                            <div>
+                                <div className="flex items-center justify-between mb-1">
+                                    <label className="text-sm font-medium text-[var(--text-main)]">Customer</label>
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsCustomerModalOpen(true)}
+                                        className="text-xs text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1"
+                                    >
+                                        <Icons.Plus className="w-3 h-3" />
+                                        New Customer
+                                    </button>
+                                </div>
+                                <Select
+                                    label=""
+                                    value={customerId}
+                                    onChange={(e) => setCustomerId(e.target.value)}
+                                    options={[
+                                        { label: "-- Select Customer --", value: "" },
+                                        ...customers.map((c) => ({
+                                            label: c.name,
+                                            value: c.id,
+                                        })),
+                                    ]}
+                                />
+                            </div>
                             <Input
                                 label="Date"
                                 type="date"
@@ -264,7 +336,7 @@ export function SalesEntryForm({ onSuccess, onError }: Props) {
                         {/* Right Section */}
                         <div className="lg:col-span-2 space-y-4">
                             {/* Item Entry */}
-                            <div className="bg-blue-50/50 p-4 rounded-lg border border-blue-100">
+                            <div className={`bg-blue-50/50 p-4 rounded-lg border border-blue-100 ${!customerId ? 'opacity-60 pointer-events-none' : ''}`}>
                                 <h4 className="font-semibold mb-3 text-sm text-blue-900 uppercase tracking-wide">
                                     Add Items
                                 </h4>
@@ -299,8 +371,8 @@ export function SalesEntryForm({ onSuccess, onError }: Props) {
                                             value={(() => {
                                                 const item = items.find((i) => i.id === selectedItemId);
                                                 if (!item) return "-";
-                                                const customer = customers.find((c) => c.id === customerId);
-                                                const price = customer?.price_tier === "KHUSUS" ? item.price_khusus : item.price_umum;
+                                                const override = customerPriceMap[selectedItemId];
+                                                const price = override !== undefined ? override : item.price_default;
                                                 return price.toLocaleString();
                                             })()}
                                             readOnly
@@ -311,7 +383,7 @@ export function SalesEntryForm({ onSuccess, onError }: Props) {
                                             type="button"
                                             onClick={addItem}
                                             className="w-full sm:w-auto min-h-[44px]"
-                                            disabled={!selectedItemId}
+                                            disabled={!selectedItemId || !customerId}
                                         >
                                             Add Item
                                         </Button>
@@ -402,6 +474,18 @@ export function SalesEntryForm({ onSuccess, onError }: Props) {
                     Save Draft
                 </Button>
             </div>
+
+            <Dialog isOpen={isCustomerModalOpen} onClose={() => setIsCustomerModalOpen(false)}>
+                <DialogHeader>
+                    <DialogTitle>New Customer</DialogTitle>
+                </DialogHeader>
+                <DialogContent>
+                    <CustomerForm
+                        onSuccess={handleCustomerCreated}
+                        onCancel={() => setIsCustomerModalOpen(false)}
+                    />
+                </DialogContent>
+            </Dialog>
         </>
     );
 }

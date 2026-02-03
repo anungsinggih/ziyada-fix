@@ -16,9 +16,9 @@ type Item = {
     uom_id: string
     size_id: string
     color_id: string
-    parent_id?: string
-    price_umum: number
-    price_khusus: number
+    brand_id?: string
+    category_id?: string
+    price_default: number
     default_price_buy: number
     min_stock: number
     is_active: boolean
@@ -33,28 +33,27 @@ type MasterData = {
 
 interface ItemFormProps {
     existingItem?: Item | null
-    initialParentId?: string
     onSuccess: () => void
     onCancel: () => void
 }
 
-export default function ItemForm({ existingItem, initialParentId, onSuccess, onCancel }: ItemFormProps) {
+export default function ItemForm({ existingItem, onSuccess, onCancel }: ItemFormProps) {
     const [uoms, setUoms] = useState<MasterData[]>([])
     const [sizes, setSizes] = useState<MasterData[]>([])
     const [colors, setColors] = useState<MasterData[]>([])
-    const [parents, setParents] = useState<MasterData[]>([])
+    const [brands, setBrands] = useState<MasterData[]>([])
+    const [categories, setCategories] = useState<MasterData[]>([])
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
 
     const [formData, setFormData] = useState<Partial<Item>>({
         sku: '', name: '', type: 'FINISHED_GOOD',
-        price_umum: 0, price_khusus: 0, default_price_buy: 0,
-        min_stock: 0, is_active: true,
-        parent_id: initialParentId
+        price_default: 0, default_price_buy: 0,
+        min_stock: 0, is_active: true
     })
 
     // Quick Add State
-    const [quickDialog, setQuickDialog] = useState<{ type: 'uoms' | 'sizes' | 'colors' | 'product_parents', title: string } | null>(null)
+    const [quickDialog, setQuickDialog] = useState<{ type: 'uoms' | 'sizes' | 'colors' | 'brands' | 'categories', title: string } | null>(null)
 
     useEffect(() => {
         fetchMasterData()
@@ -62,34 +61,32 @@ export default function ItemForm({ existingItem, initialParentId, onSuccess, onC
 
     useEffect(() => {
         if (existingItem) {
-            setFormData({
-                ...existingItem,
-                parent_id: existingItem.parent_id || undefined
-            })
+            setFormData(existingItem)
         } else if (uoms.length > 0) {
             // Set defaults for new item
             setFormData(prev => ({
                 ...prev,
                 uom_id: prev.uom_id || uoms.find(u => u.code === 'PCS')?.id || uoms[0].id,
                 size_id: prev.size_id || sizes.find(s => s.code === 'ALL')?.id || sizes[0]?.id,
-                color_id: prev.color_id || colors.find(c => c.code === 'NA')?.id || colors[0]?.id,
-                parent_id: initialParentId || prev.parent_id
+                color_id: prev.color_id || colors.find(c => c.code === 'NA')?.id || colors[0]?.id
             }))
         }
-    }, [existingItem, uoms, sizes, colors, initialParentId])
+    }, [existingItem, uoms, sizes, colors])
 
     async function fetchMasterData() {
-        const [uomRes, sizeRes, colorRes, parentRes] = await Promise.all([
+        const [uomRes, sizeRes, colorRes, brandRes, categoryRes] = await Promise.all([
             supabase.from('uoms').select('id, code, name').eq('is_active', true),
             supabase.from('sizes').select('id, code, name').eq('is_active', true).order('name'),
             supabase.from('colors').select('id, code, name').eq('is_active', true).order('name'),
-            supabase.from('product_parents').select('id, name').eq('is_active', true)
+            supabase.from('brands').select('id, name').eq('is_active', true).order('name'),
+            supabase.from('categories').select('id, name').eq('is_active', true).order('name')
         ])
 
         if (uomRes.data) setUoms(uomRes.data)
         if (sizeRes.data) setSizes(sizeRes.data)
         if (colorRes.data) setColors(colorRes.data)
-        if (parentRes.data) setParents(parentRes.data)
+        if (brandRes.data) setBrands(brandRes.data)
+        if (categoryRes.data) setCategories(categoryRes.data)
     }
 
     async function handleSubmit(e: React.FormEvent) {
@@ -98,7 +95,7 @@ export default function ItemForm({ existingItem, initialParentId, onSuccess, onC
         setLoading(true)
 
         try {
-            if ((formData.price_umum ?? 0) < 0 || (formData.price_khusus ?? 0) < 0 || (formData.default_price_buy ?? 0) < 0) {
+            if ((formData.price_default ?? 0) < 0 || (formData.default_price_buy ?? 0) < 0) {
                 throw new Error("Prices must be >= 0")
             }
 
@@ -110,9 +107,9 @@ export default function ItemForm({ existingItem, initialParentId, onSuccess, onC
                 uom_id: formData.uom_id,
                 size_id: formData.size_id,
                 color_id: formData.color_id,
-                parent_id: formData.parent_id || null,
-                price_umum: formData.price_umum,
-                price_khusus: formData.price_khusus,
+                brand_id: formData.brand_id || null,
+                category_id: formData.category_id || null,
+                price_default: formData.price_default,
                 default_price_buy: formData.default_price_buy,
                 min_stock: formData.min_stock,
                 is_active: formData.is_active,
@@ -141,7 +138,8 @@ export default function ItemForm({ existingItem, initialParentId, onSuccess, onC
             if (quickDialog?.type === 'uoms') setFormData(prev => ({ ...prev, uom_id: newId }))
             if (quickDialog?.type === 'sizes') setFormData(prev => ({ ...prev, size_id: newId }))
             if (quickDialog?.type === 'colors') setFormData(prev => ({ ...prev, color_id: newId }))
-            if (quickDialog?.type === 'product_parents') setFormData(prev => ({ ...prev, parent_id: newId }))
+            if (quickDialog?.type === 'brands') setFormData(prev => ({ ...prev, brand_id: newId }))
+            if (quickDialog?.type === 'categories') setFormData(prev => ({ ...prev, category_id: newId }))
         })
     }
 
@@ -193,15 +191,24 @@ export default function ItemForm({ existingItem, initialParentId, onSuccess, onC
                 </div>
                 <Input label="Name" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} required />
 
-                {/* Parent with Quick Add */}
-                <SelectWithAdd
-                    label="Parent Product (Optional)"
-                    value={formData.parent_id}
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    onChange={(e: any) => setFormData({ ...formData, parent_id: e.target.value || undefined })}
-                    options={[{ label: '-- No Parent --', value: '' }, ...parents.map(p => ({ label: p.name, value: p.id }))]}
-                    onAdd={() => setQuickDialog({ type: 'product_parents', title: 'Product Parent' })}
-                />
+                <div className="grid grid-cols-2 gap-2">
+                    <SelectWithAdd
+                        label="Brand (Optional)"
+                        value={formData.brand_id}
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        onChange={(e: any) => setFormData({ ...formData, brand_id: e.target.value || undefined })}
+                        options={[{ label: '-- None --', value: '' }, ...brands.map(b => ({ label: b.name, value: b.id }))]}
+                        onAdd={() => setQuickDialog({ type: 'brands', title: 'Brand' })}
+                    />
+                    <SelectWithAdd
+                        label="Category (Optional)"
+                        value={formData.category_id}
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        onChange={(e: any) => setFormData({ ...formData, category_id: e.target.value || undefined })}
+                        options={[{ label: '-- None --', value: '' }, ...categories.map(c => ({ label: c.name, value: c.id }))]}
+                        onAdd={() => setQuickDialog({ type: 'categories', title: 'Category' })}
+                    />
+                </div>
 
                 <div className="grid grid-cols-3 gap-2">
                     <SelectWithAdd
@@ -230,9 +237,8 @@ export default function ItemForm({ existingItem, initialParentId, onSuccess, onC
                     />
                 </div>
 
-                <div className="grid grid-cols-2 gap-3 pt-2">
-                    <Input label="Public Price" type="number" step="0.01" value={formData.price_umum} onChange={e => setFormData({ ...formData, price_umum: parseFloat(e.target.value) })} />
-                    <Input label="Special Price" type="number" step="0.01" value={formData.price_khusus} onChange={e => setFormData({ ...formData, price_khusus: parseFloat(e.target.value) })} />
+                <div className="grid grid-cols-1 gap-3 pt-2">
+                    <Input label="Default Price" type="number" step="0.01" value={formData.price_default} onChange={e => setFormData({ ...formData, price_default: parseFloat(e.target.value) })} />
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
@@ -257,7 +263,7 @@ export default function ItemForm({ existingItem, initialParentId, onSuccess, onC
                     title={quickDialog.title}
                     onClose={() => setQuickDialog(null)}
                     onSuccess={handleQuickSuccess}
-                    hasCode={quickDialog.type !== 'product_parents'}
+                    hasCode={quickDialog.type === 'uoms' || quickDialog.type === 'sizes' || quickDialog.type === 'colors'}
                 />
             )}
         </>

@@ -60,7 +60,17 @@ export default function StockCard({ itemId }: { itemId?: string | null }) {
                 item_name: m.item_name || undefined,
                 sku: m.sku || undefined
             }))
-            setDisplayList(mapped)
+            const sorted = [...mapped].sort((a, b) => {
+                const aOpen = a.trx_type === 'OPENING'
+                const bOpen = b.trx_type === 'OPENING'
+                if (aOpen && !bOpen) return -1
+                if (!aOpen && bOpen) return 1
+                if (a.trx_date && b.trx_date) {
+                    return b.trx_date.localeCompare(a.trx_date)
+                }
+                return 0
+            })
+            setDisplayList(sorted)
         }
         setLoading(false)
     }, [])
@@ -73,11 +83,12 @@ export default function StockCard({ itemId }: { itemId?: string | null }) {
         const { data: itemData } = await supabase.from('items').select('name').eq('id', itemId).single()
         if (itemData) setItemName(itemData.name)
 
-        // 1. Opening
+        // 1. Opening (sum OPENING strictly before startDate)
         const { data: openData } = await supabase.from('view_stock_card')
             .select('qty_change')
             .eq('item_id', itemId)
-            .or(`trx_date.lt.${startDate},and(trx_type.eq.OPENING,trx_date.eq.${startDate})`)
+            .eq('trx_type', 'OPENING')
+            .lt('trx_date', startDate)
 
         const openingQty = (openData as StockCardRow[] | null | undefined)
             ?.reduce((sum, row) => sum + row.qty_change, 0) || 0
@@ -88,7 +99,6 @@ export default function StockCard({ itemId }: { itemId?: string | null }) {
             .eq('item_id', itemId)
             .gte('trx_date', startDate)
             .lte('trx_date', endDate)
-            .neq('trx_type', 'OPENING')
             .order('trx_date', { ascending: true })
             .order('created_at', { ascending: true })
 
@@ -96,15 +106,17 @@ export default function StockCard({ itemId }: { itemId?: string | null }) {
             let running = openingQty
             const res: DisplayItem[] = []
 
-            // Opening Row
-            res.push({
-                trx_date: startDate,
-                trx_type: 'OPENING',
-                ref_no: '-',
-                qty_in: 0,
-                qty_out: 0,
-                balance: openingQty
-            })
+            const hasOpeningInRange = (movData as StockCardRow[]).some((m) => m.trx_type === 'OPENING')
+            if (openingQty !== 0 && !hasOpeningInRange) {
+                res.push({
+                    trx_date: startDate,
+                    trx_type: 'OPENING',
+                    ref_no: '-',
+                    qty_in: 0,
+                    qty_out: 0,
+                    balance: openingQty
+                })
+            }
 
             ;(movData as StockCardRow[]).forEach((m) => {
                 running += m.qty_change
