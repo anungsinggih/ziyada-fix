@@ -55,15 +55,14 @@ export const PurchaseInvoicePrint: FunctionComponent<PurchaseInvoicePrintProps> 
             <style>
                 {`
                     @page {
-                        size: A5 landscape;
+                        size: A4 portrait;
                         margin: 0;
                     }
                     @media print {
                         html, body {
                             height: 100%;
-                            overflow: hidden;
-                            margin: 0 !important;
-                            padding: 0 !important;
+                            width: 100%;
+                            background-color: white;
                         }
                     }
                     body {
