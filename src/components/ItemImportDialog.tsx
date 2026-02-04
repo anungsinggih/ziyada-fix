@@ -75,21 +75,21 @@ export function ItemImportDialog({ isOpen, onClose, onSuccess }: ImportDialogPro
             'sku', 'name',
             'brand_name', 'category_name',
             'uom_name', 'size_name', 'color_name', 'type',
-            'price_default', 'purchase_price', 'min_stock', 'initial_stock'
+            'price_default', 'price_khusus', 'purchase_price', 'min_stock', 'initial_stock'
         ]
         const sampleData = [
             // Finished Goods - menggunakan UOM dan atribut sesuai seed
-            ['TS-001', 'Kaos Polos Cotton 30s Hitam L', 'Ziyada', 'Fashion', 'PCS', 'L', 'Hitam', 'FINISHED_GOOD', 50000, 30000, 10, 100],
-            ['TS-002', 'Kaos Polos Cotton 30s Putih M', 'Ziyada', 'Fashion', 'PCS', 'M', 'Putih', 'FINISHED_GOOD', 50000, 30000, 10, 150],
+            ['TS-001', 'Kaos Polos Cotton 30s Hitam L', 'Ziyada', 'Fashion', 'PCS', 'L', 'Hitam', 'FINISHED_GOOD', 50000, 45000, 30000, 10, 100],
+            ['TS-002', 'Kaos Polos Cotton 30s Putih M', 'Ziyada', 'Fashion', 'PCS', 'M', 'Putih', 'FINISHED_GOOD', 50000, 45000, 30000, 10, 150],
 
             // Raw Materials
-            ['RM-FAB-BLK', 'Kain Cotton Combed 30s Hitam', 'Gracindo', 'Bahan Baku', 'PCS', 'ALL', 'Hitam', 'RAW_MATERIAL', 0, 85000, 50, 500],
-            ['RM-BTN-S', 'Kancing Kemeja Small', 'Local', 'Aksesoris', 'PCS', 'S', 'Putih', 'RAW_MATERIAL', 0, 5000, 100, 1000],
+            ['RM-FAB-BLK', 'Kain Cotton Combed 30s Hitam', 'Gracindo', 'Bahan Baku', 'PCS', 'ALL', 'Hitam', 'RAW_MATERIAL', 0, 0, 85000, 50, 500],
+            ['RM-BTN-S', 'Kancing Kemeja Small', 'Local', 'Aksesoris', 'PCS', 'S', 'Putih', 'RAW_MATERIAL', 0, 0, 5000, 100, 1000],
 
             // Karate Niche Samples (TRADED)
-            ['KA-GI-KUMITE-L', 'Baju Karate Kumite Size L', 'Hokido', 'Karate Gi', 'STEL', 'L', 'Putih', 'TRADED', 450000, 250000, 5, 50],
-            ['KA-BELT-BLK', 'Sabuk Karate Hitam Standar', 'Ziyada', 'Accessories', 'PCS', 'ALL', 'Hitam', 'TRADED', 75000, 40000, 20, 200],
-            ['KA-PROT-CHEST-M', 'Chest Protector Size M', 'Muvon', 'Protector', 'SET', 'M', 'Putih', 'TRADED', 350000, 200000, 3, 30]
+            ['KA-GI-KUMITE-L', 'Baju Karate Kumite Size L', 'Hokido', 'Karate Gi', 'STEL', 'L', 'Putih', 'TRADED', 450000, 400000, 250000, 5, 50],
+            ['KA-BELT-BLK', 'Sabuk Karate Hitam Standar', 'Ziyada', 'Accessories', 'PCS', 'ALL', 'Hitam', 'TRADED', 75000, 65000, 40000, 20, 200],
+            ['KA-PROT-CHEST-M', 'Chest Protector Size M', 'Muvon', 'Protector', 'SET', 'M', 'Putih', 'TRADED', 350000, 310000, 200000, 3, 30]
         ]
 
         const ws = XLSX.utils.aoa_to_sheet([headers, ...sampleData])
@@ -105,6 +105,7 @@ export function ItemImportDialog({ isOpen, onClose, onSuccess }: ImportDialogPro
             { wch: 10 }, // color_name
             { wch: 15 }, // type
             { wch: 15 }, // price_default
+            { wch: 15 }, // price_khusus
             { wch: 15 }, // purchase_price
             { wch: 10 }, // min_stock
             { wch: 12 }  // initial_stock
@@ -125,7 +126,8 @@ export function ItemImportDialog({ isOpen, onClose, onSuccess }: ImportDialogPro
             ["size_name", "NO", "Ukuran", "Contoh: S, M, L, XL, All Size"],
             ["color_name", "NO", "Warna", "Contoh: Red, Blue, Black, White"],
             ["type", "YES", "Tipe Item", "FINISHED_GOOD (Barang Jadi), RAW_MATERIAL (Bahan Baku), TRADED (Beli Jadi di Vendor)"],
-            ["price_default", "NO", "Harga Jual Default", "Angka, >= 0"],
+            ["price_default", "NO", "Harga Jual Umum", "Angka, >= 0"],
+            ["price_khusus", "NO", "Harga Jual Khusus", "Angka, >= 0"],
             ["purchase_price", "NO", "Harga Beli / HPP", "Angka, >= 0"],
             ["min_stock", "NO", "Minimum Stock Alert", "Angka, >= 0"],
             ["initial_stock", "NO", "Stok Awal", "Qty awal saat import. Dicatat sebagai Opening Stock (OPENING) di Stock Card. Angka, >= 0"]

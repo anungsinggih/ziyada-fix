@@ -37,6 +37,11 @@ function JournalEntryItem({ journal, formatCurrency, getRefTypeBadge }: {
     const totalDebit = journal.lines.reduce((sum, line) => sum + line.debit, 0)
     const totalCredit = journal.lines.reduce((sum, line) => sum + line.credit, 0)
     const isBalanced = Math.abs(totalDebit - totalCredit) < 0.01
+    const docNoMatch = journal.memo?.match(/[A-Z]{3}-\d{6,}/)
+    const docNo = docNoMatch?.[0]
+    const cleanedMemo = journal.memo
+        ? journal.memo.replace(/^POST\\s+/i, '').replace(docNo || '', '').trim()
+        : ''
 
     return (
         <Card className="shadow-md transition-all hover:shadow-lg">
@@ -66,7 +71,7 @@ function JournalEntryItem({ journal, formatCurrency, getRefTypeBadge }: {
                     <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-3 mb-1 flex-wrap">
                             <h3 className="text-lg font-semibold text-gray-900">
-                                {journal.ref_type} - {journal.ref_id.substring(0, 8)}
+                                {docNo || cleanedMemo || `Journal ${journal.id.substring(0, 8)}`}
                             </h3>
                             {getRefTypeBadge(journal.ref_type)}
                             {isBalanced ? (
@@ -75,7 +80,9 @@ function JournalEntryItem({ journal, formatCurrency, getRefTypeBadge }: {
                                 <Badge className="bg-red-100 text-red-800 flex items-center gap-1"><Icons.Warning className="w-3 h-3" /> Unbalanced</Badge>
                             )}
                         </div>
-                        <p className="text-sm text-gray-600 truncate">{journal.memo || 'No description'}</p>
+                        <p className="text-sm text-gray-600 truncate">
+                            {cleanedMemo || `Ref: ${journal.ref_id.substring(0, 8)}`}
+                        </p>
                     </div>
 
                     {/* Right Info Column */}

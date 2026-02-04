@@ -833,25 +833,33 @@ begin
         end if;
         
         -- 7. CREATE/UPDATE INVENTORY STOCK & LOG ADJUSTMENT if initial_stock > 0
+        -- 7. CREATE/UPDATE INVENTORY STOCK & LOG ADJUSTMENT if initial_stock > 0
         if v_initial_stock > 0 then
-            -- Create adjustment log
-            insert into public.inventory_adjustments (item_id, qty_delta, reason, adjusted_at)
-            values (v_item_id, v_initial_stock, 'Opening Stock', now());
-
-            -- Upsert stock with cost
-            insert into public.inventory_stock (item_id, qty_on_hand, avg_cost, updated_at)
-            values (v_item_id, v_initial_stock, v_def_price_buy, now())
-            on conflict (item_id) do update
-            set 
-                -- Weighted Average Cost Calculation
-                avg_cost = case 
-                    when (inventory_stock.qty_on_hand + excluded.qty_on_hand) > 0 then
-                        ((inventory_stock.qty_on_hand * coalesce(inventory_stock.avg_cost, 0)) + (excluded.qty_on_hand * excluded.avg_cost)) 
-                        / (inventory_stock.qty_on_hand + excluded.qty_on_hand)
-                    else excluded.avg_cost
-                end,
-                qty_on_hand = inventory_stock.qty_on_hand + excluded.qty_on_hand,
-                updated_at = now();
+            -- Check if Opening Stock already exists to prevent duplicates on re-import
+            if not exists (
+                select 1 from public.inventory_adjustments 
+                where item_id = v_item_id 
+                and (reason = 'Opening Stock' or reason ilike 'opening%')
+            ) then
+                -- Create adjustment log
+                insert into public.inventory_adjustments (item_id, qty_delta, reason, adjusted_at)
+                values (v_item_id, v_initial_stock, 'Opening Stock', now());
+    
+                -- Upsert stock with cost
+                insert into public.inventory_stock (item_id, qty_on_hand, avg_cost, updated_at)
+                values (v_item_id, v_initial_stock, v_def_price_buy, now())
+                on conflict (item_id) do update
+                set 
+                    -- Weighted Average Cost Calculation
+                    avg_cost = case 
+                        when (inventory_stock.qty_on_hand + excluded.qty_on_hand) > 0 then
+                            ((inventory_stock.qty_on_hand * coalesce(inventory_stock.avg_cost, 0)) + (excluded.qty_on_hand * excluded.avg_cost)) 
+                            / (inventory_stock.qty_on_hand + excluded.qty_on_hand)
+                        else excluded.avg_cost
+                    end,
+                    qty_on_hand = inventory_stock.qty_on_hand + excluded.qty_on_hand,
+                    updated_at = now();
+            end if;
         end if;
         
     end loop;

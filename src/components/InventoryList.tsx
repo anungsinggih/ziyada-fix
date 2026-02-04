@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { supabase } from "../supabaseClient";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/Table";
 import { Button } from "./ui/Button";
@@ -6,6 +6,8 @@ import { Input } from "./ui/Input";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/Card";
 import { Icons } from "./ui/Icons";
 import { Badge } from "./ui/Badge";
+import { usePagination } from "../hooks/usePagination";
+import { Pagination } from "./ui/Pagination";
 
 type InventoryItem = {
     id: string
@@ -13,6 +15,8 @@ type InventoryItem = {
     name: string
     uom: string
     category_id?: string
+    size_name?: string
+    color_name?: string
     inventory_stock?: {
         qty_on_hand: number
         avg_cost: number
@@ -31,39 +35,53 @@ export function InventoryList({ selectedId, onSelect, onAdjust, refreshTrigger }
     const [search, setSearch] = useState("")
     const [loading, setLoading] = useState(false)
 
+    const { page, setPage, pageSize, range } = usePagination();
+    const [pageCount, setPageCount] = useState(0);
+
     const fetchInventory = useCallback(async () => {
         setLoading(true)
         // Fetch items with stock
-        const { data, error } = await supabase
+        let query = supabase
             .from('items')
-            .select('id, sku, name, uom, inventory_stock(qty_on_hand, avg_cost)')
+            .select('id, sku, name, uom, sizes(name), colors(name), inventory_stock(qty_on_hand, avg_cost)', { count: 'exact' })
             .eq('is_active', true)
+
+        if (search) {
+            query = query.or(`name.ilike.%${search}%,sku.ilike.%${search}%`)
+        }
+
+        const { data, error, count } = await query
             .order('name')
+            .range(range[0], range[1])
 
         if (!error && data) {
             // Flatten or handle array
             const formatted = data.map(d => ({
                 ...d,
+                size_name: (d.sizes as unknown as { name: string } | null)?.name,
+                color_name: (d.colors as unknown as { name: string } | null)?.name,
                 inventory_stock: Array.isArray(d.inventory_stock) ? d.inventory_stock[0] : d.inventory_stock
             })) as InventoryItem[]
             setItems(formatted)
+            setPageCount(count || 0)
         }
         setLoading(false)
-    }, [])
+    }, [range, search])
 
     useEffect(() => {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        fetchInventory()
+        const timer = setTimeout(() => {
+            void fetchInventory()
+        }, 0)
+        return () => clearTimeout(timer)
     }, [fetchInventory, refreshTrigger])
 
-    const filtered = useMemo(() => {
-        if (!search) return items
-        const low = search.toLowerCase()
-        return items.filter(i =>
-            i.name.toLowerCase().includes(low) ||
-            i.sku.toLowerCase().includes(low)
-        )
-    }, [items, search])
+    // Reset page on search
+    useEffect(() => {
+        setPage(1);
+    }, [search, setPage]);
+
+    // Derived state for display
+    const filtered = items; // filtered is now just items, as filtering happens server-side
 
     return (
         <Card className="h-full shadow-md flex flex-col">
@@ -81,6 +99,7 @@ export function InventoryList({ selectedId, onSelect, onAdjust, refreshTrigger }
                         value={search}
                         onChange={e => setSearch(e.target.value)}
                         className="pl-9"
+                        containerClassName="!mb-0"
                     />
                 </div>
             </CardHeader>
@@ -89,6 +108,8 @@ export function InventoryList({ selectedId, onSelect, onAdjust, refreshTrigger }
                     <TableHeader className="sticky top-0 bg-gray-50 z-10 shadow-sm">
                         <TableRow>
                             <TableHead>Item</TableHead>
+                            <TableHead className="w-20">Size</TableHead>
+                            <TableHead className="w-20">Color</TableHead>
                             <TableHead className="text-right">Stok</TableHead>
                             <TableHead>&nbsp;</TableHead>
                         </TableRow>
@@ -111,6 +132,12 @@ export function InventoryList({ selectedId, onSelect, onAdjust, refreshTrigger }
                                         <TableCell>
                                             <div className="font-semibold text-gray-900">{item.name}</div>
                                             <div className="text-xs text-gray-500 font-mono">{item.sku}</div>
+                                        </TableCell>
+                                        <TableCell className="text-center">
+                                            {item.size_name || '-'}
+                                        </TableCell>
+                                        <TableCell className="text-center">
+                                            {item.color_name || '-'}
                                         </TableCell>
                                         <TableCell className="text-right">
                                             <Badge variant={stock > 0 ? 'success' : 'secondary'} className="text-sm">
@@ -137,6 +164,14 @@ export function InventoryList({ selectedId, onSelect, onAdjust, refreshTrigger }
                     </TableBody>
                 </Table>
             </CardContent>
+            <Pagination
+                currentPage={page}
+                totalCount={pageCount}
+                pageSize={pageSize}
+                onPageChange={setPage}
+                isLoading={loading}
+                className="border-t border-gray-100"
+            />
         </Card>
     )
 }

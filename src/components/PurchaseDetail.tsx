@@ -9,6 +9,7 @@ import { formatCurrency, formatDate, safeDocNo } from "../lib/format";
 import DocumentHeaderCard from "./shared/DocumentHeaderCard";
 import LineItemsTable from "./shared/LineItemsTable";
 import RelatedDocumentsCard, { type RelatedDocumentItem } from "./shared/RelatedDocumentsCard";
+import { PurchaseInvoicePrint } from "./print/PurchaseInvoicePrint";
 
 type PurchaseDetail = {
   id: string;
@@ -19,6 +20,7 @@ type PurchaseDetail = {
   terms: "CASH" | "CREDIT";
   payment_method_code?: string | null;
   total_amount: number;
+  discount_amount?: number | null;
   status: "DRAFT" | "POSTED" | "VOID";
   notes: string | null;
   created_at: string;
@@ -29,6 +31,8 @@ type PurchaseItem = {
   item_id: string;
   item_name: string;
   sku: string;
+  size_name?: string;
+  color_name?: string;
   uom_snapshot: string;
   qty: number;
   unit_cost: number;
@@ -46,6 +50,16 @@ type RelatedDoc = {
   payment_amount?: number;
 };
 
+type CompanyBank = {
+  id: string;
+  code: string;
+  bank_name: string;
+  account_number: string;
+  account_holder: string;
+  is_active: boolean;
+  is_default: boolean;
+};
+
 export default function PurchaseDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -55,6 +69,7 @@ export default function PurchaseDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [paymentMethodName, setPaymentMethodName] = useState<string | null>(null);
+  const [companyBanks, setCompanyBanks] = useState<CompanyBank[]>([]);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleteSuccess, setDeleteSuccess] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -65,12 +80,13 @@ export default function PurchaseDetail() {
   const displayTotal = purchase
     ? purchase.total_amount > 0
       ? purchase.total_amount
-      : itemsTotal
+      : itemsTotal - (purchase.discount_amount || 0)
     : itemsTotal;
 
   useEffect(() => {
     if (id) {
       fetchPurchaseDetail(id);
+      fetchCompanyBanks();
     }
   }, [id]);
 
@@ -91,6 +107,7 @@ export default function PurchaseDetail() {
                     terms,
                     payment_method_code,
                     total_amount,
+                    discount_amount,
                     status,
                     notes,
                     created_at,
@@ -133,7 +150,9 @@ export default function PurchaseDetail() {
                     uom_snapshot,
                     items (
                         name,
-                        sku
+                        sku,
+                        sizes ( name ),
+                        colors ( name )
                     )
                 `,
         )
@@ -146,6 +165,12 @@ export default function PurchaseDetail() {
           ...item,
           item_name: (item.items as unknown as { name: string })?.name || "Unknown",
           sku: (item.items as unknown as { sku: string })?.sku || "",
+          size_name:
+            (item.items as unknown as { sizes?: { name: string } })?.sizes?.name ||
+            undefined,
+          color_name:
+            (item.items as unknown as { colors?: { name: string } })?.colors?.name ||
+            undefined,
         })) || [],
       );
 
@@ -204,6 +229,16 @@ export default function PurchaseDetail() {
     } finally {
       setLoading(false);
     }
+  }
+
+  async function fetchCompanyBanks() {
+    const { data } = await supabase
+      .from("company_banks")
+      .select("*")
+      .eq("is_active", true)
+      .order("is_default", { ascending: false })
+      .order("bank_name", { ascending: true });
+    if (data) setCompanyBanks(data);
   }
 
   async function handleDeleteDraft() {
@@ -321,6 +356,14 @@ export default function PurchaseDetail() {
         },
       ]
       : []),
+    ...(purchase.discount_amount && purchase.discount_amount > 0
+      ? [
+        {
+          label: "Diskon",
+          value: formatCurrency(purchase.discount_amount),
+        },
+      ]
+      : []),
     {
       label: "Total",
       value: <span className="font-bold text-lg">{formatCurrency(displayTotal)}</span>,
@@ -335,7 +378,16 @@ export default function PurchaseDetail() {
     },
     {
       label: "Item Name",
-      render: (item: PurchaseItem) => item.item_name,
+      render: (item: PurchaseItem) => (
+        <div>
+          <div>{item.item_name}</div>
+          {(item.size_name || item.color_name) && (
+            <div className="text-xs text-gray-500">
+              {[item.size_name, item.color_name].filter(Boolean).join(" • ")}
+            </div>
+          )}
+        </div>
+      ),
     },
     {
       label: "UoM",
@@ -361,74 +413,7 @@ export default function PurchaseDetail() {
     },
   ];
 
-  const printLineItems = items.map((item, index) => ({
-    ...item,
-    _index: index + 1,
-  }));
 
-  const printLineItemColumns = [
-    {
-      label: "No",
-      headerClassName: "w-12",
-      render: (row: PurchaseItem & { _index: number }) => row._index,
-    },
-    {
-      label: "Description",
-      render: (row: PurchaseItem & { _index: number }) => (
-        <div>
-          <div className="font-medium">{row.item_name}</div>
-          <div className="text-xs text-gray-500 font-mono">
-            {row.sku} {row.uom_snapshot && `(${row.uom_snapshot})`}
-          </div>
-        </div>
-      ),
-    },
-    {
-      label: "Qty",
-      headerClassName: "text-right",
-      cellClassName: "text-right",
-      render: (row: PurchaseItem & { _index: number }) => row.qty,
-    },
-    {
-      label: "Unit Cost",
-      headerClassName: "text-right",
-      cellClassName: "text-right",
-      render: (row: PurchaseItem & { _index: number }) => formatCurrency(row.unit_cost),
-    },
-    {
-      label: "Amount",
-      headerClassName: "text-right",
-      cellClassName: "text-right font-medium",
-      render: (row: PurchaseItem & { _index: number }) => formatCurrency(row.subtotal),
-    },
-  ];
-
-  const printHeaderFields = [
-    {
-      label: "Date",
-      value: formatDate(purchase.purchase_date),
-    },
-    {
-      label: "Vendor",
-      value: purchase.vendor_name,
-    },
-    {
-      label: "Terms",
-      value: purchase.terms,
-    },
-    ...(purchase.terms === "CASH"
-      ? [
-        {
-          label: "Payment Method",
-          value: paymentMethodName || purchase.payment_method_code || "-",
-        },
-      ]
-      : []),
-    {
-      label: "Total",
-      value: formatCurrency(displayTotal),
-    },
-  ];
 
   const relatedItems: RelatedDocumentItem[] = [];
   if (purchase.status === "POSTED") {
@@ -572,13 +557,7 @@ export default function PurchaseDetail() {
         )}
       </div>
 
-      {/* Print Logo */}
-      <div className="hidden print:block mb-6">
-        <img src="/logo.png" alt="Logo" className="h-12 w-auto" />
-        <h1 className="text-2xl font-bold text-gray-900 mt-2">
-          PURCHASE ORDER
-        </h1>
-      </div>
+
 
       <DocumentHeaderCard
         className="print:hidden"
@@ -597,25 +576,24 @@ export default function PurchaseDetail() {
         emptyLabel="No items added"
       />
 
-      <div className="hidden print:block space-y-6 print:space-y-4">
-        <div className="h-2 bg-slate-900 mb-4"></div>
-        <DocumentHeaderCard
-          title="Purchase Document"
-          docNo={safeDocNo(purchase.purchase_no, purchase.id, true)}
-          status={purchase.status}
-          fields={printHeaderFields}
-          notes={purchase.notes}
-          hideStatusOnPrint
-        />
-        <LineItemsTable
-          title="Items"
-          rows={printLineItems}
-          columns={printLineItemColumns}
-          totalLabel="Total Amount"
-          totalValue={formatCurrency(displayTotal)}
-          emptyLabel="No items added"
-        />
-      </div>
+      <PurchaseInvoicePrint
+        data={{
+          id: purchase.id,
+          purchase_no: purchase.purchase_no,
+          purchase_date: purchase.purchase_date,
+          vendor_name: purchase.vendor_name,
+          terms: purchase.terms,
+          total_amount: purchase.total_amount,
+          discount_amount: purchase.discount_amount,
+          notes: purchase.notes,
+          payment_method_code: purchase.payment_method_code
+        }}
+        items={items}
+        company={{
+          name: "ZIYADA SPORT",
+        }}
+        banks={companyBanks}
+      />
 
       {purchase.status === "POSTED" && (
         <RelatedDocumentsCard className="print:hidden" items={relatedItems} />

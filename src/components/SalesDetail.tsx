@@ -15,6 +15,7 @@ import { Badge } from "./ui/Badge";
 import { Alert } from "./ui/Alert";
 import { Icons } from "./ui/Icons";
 import RelatedDocumentsCard, { type RelatedDocumentItem } from "./shared/RelatedDocumentsCard";
+import { SalesInvoicePrint } from "./print/SalesInvoicePrint";
 
 type SalesDetail = {
   id: string;
@@ -25,6 +26,8 @@ type SalesDetail = {
   terms: "CASH" | "CREDIT";
   payment_method_code?: string | null;
   total_amount: number;
+  shipping_fee?: number | null;
+  discount_amount?: number | null;
   status: "DRAFT" | "POSTED" | "VOID";
   notes: string | null;
   created_at: string;
@@ -35,6 +38,8 @@ type SalesItem = {
   item_id: string;
   item_name: string;
   sku: string;
+  size_name?: string;
+  color_name?: string;
   uom_snapshot: string;
   qty: number;
   unit_price: number;
@@ -62,6 +67,16 @@ type CompanyProfile = {
   bank_holder: string;
 };
 
+type CompanyBank = {
+  id: string;
+  code: string;
+  bank_name: string;
+  account_number: string;
+  account_holder: string;
+  is_active: boolean;
+  is_default: boolean;
+};
+
 export default function SalesDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -69,17 +84,21 @@ export default function SalesDetail() {
   const [items, setItems] = useState<SalesItem[]>([]);
   const [relatedDocs, setRelatedDocs] = useState<RelatedDoc>({});
   const [company, setCompany] = useState<CompanyProfile | null>(null);
-  const [paymentMethodName, setPaymentMethodName] = useState<string | null>(null);
+  const [companyBanks, setCompanyBanks] = useState<CompanyBank[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleteSuccess, setDeleteSuccess] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [postError, setPostError] = useState<string | null>(null);
+  const [postSuccess, setPostSuccess] = useState<string | null>(null);
+  const [isPosting, setIsPosting] = useState(false);
 
   useEffect(() => {
     if (id) {
       fetchSaleDetail(id);
       fetchCompanyProfile();
+      fetchCompanyBanks();
     }
   }, [id]);
 
@@ -100,6 +119,8 @@ export default function SalesDetail() {
                     terms,
                     payment_method_code,
                     total_amount,
+                    shipping_fee,
+                    discount_amount,
                     status,
                     notes,
                     created_at,
@@ -118,16 +139,7 @@ export default function SalesDetail() {
         customer_name: (saleData.customers as unknown as { name: string })?.name || "Unknown",
       });
 
-      if (saleData.terms === "CASH" && saleData.payment_method_code) {
-        const { data: methodData } = await supabase
-          .from("payment_methods")
-          .select("name")
-          .eq("code", saleData.payment_method_code)
-          .single();
-        setPaymentMethodName(methodData?.name || saleData.payment_method_code);
-      } else {
-        setPaymentMethodName(null);
-      }
+      // payment method label not needed in print layout
 
       // Fetch items
       const { data: itemsData, error: itemsError } = await supabase
@@ -142,7 +154,9 @@ export default function SalesDetail() {
                     uom_snapshot,
                     items (
                         name,
-                        sku
+                        sku,
+                        sizes ( name ),
+                        colors ( name )
                     )
                 `,
         )
@@ -155,6 +169,12 @@ export default function SalesDetail() {
           ...item,
           item_name: (item.items as unknown as { name: string })?.name || "Unknown",
           sku: (item.items as unknown as { sku: string })?.sku || "",
+          size_name:
+            (item.items as unknown as { sizes?: { name: string } })?.sizes?.name ||
+            undefined,
+          color_name:
+            (item.items as unknown as { colors?: { name: string } })?.colors?.name ||
+            undefined,
         })) || [],
       );
 
@@ -223,6 +243,16 @@ export default function SalesDetail() {
     if (data) setCompany(data);
   }
 
+  async function fetchCompanyBanks() {
+    const { data } = await supabase
+      .from("company_banks")
+      .select("*")
+      .eq("is_active", true)
+      .order("is_default", { ascending: false })
+      .order("bank_name", { ascending: true });
+    if (data) setCompanyBanks(data);
+  }
+
   async function handleDeleteDraft() {
     if (!sale) return;
     if (!confirm("Hapus draft ini? Tindakan ini tidak bisa dibatalkan."))
@@ -241,6 +271,44 @@ export default function SalesDetail() {
       if (err instanceof Error) setDeleteError(err.message);
     } finally {
       setIsDeleting(false);
+    }
+  }
+
+  async function handlePostDraft() {
+    if (!sale) return;
+    if (
+      !confirm(
+        "Are you sure you want to POST this sales? This action cannot be undone."
+      )
+    ) {
+      return;
+    }
+
+    setIsPosting(true);
+    setPostError(null);
+    setPostSuccess(null);
+
+    try {
+      const { error: rpcError } = await supabase.rpc("rpc_post_sales", {
+        p_sales_id: sale.id,
+      });
+
+      if (rpcError) {
+        if (rpcError.message?.includes("CLOSED")) {
+          throw new Error("Cannot POST: Period is CLOSED for this date");
+        } else if (rpcError.message?.includes("stock")) {
+          throw new Error("Insufficient stock for one or more items");
+        } else {
+          throw rpcError;
+        }
+      }
+
+      setPostSuccess("Sales posted successfully!");
+      fetchSaleDetail(sale.id);
+    } catch (err: unknown) {
+      if (err instanceof Error) setPostError(err.message || "Failed to post sales");
+    } finally {
+      setIsPosting(false);
     }
   }
 
@@ -323,6 +391,17 @@ export default function SalesDetail() {
           )}
           {sale.status === "DRAFT" && (
             <Button
+              onClick={handlePostDraft}
+              isLoading={isPosting}
+              disabled={isPosting}
+              className="bg-green-600 hover:bg-green-700 text-white"
+              icon={<Icons.Check className="w-4 h-4" />}
+            >
+              Post
+            </Button>
+          )}
+          {sale.status === "DRAFT" && (
+            <Button
               variant="danger"
               onClick={handleDeleteDraft}
               isLoading={isDeleting}
@@ -342,6 +421,20 @@ export default function SalesDetail() {
                 variant="success"
                 title="Berhasil"
                 description={deleteSuccess}
+              />
+            )}
+          </div>
+        )}
+        {(postError || postSuccess) && (
+          <div className="w-full">
+            {postError && (
+              <Alert variant="error" title="Gagal" description={postError} />
+            )}
+            {postSuccess && (
+              <Alert
+                variant="success"
+                title="Berhasil"
+                description={postSuccess}
               />
             )}
           </div>
@@ -427,7 +520,14 @@ export default function SalesDetail() {
                   <TableCell className="font-mono text-sm">
                     {item.sku}
                   </TableCell>
-                  <TableCell>{item.item_name}</TableCell>
+                  <TableCell>
+                    <div>{item.item_name}</div>
+                    {(item.size_name || item.color_name) && (
+                      <div className="text-xs text-gray-500">
+                        {[item.size_name, item.color_name].filter(Boolean).join(" • ")}
+                      </div>
+                    )}
+                  </TableCell>
                   <TableCell>{item.uom_snapshot}</TableCell>
                   <TableCell className="text-right">{item.qty}</TableCell>
                   <TableCell className="text-right">
@@ -438,6 +538,26 @@ export default function SalesDetail() {
                   </TableCell>
                 </TableRow>
               ))}
+              {(sale.shipping_fee || 0) > 0 && (
+                <TableRow className="bg-gray-50">
+                  <TableCell colSpan={5} className="text-right">
+                    Ongkir
+                  </TableCell>
+                  <TableCell className="text-right font-medium">
+                    {formatCurrency(sale.shipping_fee || 0)}
+                  </TableCell>
+                </TableRow>
+              )}
+              {(sale.discount_amount || 0) > 0 && (
+                <TableRow className="bg-gray-50">
+                  <TableCell colSpan={5} className="text-right">
+                    Diskon
+                  </TableCell>
+                  <TableCell className="text-right font-medium">
+                    -{formatCurrency(sale.discount_amount || 0)}
+                  </TableCell>
+                </TableRow>
+              )}
               <TableRow className="bg-gray-50 font-bold border-t-2">
                 <TableCell colSpan={5} className="text-right">
                   TOTAL:
@@ -453,255 +573,102 @@ export default function SalesDetail() {
 
       {/* Related Documents (POSTED only) */}
       {sale.status === "POSTED" && (
-        <RelatedDocumentsCard
-          items={[
-            ...(relatedDocs.journal_id
-              ? [
-                {
-                  id: relatedDocs.journal_id,
-                  title: "Journal Entry",
-                  description: (
-                    <p>
-                      ID: {relatedDocs.journal_id.substring(0, 8)} | Date:{" "}
-                      {new Date(relatedDocs.journal_date!).toLocaleDateString(
-                        "id-ID",
-                      )}
-                    </p>
-                  ),
-                  icon: <Icons.FileText className="w-5 h-5" />,
-                  toneClassName: "bg-blue-50",
-                  iconClassName: "text-blue-500",
-                  actionLabel: "Open",
-                  onAction: () =>
-                    navigate(
-                      `/journals?q=${encodeURIComponent(
-                        sale.sales_no || relatedDocs.journal_id!
-                      )}`
+        <div className="print:hidden">
+          <RelatedDocumentsCard
+            items={[
+              ...(relatedDocs.journal_id
+                ? [
+                  {
+                    id: relatedDocs.journal_id,
+                    title: "Journal Entry",
+                    description: (
+                      <p>
+                        ID: {relatedDocs.journal_id.substring(0, 8)} | Date:{" "}
+                        {new Date(relatedDocs.journal_date!).toLocaleDateString(
+                          "id-ID",
+                        )}
+                      </p>
                     ),
-                } as RelatedDocumentItem,
-              ]
-              : []),
-            ...(relatedDocs.receipt_id
-              ? [
-                {
-                  id: relatedDocs.receipt_id,
-                  title: "Receipt (CASH)",
-                  description: (
-                    <p>
-                      ID: {relatedDocs.receipt_id.substring(0, 8)} | Amount:{" "}
-                      {formatCurrency(relatedDocs.receipt_amount!)}
-                    </p>
-                  ),
-                  icon: <Icons.DollarSign className="w-5 h-5" />,
-                  toneClassName: "bg-green-50",
-                  iconClassName: "text-green-500",
-                } as RelatedDocumentItem,
-              ]
-              : []),
-            ...(relatedDocs.ar_invoice_id
-              ? [
-                {
-                  id: relatedDocs.ar_invoice_id,
-                  title: "AR Invoice (CREDIT)",
-                  description: (
-                    <p>
-                      ID: {relatedDocs.ar_invoice_id.substring(0, 8)} | Total:{" "}
-                      {formatCurrency(relatedDocs.ar_total!)} | Outstanding:{" "}
-                      {formatCurrency(relatedDocs.ar_outstanding!)} | Status:{" "}
-                      <Badge className="ml-1">{relatedDocs.ar_status}</Badge>
-                    </p>
-                  ),
-                  icon: <Icons.FileText className="w-5 h-5" />,
-                  toneClassName: "bg-orange-50",
-                  iconClassName: "text-orange-500",
-                  actionLabel: "Open AR",
-                  onAction: () =>
-                    navigate(
-                      `/finance?ar=${encodeURIComponent(
-                        relatedDocs.ar_invoice_id!
-                      )}`
+                    icon: <Icons.FileText className="w-5 h-5" />,
+                    toneClassName: "bg-blue-50",
+                    iconClassName: "text-blue-500",
+                    actionLabel: "Open",
+                    onAction: () =>
+                      navigate(
+                        `/journals?q=${encodeURIComponent(
+                          sale.sales_no || relatedDocs.journal_id!
+                        )}`
+                      ),
+                  } as RelatedDocumentItem,
+                ]
+                : []),
+              ...(relatedDocs.receipt_id
+                ? [
+                  {
+                    id: relatedDocs.receipt_id,
+                    title: "Receipt (CASH)",
+                    description: (
+                      <p>
+                        ID: {relatedDocs.receipt_id.substring(0, 8)} | Amount:{" "}
+                        {formatCurrency(relatedDocs.receipt_amount!)}
+                      </p>
                     ),
-                } as RelatedDocumentItem,
-              ]
-              : []),
-          ]}
-        />
+                    icon: <Icons.DollarSign className="w-5 h-5" />,
+                    toneClassName: "bg-green-50",
+                    iconClassName: "text-green-500",
+                  } as RelatedDocumentItem,
+                ]
+                : []),
+              ...(relatedDocs.ar_invoice_id
+                ? [
+                  {
+                    id: relatedDocs.ar_invoice_id,
+                    title: "AR Invoice (CREDIT)",
+                    description: (
+                      <p>
+                        ID: {relatedDocs.ar_invoice_id.substring(0, 8)} | Total:{" "}
+                        {formatCurrency(relatedDocs.ar_total!)} | Outstanding:{" "}
+                        {formatCurrency(relatedDocs.ar_outstanding!)} | Status:{" "}
+                        <Badge className="ml-1">{relatedDocs.ar_status}</Badge>
+                      </p>
+                    ),
+                    icon: <Icons.FileText className="w-5 h-5" />,
+                    toneClassName: "bg-orange-50",
+                    iconClassName: "text-orange-500",
+                    actionLabel: "Open AR",
+                    onAction: () =>
+                      navigate(
+                        `/finance?ar=${encodeURIComponent(
+                          relatedDocs.ar_invoice_id!
+                        )}`
+                      ),
+                  } as RelatedDocumentItem,
+                ]
+                : []),
+            ]}
+          />
+        </div>
       )}
 
       {/* --- PRINT ONLY SECTION --- */}
-      <div className="hidden print:block font-sans text-sm text-gray-900 leading-relaxed">
-        {/* Header */}
-        <div className="flex justify-between items-start mb-8 border-b-2 border-gray-800 pb-4">
-          <div>
-            <img src="/logo.png" alt="Logo" className="h-12 w-auto mb-3" />
-            <h1 className="text-xl font-bold uppercase tracking-wide">
-              {company?.name || "Company Name"}
-            </h1>
-            <div className="mt-1 text-xs text-gray-600 space-y-0.5">
-              <p>{company?.address}</p>
-              <p>
-                Phone: {company?.phone} | Email: {company?.email}
-              </p>
-            </div>
-          </div>
-          <div className="text-right">
-            <h2 className="text-4xl font-extrabold text-gray-900 tracking-tight">
-              INVOICE
-            </h2>
-            <div className="mt-4 space-y-1">
-              <p>
-                <span className="font-semibold text-gray-500 w-24 inline-block text-xs uppercase">
-                  Invoice #
-                </span>{" "}
-                <span className="font-mono font-bold text-lg">
-                  {sale.sales_no || sale.id.substring(0, 8)}
-                </span>
-              </p>
-              <p>
-                <span className="font-semibold text-gray-500 w-24 inline-block text-xs uppercase">
-                  Date
-                </span>{" "}
-                {new Date(sale.sales_date).toLocaleDateString("id-ID")}
-              </p>
-              <p>
-                <span className="font-semibold text-gray-500 w-24 inline-block text-xs uppercase">
-                  Due Date
-                </span>{" "}
-                {new Date(sale.sales_date).toLocaleDateString("id-ID")}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Bill To & Info */}
-        <div className="flex justify-between mb-8 gap-8">
-          <div className="w-1/2">
-            <h3 className="font-bold text-gray-500 text-xs uppercase tracking-wider mb-2 border-b border-gray-200 pb-1">
-              Bill To
-            </h3>
-            <p className="font-bold text-lg">{sale.customer_name}</p>
-            <p className="text-gray-600 mt-1">
-              Customer ID: {sale.customer_id.substring(0, 8)}
-            </p>
-          </div>
-          <div className="w-1/2 text-right">
-            {/* Payment Status / Terms */}
-            <div className="inline-block bg-gray-50 p-4 rounded border border-gray-200 text-left min-w-[200px]">
-              <p className="text-xs uppercase font-bold text-gray-500 mb-1">
-                Payment Method
-              </p>
-              <p className="font-bold text-lg mb-2">
-                {sale.terms === "CASH"
-                  ? paymentMethodName || sale.payment_method_code || "CASH"
-                  : sale.terms}
-              </p>
-              <p className="text-xs uppercase font-bold text-gray-500 mb-1">
-                Status
-              </p>
-              <Badge
-                className={
-                  sale.status === "POSTED"
-                    ? "bg-black text-white"
-                    : "bg-gray-200 text-gray-800"
-                }
-              >
-                {sale.status}
-              </Badge>
-            </div>
-          </div>
-        </div>
-
-        {/* Items Table (Clean) */}
-        <div className="mb-8">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-gray-100 border-y border-gray-300">
-                <th className="py-2 px-2 font-bold text-xs uppercase text-gray-600">
-                  No
-                </th>
-                <th className="py-2 px-2 font-bold text-xs uppercase text-gray-600">
-                  Description
-                </th>
-                <th className="py-2 px-2 font-bold text-xs uppercase text-gray-600 text-right">
-                  Qty
-                </th>
-                <th className="py-2 px-2 font-bold text-xs uppercase text-gray-600 text-right">
-                  Unit Price
-                </th>
-                <th className="py-2 px-2 font-bold text-xs uppercase text-gray-600 text-right">
-                  Amount
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {items.map((item, i) => (
-                <tr key={item.id}>
-                  <td className="py-2 px-2 text-xs text-gray-500">{i + 1}</td>
-                  <td className="py-2 px-2">
-                    <div className="font-bold">{item.item_name}</div>
-                    <div className="text-xs text-gray-500 font-mono">
-                      {item.sku} {item.uom_snapshot && `(${item.uom_snapshot})`}
-                    </div>
-                  </td>
-                  <td className="py-2 px-2 text-right font-mono">{item.qty}</td>
-                  <td className="py-2 px-2 text-right font-mono text-gray-600">
-                    {formatCurrency(item.unit_price)}
-                  </td>
-                  <td className="py-2 px-2 text-right font-bold font-mono">
-                    {formatCurrency(item.subtotal)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-            <tfoot>
-              <tr className="border-t-2 border-gray-800">
-                <td
-                  colSpan={4}
-                  className="py-3 px-2 text-right font-bold uppercase text-gray-600 text-xs"
-                >
-                  Total Amount
-                </td>
-                <td className="py-3 px-2 text-right font-extrabold text-xl">
-                  {formatCurrency(sale.total_amount)}
-                </td>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
-
-        {/* Footer Section */}
-        <div className="grid grid-cols-2 gap-12 mt-12 pt-4 border-t border-gray-200 page-break-inside-avoid">
-          <div>
-            <h4 className="font-bold text-xs uppercase text-gray-500 mb-2">
-              Payment Instructions
-            </h4>
-            <div className="text-sm bg-blue-50/50 p-3 rounded border border-blue-100">
-              <p className="font-bold text-blue-900">
-                {company?.bank_name || "Bank Name"}
-              </p>
-              <p className="font-mono text-lg">{company?.bank_account}</p>
-              <p className="text-xs text-gray-600 mt-1">
-                A/N {company?.bank_holder}
-              </p>
-            </div>
-            <p className="text-xs text-gray-500 mt-4 italic">
-              Please include Invoice # in transfer news.
-            </p>
-          </div>
-          <div className="text-center">
-            <div className="h-20 mb-2"></div>
-            <div className="border-t border-gray-400 w-2/3 mx-auto"></div>
-            <p className="text-xs font-bold uppercase mt-1">
-              Authorized Signature
-            </p>
-            <p className="text-xs text-gray-500">{company?.name}</p>
-          </div>
-        </div>
-
-        <div className="text-center mt-12 text-xs text-gray-400">
-          <p>Thank you for your business!</p>
-        </div>
-      </div>
+      {sale && (
+        <SalesInvoicePrint
+          data={{
+            id: sale.id,
+            sales_no: sale.sales_no,
+            sales_date: sale.sales_date,
+            customer_name: sale.customer_name,
+            terms: sale.terms,
+            total_amount: sale.total_amount,
+            shipping_fee: sale.shipping_fee,
+            discount_amount: sale.discount_amount,
+            notes: sale.notes
+          }}
+          items={items}
+          company={company}
+          banks={companyBanks}
+        />
+      )}
     </div>
   );
 }

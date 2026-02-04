@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../supabaseClient'
 import { Button } from './ui/Button'
 import { Input } from './ui/Input'
+import { Select } from './ui/Select'
 import { Switch } from './ui/Switch'
 import { Textarea } from './ui/Textarea'
 
@@ -10,6 +11,7 @@ export type Customer = {
     name: string
     phone: string
     address: string
+    customer_type: 'UMUM' | 'KHUSUS' | 'CUSTOM'
     is_active: boolean
 }
 
@@ -21,7 +23,7 @@ interface CustomerFormProps {
 
 export default function CustomerForm({ initialData, onSuccess, onCancel }: CustomerFormProps) {
     const [formData, setFormData] = useState<Partial<Customer>>({
-        name: '', phone: '', address: '', is_active: true
+        name: '', phone: '', address: '', customer_type: 'UMUM', is_active: true
     })
     const [error, setError] = useState<string | null>(null)
     const [loading, setLoading] = useState(false)
@@ -30,7 +32,7 @@ export default function CustomerForm({ initialData, onSuccess, onCancel }: Custo
         if (initialData) {
             setFormData(initialData)
         } else {
-            setFormData({ name: '', phone: '', address: '', is_active: true })
+            setFormData({ name: '', phone: '', address: '', customer_type: 'UMUM', is_active: true })
         }
     }, [initialData])
 
@@ -69,6 +71,17 @@ export default function CustomerForm({ initialData, onSuccess, onCancel }: Custo
             <Input label="Name" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} required placeholder="Company or Person Name" />
             <Input label="Phone" value={formData.phone} onChange={e => setFormData({ ...formData, phone: e.target.value })} placeholder="Optional" />
             <Textarea label="Address" value={formData.address} onChange={e => setFormData({ ...formData, address: e.target.value })} placeholder="Full Address" />
+
+            <Select
+                label="Customer Type"
+                value={formData.customer_type}
+                onChange={e => setFormData({ ...formData, customer_type: e.target.value as 'UMUM' | 'KHUSUS' | 'CUSTOM' })}
+                options={[
+                    { label: 'Umum', value: 'UMUM' },
+                    { label: 'Khusus', value: 'KHUSUS' },
+                    { label: 'Custom', value: 'CUSTOM' }
+                ]}
+            />
             <div className="flex items-center justify-between p-3 border rounded-lg bg-gray-50">
                 <span className="text-sm font-medium text-gray-700">Active Status &nbsp;</span>
                 <Switch

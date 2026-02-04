@@ -38,7 +38,7 @@ const fromInternalValue = (val?: string) => {
     return val === EMPTY_VALUE_SENTINEL ? '' : val
 }
 
-export function Select({
+export const Select = React.forwardRef<HTMLButtonElement, SelectProps>(({
     label,
     options,
     placeholder,
@@ -51,7 +51,7 @@ export function Select({
     onChange,
     disabled,
     searchPlaceholder = 'Search...',
-}: SelectProps) {
+}, ref) => {
     const [searchTerm, setSearchTerm] = useState('')
     const [isOpen, setIsOpen] = useState(false)
     const searchInputRef = useRef<HTMLInputElement>(null)
@@ -129,6 +129,7 @@ export function Select({
             <div className={`flex flex-col gap-1.5 mb-3 w-full ${className}`}>
                 {label && <label className="text-sm font-medium text-[var(--text-main)]">{label}</label>}
                 <button
+                    ref={ref}
                     type="button"
                     className={`flex h-10 w-full items-center justify-between rounded-md border border-[var(--border)] bg-white px-3 py-2 text-sm font-normal text-[var(--text-main)] shadow-sm transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] disabled:cursor-not-allowed disabled:opacity-50 ${triggerClassName}`}
                     onClick={() => setMobileOpen(true)}
@@ -228,6 +229,7 @@ export function Select({
                 }}
             >
                 <SelectPrimitive.Trigger
+                    ref={ref}
                     className={`flex h-10 w-full items-center justify-between rounded-md border border-[var(--border)] bg-white px-3 py-2 text-sm font-normal text-[var(--text-main)] shadow-sm transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] disabled:cursor-not-allowed disabled:opacity-50 ${triggerClassName}`}
                 >
                     <SelectPrimitive.Value placeholder={placeholder || 'Select...'} />
@@ -338,4 +340,5 @@ export function Select({
             </SelectPrimitive.Root>
         </div>
     )
-}
+})
+Select.displayName = 'Select'

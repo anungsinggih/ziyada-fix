@@ -127,8 +127,14 @@ function StockAdjustmentForm({
                     <Input
                         label="Qty Change (+/-)"
                         type="number"
-                        value={delta}
-                        onChange={e => setDelta(parseFloat(e.target.value))}
+                        inputMode="numeric"
+                        step="1"
+                        value={delta || ""}
+                        onFocus={(e) => e.target.select()}
+                        onChange={e => {
+                            const val = e.target.value;
+                            setDelta(val === "" ? 0 : parseFloat(val));
+                        }}
                         placeholder="e.g. 5 or -2"
                     />
                     <p className="text-xs text-gray-500 mt-1">Positive = Gain (Found), Negative = Loss (Damaged)</p>

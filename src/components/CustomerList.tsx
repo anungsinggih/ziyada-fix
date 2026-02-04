@@ -46,28 +46,38 @@ export default function CustomerList({ customers, loading, onEdit, onDelete, onP
                                 <TableHead>Name</TableHead>
                                 <TableHead>Phone</TableHead>
                                 <TableHead>Address</TableHead>
+                                <TableHead>Type</TableHead>
                                 <TableHead>Status</TableHead>
                                 <TableHead>Actions</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {loading ? <TableRow><TableCell colSpan={5} className="text-center">Loading...</TableCell></TableRow> : filteredCustomers.map(c => (
+                            {loading ? <TableRow><TableCell colSpan={6} className="text-center">Loading...</TableCell></TableRow> : filteredCustomers.map(c => (
                                 <TableRow key={c.id} className={!c.is_active ? 'bg-gray-100 opacity-60' : ''}>
                                     <TableCell className="font-medium">{c.name}</TableCell>
                                     <TableCell>{c.phone}</TableCell>
                                     <TableCell className="max-w-xs truncate">{c.address}</TableCell>
+                                    <TableCell>
+                                        <Badge
+                                            variant={c.customer_type === 'CUSTOM' ? 'warning' : c.customer_type === 'KHUSUS' ? 'secondary' : 'outline'}
+                                        >
+                                            {c.customer_type}
+                                        </Badge>
+                                    </TableCell>
                                     <TableCell>
                                         <Badge variant={c.is_active ? 'success' : 'secondary'}>
                                             {c.is_active ? 'Active' : 'Inactive'}
                                         </Badge>
                                     </TableCell>
                                     <TableCell className="space-x-2 flex">
-                                        <Button
-                                            size="sm"
-                                            variant="outline"
-                                            onClick={() => onPrices(c)}
-                                            icon={<Icons.Tag className="w-4 h-4" />}
-                                        />
+                                        {c.customer_type === 'CUSTOM' && (
+                                            <Button
+                                                size="sm"
+                                                variant="outline"
+                                                onClick={() => onPrices(c)}
+                                                icon={<Icons.Tag className="w-4 h-4" />}
+                                            />
+                                        )}
                                         <Button size="sm" variant="outline" onClick={() => onEdit(c)} icon={<Icons.Edit className="w-4 h-4" />} />
                                         <Button size="sm" variant="danger" onClick={() => onDelete(c.id)} icon={<Icons.Trash className="w-4 h-4" />} />
                                     </TableCell>

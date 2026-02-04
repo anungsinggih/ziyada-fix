@@ -5,9 +5,21 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:local": "vite --mode local",
+    "dev:tunnel": "vite --mode tunnel",
+    "dev:prod": "vite --mode production",
     "build": "tsc -b && vite build",
+    "build:prod": "tsc -b && vite build --mode production",
     "lint": "eslint .",
     "preview": "vite preview",
+    "db:prod:link": "npx supabase link",
+    "db:prod:status": "npx supabase status",
+    "db:local:reset": "npx supabase db reset",
+    "db:local:push": "npx supabase db push",
+    "db:prod:push": "npx supabase db push --linked",
+    "db:prod:reset": "npx supabase db reset --linked",
+    "db:tunnel:push": "npx supabase db push --linked",
+    "db:tunnel:reset": "npx supabase db reset --linked",
     "gen-types": "npx supabase gen types typescript --local > src/types/supabase.ts"
   },
   "dependencies": {

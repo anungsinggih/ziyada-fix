@@ -120,8 +120,15 @@ export default function OpeningStock({ initialItemId, isEmbedded, onSuccess }: P
                 <Input
                     label="Opening Qty"
                     type="number"
-                    value={qty}
-                    onChange={e => setQty(parseFloat(e.target.value))}
+                    inputMode="numeric"
+                    step="1"
+                    placeholder="0"
+                    value={qty || ""}
+                    onFocus={(e) => e.target.select()}
+                    onChange={e => {
+                        const val = e.target.value;
+                        setQty(val === "" ? 0 : parseFloat(val));
+                    }}
                 />
                 <Input
                     label="As of Date"

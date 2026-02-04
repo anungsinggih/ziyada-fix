@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { supabase } from "../supabaseClient";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/Card";
@@ -11,6 +11,8 @@ import {
   TableRow,
 } from "./ui/Table";
 import { Button } from "./ui/Button";
+import { Input } from "./ui/Input";
+import { Select } from "./ui/Select";
 import { Alert } from "./ui/Alert";
 import { StatusBadge } from "./ui/StatusBadge";
 import { Badge } from "./ui/Badge";
@@ -18,6 +20,8 @@ import { Icons } from "./ui/Icons";
 import { ResponsiveTable } from "./ui/ResponsiveTable";
 import { EmptyState } from "./ui/EmptyState";
 import { formatCurrency, formatDate, safeDocNo } from "../lib/format";
+import { usePagination } from "../hooks/usePagination";
+import { Pagination } from "./ui/Pagination";
 
 type PurchaseRecord = {
   id: string;
@@ -37,19 +41,27 @@ export default function PurchaseHistory() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [postingId, setPostingId] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"ALL" | "DRAFT" | "POSTED" | "VOID">("ALL");
+  const [termsFilter, setTermsFilter] = useState<"ALL" | "CASH" | "CREDIT">("ALL");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const navigate = useNavigate();
 
-  useEffect(() => {
-    fetchPurchases();
-  }, []);
+  const { page, setPage, pageSize, range } = usePagination();
+  const [totalCount, setTotalCount] = useState(0);
 
-  async function fetchPurchases() {
+  useEffect(() => {
+    setPage(1);
+  }, [search, statusFilter, termsFilter, dateFrom, dateTo, setPage]);
+
+  const fetchPurchases = useCallback(async () => {
     setLoading(true);
     setError(null);
     setSuccess(null);
 
     try {
-      const { data, error: fetchError } = await supabase
+      let query = supabase
         .from("purchases")
         .select(
           `
@@ -65,9 +77,31 @@ export default function PurchaseHistory() {
                         name
                     )
                 `,
+          { count: "exact" }
         )
         .order("purchase_date", { ascending: false })
         .order("created_at", { ascending: false });
+
+      if (statusFilter !== "ALL") {
+        query = query.eq("status", statusFilter);
+      }
+      if (termsFilter !== "ALL") {
+        query = query.eq("terms", termsFilter);
+      }
+      if (dateFrom) {
+        query = query.gte("purchase_date", dateFrom);
+      }
+      if (dateTo) {
+        query = query.lte("purchase_date", dateTo);
+      }
+      if (search.trim()) {
+        const q = search.trim();
+        query = query.or(`purchase_no.ilike.%${q}%,vendors.name.ilike.%${q}%`);
+      }
+
+      query = query.range(range[0], range[1]);
+
+      const { data, error: fetchError, count } = await query;
 
       if (fetchError) throw fetchError;
 
@@ -78,12 +112,17 @@ export default function PurchaseHistory() {
         })) || [];
 
       setPurchases(enriched);
+      setTotalCount(count || 0);
     } catch (err: unknown) {
       if (err instanceof Error) setError(err.message || "Failed to fetch purchases");
     } finally {
       setLoading(false);
     }
-  }
+  }, [range, search, statusFilter, termsFilter, dateFrom, dateTo]);
+
+  useEffect(() => {
+    fetchPurchases();
+  }, [fetchPurchases]);
 
   async function handlePost(purchaseId: string) {
     if (
@@ -163,6 +202,86 @@ export default function PurchaseHistory() {
           <CardTitle>All Purchase Documents</CardTitle>
         </CardHeader>
         <CardContent>
+          <div className="mb-4 flex flex-col gap-2 md:flex-row md:flex-wrap md:items-end">
+            <div className="md:w-[260px]">
+              <Input
+                label="Search"
+                placeholder="Doc No / Vendor"
+                value={search}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setPage(1);
+                }}
+                containerClassName="!mb-0"
+              />
+            </div>
+            <div className="md:w-[150px]">
+              <Input
+                label="From"
+                type="date"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+                containerClassName="!mb-0"
+              />
+            </div>
+            <div className="md:w-[150px]">
+              <Input
+                label="To"
+                type="date"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+                containerClassName="!mb-0"
+              />
+            </div>
+            <div className="md:w-[150px]">
+              <Select
+                label="Status"
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value as "ALL" | "DRAFT" | "POSTED" | "VOID")}
+                options={[
+                  { label: "All", value: "ALL" },
+                  { label: "Draft", value: "DRAFT" },
+                  { label: "Posted", value: "POSTED" },
+                  { label: "Void", value: "VOID" },
+                ]}
+                className="!mb-0"
+              />
+            </div>
+            <div className="md:w-[150px]">
+              <Select
+                label="Terms"
+                value={termsFilter}
+                onChange={(e) => setTermsFilter(e.target.value as "ALL" | "CASH" | "CREDIT")}
+                options={[
+                  { label: "All", value: "ALL" },
+                  { label: "Cash", value: "CASH" },
+                  { label: "Credit", value: "CREDIT" },
+                ]}
+                className="!mb-0"
+              />
+            </div>
+            <div className="md:w-auto">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-medium text-transparent">Action</label>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setSearch("");
+                    setStatusFilter("ALL");
+                    setTermsFilter("ALL");
+                    setDateFrom("");
+                    setDateTo("");
+                  }}
+                  aria-label="Clear filters"
+                  title="Clear filters"
+                  icon={<Icons.Close className="w-4 h-4" />}
+                >
+                  Clear Filter
+                </Button>
+              </div>
+            </div>
+          </div>
+
           {purchases.length === 0 ? (
             <EmptyState
               icon={<Icons.FileText className="w-5 h-5" />}
@@ -211,28 +330,28 @@ export default function PurchaseHistory() {
                       <TableCell>
                         <div className="flex flex-wrap gap-2">
                           <Button
-                            size="sm"
+                            size="icon"
                             variant="outline"
                             onClick={() =>
                               navigate(`/purchases/${purchase.id}`)
                             }
                             icon={<Icons.Eye className="w-4 h-4" />}
-                          >
-                            View
-                          </Button>
+                            aria-label="View purchase"
+                            title="View"
+                          />
                           {purchase.status === "DRAFT" && (
                             <>
                               <Button
-                                size="sm"
+                                size="icon"
                                 variant="outline"
                                 onClick={() =>
                                   navigate(`/purchases/${purchase.id}/edit`)
                                 }
                                 icon={<Icons.Edit className="w-4 h-4" />}
                                 className="w-full sm:w-auto"
-                              >
-                                Edit
-                              </Button>
+                                aria-label="Edit purchase"
+                                title="Edit"
+                              />
                               <Button
                                 size="sm"
                                 onClick={() => handlePost(purchase.id)}
@@ -251,6 +370,13 @@ export default function PurchaseHistory() {
                   ))}
                 </TableBody>
               </Table>
+              <Pagination
+                currentPage={page}
+                totalCount={totalCount}
+                pageSize={pageSize}
+                onPageChange={setPage}
+                isLoading={loading}
+              />
             </ResponsiveTable>
           )}
         </CardContent>

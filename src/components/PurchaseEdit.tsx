@@ -6,6 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { Button } from './ui/Button'
 import { Input } from './ui/Input'
 import { Select } from './ui/Select'
+import { ButtonSelect } from './ui/ButtonSelect'
 import { Textarea } from './ui/Textarea'
 import { Badge } from './ui/Badge'
 import { Icons } from './ui/Icons'
@@ -40,6 +41,7 @@ export default function PurchaseEdit() {
     const [paymentMethods, setPaymentMethods] = useState<{ code: string; name: string }[]>([])
     const [paymentMethodCode, setPaymentMethodCode] = useState('CASH')
     const [notes, setNotes] = useState('')
+    const [discountAmount, setDiscountAmount] = useState(0)
     const [status, setStatus] = useState<'DRAFT' | 'POSTED' | 'VOID'>('DRAFT')
 
     const [lines, setLines] = useState<PurchaseLine[]>([])
@@ -124,6 +126,7 @@ export default function PurchaseEdit() {
             setTerms(purchaseData.terms)
             setPaymentMethodCode(purchaseData.payment_method_code || 'CASH')
             setNotes(purchaseData.notes || '')
+            setDiscountAmount(Number(purchaseData.discount_amount) || 0)
             setStatus(purchaseData.status)
 
             const { data: itemsData, error: itemsError } = await supabase
@@ -211,7 +214,8 @@ export default function PurchaseEdit() {
         setLines(updated)
     }
 
-    const totalAmount = lines.reduce((sum, l) => sum + l.subtotal, 0)
+    const itemsTotal = lines.reduce((sum, l) => sum + l.subtotal, 0)
+    const totalAmount = itemsTotal - (discountAmount || 0)
 
     useEffect(() => {
         if (terms === 'CREDIT') {
@@ -237,6 +241,10 @@ export default function PurchaseEdit() {
             setError('Please add at least one item')
             return
         }
+        if (totalAmount < 0) {
+            setError('Diskon terlalu besar')
+            return
+        }
         if (!id) {
             setError('No purchase ID provided')
             return
@@ -254,6 +262,7 @@ export default function PurchaseEdit() {
                     terms: terms,
                     notes: notes || null,
                     total_amount: totalAmount,
+                    discount_amount: discountAmount || 0,
                     payment_method_code: terms === 'CASH' ? paymentMethodCode : null
                 })
                 .eq('id', id)
@@ -358,24 +367,43 @@ export default function PurchaseEdit() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <Select label="Vendor *" value={vendorId} onChange={(e) => setVendorId(e.target.value)} options={vendors.map(v => ({ label: v.name, value: v.id }))} />
                         <Input label="Date *" type="date" value={purchaseDate} onChange={(e) => setPurchaseDate(e.target.value)} />
-                        <Select label="Terms *" value={terms} onChange={(e) => setTerms(e.target.value as 'CASH' | 'CREDIT')} options={[{ label: 'CASH', value: 'CASH' }, { label: 'CREDIT', value: 'CREDIT' }]} />
+                        <ButtonSelect
+                            label="Terms *"
+                            value={terms}
+                            onChange={(val) => setTerms(val as 'CASH' | 'CREDIT')}
+                            options={[
+                                { label: 'CASH', value: 'CASH' },
+                                { label: 'CREDIT', value: 'CREDIT' }
+                            ]}
+                        />
+                        <Input
+                            label="Diskon"
+                            type="number"
+                            inputMode="decimal"
+                            min="0"
+                            placeholder="0"
+                            value={discountAmount || ""}
+                            onFocus={(e) => e.target.select()}
+                            onChange={(e) => setDiscountAmount(Number(e.target.value))}
+                        />
                         {terms === 'CASH' && (
-                            <Select
+                            <ButtonSelect
                                 label="Payment Method *"
                                 value={paymentMethodCode}
-                                onChange={(e) => setPaymentMethodCode(e.target.value)}
-                                options={[
-                                    { label: '-- Select Method --', value: '' },
-                                    ...paymentMethods.map((m) => ({
-                                        label: `${m.name} (${m.code})`,
-                                        value: m.code
-                                    }))
-                                ]}
+                                onChange={(val) => setPaymentMethodCode(val)}
+                                options={paymentMethods.map((m) => ({
+                                    label: `${m.name} (${m.code})`,
+                                    value: m.code
+                                }))}
                             />
                         )}
                         <div className="flex items-end">
                             <div className="flex-1">
-                                <p className="text-sm text-gray-600">Total</p>
+                                <p className="text-sm text-gray-600">Items Total</p>
+                                <p className="text-lg font-semibold">{formatCurrency(itemsTotal)}</p>
+                                <p className="text-sm text-gray-600 mt-2">Diskon</p>
+                                <p className="text-lg font-semibold">{formatCurrency(discountAmount || 0)}</p>
+                                <p className="text-sm text-gray-600 mt-2">Total</p>
                                 <p className="text-2xl font-bold text-green-600">{formatCurrency(totalAmount)}</p>
                             </div>
                         </div>
@@ -421,6 +449,7 @@ export default function PurchaseEdit() {
                                     type="number"
                                     inputMode="numeric"
                                     min="1"
+                                    step="1"
                                     value={qty}
                                     onChange={(e) => setQty(parseQtyValue(e.target.value))}
                                 />
@@ -431,7 +460,9 @@ export default function PurchaseEdit() {
                                     type="number"
                                     inputMode="decimal"
                                     min="0"
-                                    value={costPrice}
+                                    placeholder="0"
+                                    value={costPrice || ""}
+                                    onFocus={(e) => e.target.select()}
                                     onChange={(e) => setCostPrice(parseCostValue(e.target.value))}
                                 />
                             </div>
@@ -477,6 +508,7 @@ export default function PurchaseEdit() {
                                             <TableCell className="text-right">
                                                 <Input
                                                     type="number"
+                                                    inputMode="numeric"
                                                     value={line.qty}
                                                     onChange={(e) => updateLineQuantity(idx, parseFloat(e.target.value) || 0)}
                                                     min="0.001"
@@ -503,6 +535,8 @@ export default function PurchaseEdit() {
                                 )}
                             </TableBody>
                         </Table>
+                        <TotalFooter label="Items Total" amount={itemsTotal} />
+                        <TotalFooter label="Diskon" amount={discountAmount || 0} />
                         <TotalFooter label="Total Amount" amount={totalAmount} amountClassName="text-purple-600" />
                     </div>
                 </CardContent>

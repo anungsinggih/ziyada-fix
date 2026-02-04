@@ -22,7 +22,7 @@ export function Button({ variant = 'primary', size = 'md', icon, isLoading, chil
 
     const sizes = {
         sm: "px-3 py-1.5 text-xs",
-        md: "px-4 py-2 text-sm",
+        md: "px-4 h-10 text-sm",
         lg: "px-6 py-3 text-base",
         icon: "p-2 w-9 h-9"
     }

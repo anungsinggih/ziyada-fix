@@ -19,6 +19,7 @@ type Item = {
     brand_id?: string
     category_id?: string
     price_default: number
+    price_khusus: number
     default_price_buy: number
     min_stock: number
     is_active: boolean
@@ -48,7 +49,7 @@ export default function ItemForm({ existingItem, onSuccess, onCancel }: ItemForm
 
     const [formData, setFormData] = useState<Partial<Item>>({
         sku: '', name: '', type: 'FINISHED_GOOD',
-        price_default: 0, default_price_buy: 0,
+        price_default: 0, price_khusus: 0, default_price_buy: 0,
         min_stock: 0, is_active: true
     })
 
@@ -95,7 +96,7 @@ export default function ItemForm({ existingItem, onSuccess, onCancel }: ItemForm
         setLoading(true)
 
         try {
-            if ((formData.price_default ?? 0) < 0 || (formData.default_price_buy ?? 0) < 0) {
+            if ((formData.price_default ?? 0) < 0 || (formData.price_khusus ?? 0) < 0 || (formData.default_price_buy ?? 0) < 0) {
                 throw new Error("Prices must be >= 0")
             }
 
@@ -110,6 +111,7 @@ export default function ItemForm({ existingItem, onSuccess, onCancel }: ItemForm
                 brand_id: formData.brand_id || null,
                 category_id: formData.category_id || null,
                 price_default: formData.price_default,
+                price_khusus: formData.price_khusus,
                 default_price_buy: formData.default_price_buy,
                 min_stock: formData.min_stock,
                 is_active: formData.is_active,
@@ -237,8 +239,9 @@ export default function ItemForm({ existingItem, onSuccess, onCancel }: ItemForm
                     />
                 </div>
 
-                <div className="grid grid-cols-1 gap-3 pt-2">
-                    <Input label="Default Price" type="number" step="0.01" value={formData.price_default} onChange={e => setFormData({ ...formData, price_default: parseFloat(e.target.value) })} />
+                <div className="grid grid-cols-2 gap-3 pt-2">
+                    <Input label="Harga Umum" type="number" step="0.01" value={formData.price_default} onChange={e => setFormData({ ...formData, price_default: parseFloat(e.target.value) })} />
+                    <Input label="Harga Khusus" type="number" step="0.01" value={formData.price_khusus} onChange={e => setFormData({ ...formData, price_khusus: parseFloat(e.target.value) })} />
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">

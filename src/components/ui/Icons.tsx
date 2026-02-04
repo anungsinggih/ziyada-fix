@@ -95,6 +95,9 @@ export const Icons = {
     ChevronRight: (props: IconProps) => (
         <IconWrapper {...props}><polyline points="9 18 15 12 9 6" /></IconWrapper>
     ),
+    ChevronLeft: (props: IconProps) => (
+        <IconWrapper {...props}><polyline points="15 18 9 12 15 6" /></IconWrapper>
+    ),
     Check: (props: IconProps) => (
         <IconWrapper {...props}><polyline points="20 6 9 17 4 12" /></IconWrapper>
     ),

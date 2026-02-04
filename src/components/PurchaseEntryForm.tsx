@@ -3,6 +3,7 @@ import { supabase } from "../supabaseClient";
 import { Button } from "./ui/Button";
 import { Input } from "./ui/Input";
 import { Select } from "./ui/Select";
+import { ButtonSelect } from "./ui/ButtonSelect";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "./ui/Card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/Table";
 import { Textarea } from "./ui/Textarea";
@@ -46,6 +47,7 @@ export function PurchaseEntryForm({ onSuccess, onError }: Props) {
     const [paymentMethods, setPaymentMethods] = useState<{ code: string; name: string }[]>([]);
     const [paymentMethodCode, setPaymentMethodCode] = useState("CASH");
     const [notes, setNotes] = useState("");
+    const [discountAmount, setDiscountAmount] = useState(0);
     const [lines, setLines] = useState<PurchaseLine[]>([]);
 
     // Item Input State
@@ -142,7 +144,8 @@ export function PurchaseEntryForm({ onSuccess, onError }: Props) {
         setLines(lines.filter((_, i) => i !== index));
     }
 
-    const totalAmount = lines.reduce((sum, l) => sum + l.subtotal, 0);
+    const itemsTotal = lines.reduce((sum, l) => sum + l.subtotal, 0);
+    const totalAmount = itemsTotal - (discountAmount || 0);
 
     async function handleSaveDraft() {
         if (!vendorId) {
@@ -155,6 +158,10 @@ export function PurchaseEntryForm({ onSuccess, onError }: Props) {
         }
         if (lines.length === 0) {
             onError("Add items");
+            return;
+        }
+        if (totalAmount < 0) {
+            onError("Diskon terlalu besar");
             return;
         }
 
@@ -170,6 +177,7 @@ export function PurchaseEntryForm({ onSuccess, onError }: Props) {
                         status: "DRAFT",
                         notes: notes || null,
                         total_amount: totalAmount,
+                        discount_amount: discountAmount || 0,
                         payment_method_code: terms === "CASH" ? paymentMethodCode : null,
                     },
                 ])
@@ -197,6 +205,7 @@ export function PurchaseEntryForm({ onSuccess, onError }: Props) {
             setTerms("CASH");
             setPaymentMethodCode("CASH");
             setNotes("");
+            setDiscountAmount(0);
             onSuccess(`Draft Created! ID: ${purId}`);
             navigate(`/purchases/${purId}`);
         } catch (err: unknown) {
@@ -232,29 +241,36 @@ export function PurchaseEntryForm({ onSuccess, onError }: Props) {
                                 value={purchaseDate}
                                 onChange={(e) => setPurchaseDate(e.target.value)}
                             />
-                            <Select
+                            <ButtonSelect
                                 label="Terms"
                                 value={terms}
-                                onChange={(e) => setTerms(e.target.value as "CASH" | "CREDIT")}
+                                onChange={(val) => setTerms(val as "CASH" | "CREDIT")}
                                 options={[
                                     { label: "CASH", value: "CASH" },
                                     { label: "CREDIT", value: "CREDIT" },
                                 ]}
                             />
                             {terms === "CASH" && (
-                                <Select
+                                <ButtonSelect
                                     label="Payment Method"
                                     value={paymentMethodCode}
-                                    onChange={(e) => setPaymentMethodCode(e.target.value)}
-                                    options={[
-                                        { label: "-- Select Method --", value: "" },
-                                        ...paymentMethods.map((m) => ({
-                                            label: `${m.name} (${m.code})`,
-                                            value: m.code,
-                                        })),
-                                    ]}
+                                    onChange={(val) => setPaymentMethodCode(val)}
+                                    options={paymentMethods.map((m) => ({
+                                        label: `${m.name} (${m.code})`,
+                                        value: m.code,
+                                    }))}
                                 />
                             )}
+                            <Input
+                                label="Diskon"
+                                type="number"
+                                inputMode="decimal"
+                                min="0"
+                                placeholder="0"
+                                value={discountAmount || ""}
+                                onFocus={(e) => e.target.select()}
+                                onChange={(e) => setDiscountAmount(Number(e.target.value))}
+                            />
                             <Textarea
                                 label="Notes (Internal)"
                                 placeholder="Vendor reference number or internal notes..."
@@ -290,6 +306,7 @@ export function PurchaseEntryForm({ onSuccess, onError }: Props) {
                                                     value: i.id,
                                                 })),
                                             ]}
+                                            className="!mb-0"
                                         />
                                     </div>
                                     <div className="w-24">
@@ -299,7 +316,10 @@ export function PurchaseEntryForm({ onSuccess, onError }: Props) {
                                             inputMode="numeric"
                                             value={qty}
                                             min={1}
+                                            step={1}
+                                            onFocus={(e) => e.target.select()}
                                             onChange={(e) => setQty(parseQtyValue(e.target.value))}
+                                            containerClassName="!mb-0"
                                         />
                                     </div>
                                     <div className="w-32">
@@ -307,14 +327,17 @@ export function PurchaseEntryForm({ onSuccess, onError }: Props) {
                                             label="Cost Price"
                                             type="number"
                                             inputMode="decimal"
-                                            value={costPrice}
+                                            value={costPrice || ""}
+                                            placeholder="0"
                                             min={0}
+                                            onFocus={(e) => e.target.select()}
                                             onChange={(e) =>
                                                 setCostPrice(parseCostValue(e.target.value))
                                             }
+                                            containerClassName="!mb-0"
                                         />
                                     </div>
-                                    <div className="pb-1">
+                                    <div className="">
                                         <Button
                                             type="button"
                                             onClick={addItem}
@@ -378,6 +401,8 @@ export function PurchaseEntryForm({ onSuccess, onError }: Props) {
                                         )}
                                     </TableBody>
                                 </Table>
+                                <TotalFooter label="Items Total" amount={itemsTotal} />
+                                <TotalFooter label="Diskon" amount={discountAmount || 0} />
                                 <TotalFooter label="Total Amount" amount={totalAmount} amountClassName="text-purple-600" />
                             </div>
                         </div>

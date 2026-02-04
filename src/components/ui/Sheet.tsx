@@ -5,9 +5,10 @@ interface SheetProps {
     onClose: () => void
     side?: 'left' | 'right' | 'top' | 'bottom'
     children: React.ReactNode
+    contentClassName?: string
 }
 
-export function Sheet({ isOpen, onClose, side = 'right', children }: SheetProps) {
+export function Sheet({ isOpen, onClose, side = 'right', children, contentClassName = '' }: SheetProps) {
     useEffect(() => {
         if (isOpen) document.body.style.overflow = 'hidden'
         else document.body.style.overflow = 'unset'
@@ -31,7 +32,7 @@ export function Sheet({ isOpen, onClose, side = 'right', children }: SheetProps)
                 onClick={onClose}
             />
             {/* Content */}
-            <div className={`absolute bg-white shadow-2xl overflow-auto ${sideStyles[side]}`}>
+            <div className={`absolute bg-white shadow-2xl overflow-auto ${sideStyles[side]} ${contentClassName}`}>
                 <div className="p-6 relative">
                     <button
                         onClick={onClose}
