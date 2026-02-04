@@ -69,10 +69,8 @@ export function InventoryList({ selectedId, onSelect, onAdjust, refreshTrigger }
     }, [range, search])
 
     useEffect(() => {
-        const timer = setTimeout(() => {
-            void fetchInventory()
-        }, 0)
-        return () => clearTimeout(timer)
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        void fetchInventory()
     }, [fetchInventory, refreshTrigger])
 
     // Reset page on search
