@@ -32,9 +32,10 @@ type SalesInvoicePrintProps = {
         bank_account?: string
         bank_holder?: string
     } | null
+    visibleOnScreen?: boolean
 }
 
-export const SalesInvoicePrint: FunctionComponent<SalesInvoicePrintProps> = ({ data, items, company, banks }) => {
+export const SalesInvoicePrint: FunctionComponent<SalesInvoicePrintProps> = ({ data, items, company, banks, visibleOnScreen = false }) => {
 
     const subtotal = items.reduce((sum, item) => sum + item.subtotal, 0)
     const ongkir = data.shipping_fee || 0
@@ -51,7 +52,7 @@ export const SalesInvoicePrint: FunctionComponent<SalesInvoicePrintProps> = ({ d
     const safeDocNo = (no: string | null, id: string) => no || `INV-${id.substring(0, 8).toUpperCase()}`
 
     return (
-        <div className="hidden print:block print:w-[210mm] print:h-[147mm] bg-white text-black relative overflow-hidden font-sans leading-tight page-break-after-avoid">
+        <div className={`${visibleOnScreen ? "block" : "hidden"} print:block print:w-[210mm] print:h-[147mm] bg-white text-black relative overflow-hidden font-sans leading-tight page-break-after-avoid`}>
             {/* --- PAGE SETUP --- */}
             <style>
                 {`

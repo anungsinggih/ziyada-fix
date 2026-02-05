@@ -1,10 +1,14 @@
 import { useEffect, useState, useCallback } from 'react'
 import { supabase } from "../supabaseClient";
-import { Card, CardContent, CardHeader, CardTitle } from './ui/Card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/Table'
 import { Badge } from './ui/Badge'
 import { Icons } from './ui/Icons'
 import { Input } from './ui/Input'
+import { Section } from './ui/Section'
+import { Card, CardHeader, CardTitle } from './ui/Card'
+import { usePagination } from '../hooks/usePagination'
+import { Pagination } from './ui/Pagination'
+import { Button } from './ui/Button'
 
 interface DisplayItem {
     id?: string
@@ -32,8 +36,12 @@ type StockCardRow = {
 
 export default function StockCard({ itemId }: { itemId?: string | null }) {
     const [loading, setLoading] = useState(false)
-    const [displayList, setDisplayList] = useState<DisplayItem[]>([])
+    const [allItems, setAllItems] = useState<DisplayItem[]>([]) // For client-side pagination (ItemCard)
     const [itemName, setItemName] = useState("")
+    const [totalCount, setTotalCount] = useState(0)
+
+    const { page, setPage, pageSize, range, reset: resetPage } = usePagination({ defaultPageSize: 20 });
+    const [rangeStart, rangeEnd] = range;
 
     // Date Filter for Specific Item
     const [startDate, setStartDate] = useState(() => {
@@ -42,13 +50,20 @@ export default function StockCard({ itemId }: { itemId?: string | null }) {
     })
     const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0])
 
+    const [globalFeed, setGlobalFeed] = useState<DisplayItem[]>([])
+
+    // Derived state for display
+    const visibleRows = itemId
+        ? allItems.slice((page - 1) * pageSize, (page - 1) * pageSize + pageSize)
+        : globalFeed;
+
     const fetchGlobalFeed = useCallback(async () => {
-        setTimeout(() => setLoading(true), 0)
-        const { data, error } = await supabase
+        setLoading(true)
+        const { data, error, count } = await supabase
             .from('view_stock_card')
-            .select('*')
+            .select('*', { count: 'exact' })
             .order('created_at', { ascending: false })
-            .limit(20)
+            .range(rangeStart, rangeEnd)
 
         if (!error && data) {
             const mapped: DisplayItem[] = (data as StockCardRow[]).map((m) => ({
@@ -60,30 +75,21 @@ export default function StockCard({ itemId }: { itemId?: string | null }) {
                 item_name: m.item_name || undefined,
                 sku: m.sku || undefined
             }))
-            const sorted = [...mapped].sort((a, b) => {
-                const aOpen = a.trx_type === 'OPENING'
-                const bOpen = b.trx_type === 'OPENING'
-                if (aOpen && !bOpen) return -1
-                if (!aOpen && bOpen) return 1
-                if (a.trx_date && b.trx_date) {
-                    return b.trx_date.localeCompare(a.trx_date)
-                }
-                return 0
-            })
-            setDisplayList(sorted)
+            setGlobalFeed(mapped)
+            setTotalCount(count || 0)
         }
         setLoading(false)
-    }, [])
+    }, [rangeStart, rangeEnd])
 
     const fetchItemCard = useCallback(async () => {
         if (!itemId) return
-        setTimeout(() => setLoading(true), 0)
+        setLoading(true)
 
         // Get Item Name
         const { data: itemData } = await supabase.from('items').select('name').eq('id', itemId).single()
         if (itemData) setItemName(itemData.name)
 
-        // 1. Opening (sum OPENING strictly before startDate)
+        // 1. Opening
         const { data: openData } = await supabase.from('view_stock_card')
             .select('qty_change')
             .eq('item_id', itemId)
@@ -118,7 +124,7 @@ export default function StockCard({ itemId }: { itemId?: string | null }) {
                 })
             }
 
-            ;(movData as StockCardRow[]).forEach((m) => {
+            ; (movData as StockCardRow[]).forEach((m) => {
                 running += m.qty_change
                 res.push({
                     trx_date: m.trx_date,
@@ -129,96 +135,162 @@ export default function StockCard({ itemId }: { itemId?: string | null }) {
                     balance: running
                 })
             })
-            setDisplayList(res)
+            setAllItems(res)
+            setTotalCount(res.length)
         }
         setLoading(false)
     }, [itemId, startDate, endDate])
 
+    // Reset page when switching modes or items
+    useEffect(() => {
+        resetPage();
+    }, [itemId, resetPage]);
+
+    // Effect to fetch Global Feed when !itemId
+    useEffect(() => {
+        if (!itemId) {
+            // eslint-disable-next-line react-hooks/set-state-in-effect
+            void fetchGlobalFeed();
+        }
+    }, [itemId, fetchGlobalFeed]);
+
+    // Effect to fetch Item Card when itemId changes
     useEffect(() => {
         if (itemId) {
             // eslint-disable-next-line react-hooks/set-state-in-effect
-            fetchItemCard()
-        } else {
-            fetchGlobalFeed()
+            void fetchItemCard();
         }
-    }, [itemId, fetchGlobalFeed, fetchItemCard])
+    }, [itemId, fetchItemCard]);
+
 
     return (
-        <Card className="h-full shadow-md border-l-4 border-l-blue-500">
-            <CardHeader className="bg-gray-50/80 border-b border-gray-100 pb-4">
-                <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-2 md:gap-4">
-                    <CardTitle className="text-blue-900 flex items-center gap-2 min-w-0 flex-1">
-                        <Icons.Clock className="w-5 h-5 flex-shrink-0" />
-                        <span className="truncate">{itemId ? `Kartu Stok: ${itemName}` : "Aktivitas Gudang Terbaru"}</span>
-                    </CardTitle>
-
-                    {itemId && (
-                        <div className="flex items-center gap-2 text-sm w-full xl:w-auto flex-shrink-0">
+        <div className="space-y-6 h-full">
+            {/* Filter Section (Only for Specific Item) */}
+            {itemId && (
+                <Section
+                    title="Filter Period"
+                    description={`Viewing history for ${itemName || '...'}`}
+                    className="border-l-4 border-l-indigo-500"
+                >
+                    <div className="grid grid-cols-1 sm:grid-cols-12 gap-4 items-end">
+                        <div className="col-span-6 sm:col-span-4 lg:col-span-3">
                             <Input
+                                label="From"
                                 type="date"
-                                className="flex-1 sm:w-32 h-9 text-xs"
                                 value={startDate}
                                 onChange={e => setStartDate(e.target.value)}
-                            />
-                            <span className="text-gray-400">to</span>
-                            <Input
-                                type="date"
-                                className="flex-1 sm:w-32 h-9 text-xs"
-                                value={endDate}
-                                onChange={e => setEndDate(e.target.value)}
+                                containerClassName="!mb-0"
                             />
                         </div>
-                    )}
-                </div>
-            </CardHeader>
-            <CardContent className="p-0 flex-1 overflow-y-auto max-h-[500px] lg:max-h-[700px]">
-                <Table>
-                    <TableHeader className="bg-gray-50 sticky top-0 z-10">
-                        <TableRow>
-                            <TableHead className="w-24">Date</TableHead>
-                            {!itemId && <TableHead>Item</TableHead>}
-                            <TableHead>Type / Ref</TableHead>
-                            <TableHead className="text-right text-green-700">In</TableHead>
-                            <TableHead className="text-right text-red-700">Out</TableHead>
-                            {itemId && <TableHead className="text-right font-bold">Balance</TableHead>}
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {loading ? (
-                            <TableRow><TableCell colSpan={6} className="text-center py-10">Loading...</TableCell></TableRow>
-                        ) : displayList.length === 0 ? (
-                            <TableRow><TableCell colSpan={6} className="text-center py-10 text-gray-400">No movements found</TableCell></TableRow>
-                        ) : (
-                            displayList.map((row, idx) => (
-                                <TableRow key={idx} className="hover:bg-gray-50">
-                                    <TableCell className="text-xs">{row.trx_date}</TableCell>
-                                    {!itemId && (
+                        <div className="col-span-6 sm:col-span-4 lg:col-span-3">
+                            <Input
+                                label="To"
+                                type="date"
+                                value={endDate}
+                                onChange={e => setEndDate(e.target.value)}
+                                containerClassName="!mb-0"
+                            />
+                        </div>
+                        <div className="col-span-12 sm:col-span-4 lg:col-span-2">
+                            <Button
+                                variant="outline"
+                                className="w-full"
+                                onClick={() => {
+                                    const d = new Date(); d.setDate(1);
+                                    setStartDate(d.toISOString().split('T')[0]);
+                                    setEndDate(new Date().toISOString().split('T')[0]);
+                                }}
+                                icon={<Icons.RotateCcw className="w-4 h-4" />}
+                            >
+                                Reset
+                            </Button>
+                        </div>
+                    </div>
+                </Section>
+            )}
+
+            {/* Results Card */}
+            <Card className="h-full shadow-sm hover:shadow-md transition-shadow duration-200">
+                <CardHeader className="pb-2 border-b border-gray-100 bg-gray-50/50">
+                    <CardTitle className="text-lg flex justify-between items-center">
+                        <div className="flex items-center gap-2">
+                            {itemId ? (
+                                <>
+                                    <Icons.History className="w-5 h-5 text-indigo-500" />
+                                    <span>Stock Card History</span>
+                                </>
+                            ) : (
+                                <>
+                                    <Icons.Activity className="w-5 h-5 text-blue-500" />
+                                    <span>Recent Activity (Global)</span>
+                                </>
+                            )}
+                        </div>
+                    </CardTitle>
+                </CardHeader>
+                <div className="flex-1 overflow-y-auto">
+                    <Table>
+                        <TableHeader className="bg-white sticky top-0 z-10 shadow-sm">
+                            <TableRow>
+                                <TableHead className="w-24 text-xs uppercase tracking-wider text-slate-500">Date</TableHead>
+                                {!itemId && <TableHead className="text-xs uppercase tracking-wider text-slate-500">Item</TableHead>}
+                                <TableHead className="text-xs uppercase tracking-wider text-slate-500">Type / Ref</TableHead>
+                                <TableHead className="text-right text-xs uppercase tracking-wider text-green-700">In</TableHead>
+                                <TableHead className="text-right text-xs uppercase tracking-wider text-red-700">Out</TableHead>
+                                {itemId && <TableHead className="text-right text-xs uppercase tracking-wider text-slate-700 font-bold">Balance</TableHead>}
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {loading ? (
+                                <TableRow><TableCell colSpan={6} className="text-center py-10 text-slate-500">
+                                    <div className="flex justify-center items-center gap-2">
+                                        <div className="animate-spin w-4 h-4 border-2 border-indigo-600 border-t-transparent rounded-full"></div>
+                                        <span>Loading history...</span>
+                                    </div>
+                                </TableCell></TableRow>
+                            ) : visibleRows.length === 0 ? (
+                                <TableRow><TableCell colSpan={6} className="text-center py-12 text-slate-400 italic">No movements recorded in this period.</TableCell></TableRow>
+                            ) : (
+                                visibleRows.map((row, idx) => (
+                                    <TableRow key={idx} className="hover:bg-slate-50 transition-colors border-b border-slate-50">
+                                        <TableCell className="text-xs font-mono text-slate-600">{row.trx_date}</TableCell>
+                                        {!itemId && (
+                                            <TableCell>
+                                                <div className="font-medium text-xs text-slate-900">{row.item_name}</div>
+                                                <div className="text-[10px] text-slate-500 font-mono">{row.sku}</div>
+                                            </TableCell>
+                                        )}
                                         <TableCell>
-                                            <div className="font-medium text-xs">{row.item_name}</div>
-                                            <div className="text-[10px] text-gray-500">{row.sku}</div>
+                                            <Badge variant="outline" className="text-[10px] mb-1 px-1.5 py-0 border-slate-200 text-slate-600 bg-slate-50">{row.trx_type}</Badge>
+                                            <div className="text-[10px] text-slate-400 truncate max-w-[120px] font-mono" title={row.ref_no}>{row.ref_no}</div>
                                         </TableCell>
-                                    )}
-                                    <TableCell>
-                                        <Badge variant="outline" className="text-[10px] mb-1">{row.trx_type}</Badge>
-                                        <div className="text-xs text-gray-500 truncate max-w-[120px]" title={row.ref_no}>{row.ref_no}</div>
-                                    </TableCell>
-                                    <TableCell className="text-right text-xs text-green-700 font-medium">
-                                        {row.qty_in > 0 ? `+${row.qty_in}` : '-'}
-                                    </TableCell>
-                                    <TableCell className="text-right text-xs text-red-700 font-medium">
-                                        {row.qty_out > 0 ? `-${row.qty_out}` : '-'}
-                                    </TableCell>
-                                    {itemId && (
-                                        <TableCell className="text-right text-xs font-bold bg-gray-50/50">
-                                            {row.balance?.toLocaleString()}
+                                        <TableCell className="text-right text-xs text-emerald-600 font-medium bg-emerald-50/30">
+                                            {row.qty_in > 0 ? `+${row.qty_in}` : '-'}
                                         </TableCell>
-                                    )}
-                                </TableRow>
-                            ))
-                        )}
-                    </TableBody>
-                </Table>
-            </CardContent>
-        </Card>
+                                        <TableCell className="text-right text-xs text-rose-600 font-medium bg-rose-50/30">
+                                            {row.qty_out > 0 ? `-${row.qty_out}` : '-'}
+                                        </TableCell>
+                                        {itemId && (
+                                            <TableCell className="text-right text-xs font-bold text-slate-700 bg-slate-50/80">
+                                                {row.balance?.toLocaleString()}
+                                            </TableCell>
+                                        )}
+                                    </TableRow>
+                                ))
+                            )}
+                        </TableBody>
+                    </Table>
+                </div>
+                <div className="border-t border-gray-100 p-2">
+                    <Pagination
+                        currentPage={page}
+                        totalCount={totalCount}
+                        pageSize={pageSize}
+                        onPageChange={setPage}
+                        isLoading={loading}
+                    />
+                </div>
+            </Card>
+        </div>
     )
 }

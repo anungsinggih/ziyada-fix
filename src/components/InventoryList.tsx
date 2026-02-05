@@ -3,11 +3,11 @@ import { supabase } from "../supabaseClient";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/Table";
 import { Button } from "./ui/Button";
 import { Input } from "./ui/Input";
-import { Card, CardContent, CardHeader, CardTitle } from "./ui/Card";
 import { Icons } from "./ui/Icons";
 import { Badge } from "./ui/Badge";
 import { usePagination } from "../hooks/usePagination";
 import { Pagination } from "./ui/Pagination";
+import { Section } from "./ui/Section";
 
 type InventoryItem = {
     id: string
@@ -35,7 +35,7 @@ export function InventoryList({ selectedId, onSelect, onAdjust, refreshTrigger }
     const [search, setSearch] = useState("")
     const [loading, setLoading] = useState(false)
 
-    const { page, setPage, pageSize, range } = usePagination();
+    const { page, setPage, pageSize, range } = usePagination({ defaultPageSize: 20 });
     const [pageCount, setPageCount] = useState(0);
 
     const fetchInventory = useCallback(async () => {
@@ -79,97 +79,117 @@ export function InventoryList({ selectedId, onSelect, onAdjust, refreshTrigger }
     }, [search, setPage]);
 
     // Derived state for display
-    const filtered = items; // filtered is now just items, as filtering happens server-side
+    const filtered = items;
 
     return (
-        <Card className="h-full shadow-md flex flex-col">
-            <CardHeader className="bg-white border-b border-gray-100 pb-4">
-                <div className="flex justify-between items-center mb-2">
-                    <CardTitle className="text-gray-800">Cek Stok</CardTitle>
-                    <Button variant="ghost" size="sm" onClick={() => onSelect(null)}>
-                        Reset View
-                    </Button>
+        <Section
+            title="Cek Stok"
+            description="View and search real-time stock availability."
+            className="h-full flex flex-col shadow-lg border-0 ring-1 ring-slate-900/5 bg-white overflow-hidden"
+        >
+            <div className="flex flex-col h-full">
+                <div className="p-4 border-b border-gray-100 bg-gray-50/50">
+                    <div className="relative">
+                        <Icons.Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                        <Input
+                            placeholder="Search by SKU or Name..."
+                            value={search}
+                            onChange={e => setSearch(e.target.value)}
+                            className="pl-9 bg-white"
+                            containerClassName="!mb-0"
+                        />
+                        {selectedId && (
+                            <div className="absolute right-2 top-1/2 -translate-y-1/2">
+                                <Button variant="ghost" size="sm" onClick={() => onSelect(null)} className="h-7 text-xs">
+                                    Clear Selection
+                                </Button>
+                            </div>
+                        )}
+                    </div>
                 </div>
-                <div className="relative">
-                    <Icons.Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                    <Input
-                        placeholder="Cari SKU atau Nama Barang..."
-                        value={search}
-                        onChange={e => setSearch(e.target.value)}
-                        className="pl-9"
-                        containerClassName="!mb-0"
+
+                <div className="flex-1 overflow-y-auto min-h-0">
+                    <Table>
+                        <TableHeader className="bg-white sticky top-0 z-10 shadow-sm">
+                            <TableRow>
+                                <TableHead>Item</TableHead>
+                                <TableHead className="w-20 text-center">Size</TableHead>
+                                <TableHead className="w-20 text-center">Color</TableHead>
+                                <TableHead className="text-right">Stock</TableHead>
+                                <TableHead>&nbsp;</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {loading ? (
+                                <TableRow><TableCell colSpan={5} className="text-center py-12 text-slate-500">
+                                    <div className="flex justify-center items-center gap-2">
+                                        <div className="animate-spin w-4 h-4 border-2 border-indigo-600 border-t-transparent rounded-full"></div>
+                                        <span>Loading...</span>
+                                    </div>
+                                </TableCell></TableRow>
+                            ) : filtered.length === 0 ? (
+                                <TableRow><TableCell colSpan={5} className="text-center py-12 text-slate-400 italic">No items found</TableCell></TableRow>
+                            ) : (
+                                filtered.map(item => {
+                                    const stock = item.inventory_stock?.qty_on_hand || 0
+                                    const isSelected = selectedId === item.id
+                                    return (
+                                        <TableRow
+                                            key={item.id}
+                                            className={`cursor-pointer transition-all border-b border-gray-50 ${isSelected ? 'bg-indigo-50/50 hover:bg-indigo-50' : 'hover:bg-slate-50'}`}
+                                            onClick={() => onSelect(isSelected ? null : item.id)}
+                                        >
+                                            <TableCell>
+                                                <div className={`font-semibold  ${isSelected ? 'text-indigo-700' : 'text-slate-900'}`}>{item.name}</div>
+                                                <div className="text-xs text-slate-500 font-mono mt-0.5">{item.sku}</div>
+                                            </TableCell>
+                                            <TableCell className="text-center text-xs text-slate-600">
+                                                {item.size_name || '-'}
+                                            </TableCell>
+                                            <TableCell className="text-center text-xs text-slate-600">
+                                                {item.color_name || '-'}
+                                            </TableCell>
+                                            <TableCell className="text-right">
+                                                <Badge
+                                                    variant="outline"
+                                                    className={`
+                                                        ${stock > 0 ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-rose-50 text-rose-700 border-rose-200'}
+                                                    `}
+                                                >
+                                                    {stock.toLocaleString()} <span className="text-[10px] ml-1 opacity-70">{item.uom}</span>
+                                                </Badge>
+                                            </TableCell>
+                                            <TableCell>
+                                                <Button
+                                                    size="sm"
+                                                    variant="ghost"
+                                                    className="hover:bg-orange-50 hover:text-orange-600 h-8 w-8 p-0 rounded-full"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        onAdjust(item.id, item.name);
+                                                    }}
+                                                    title="Adjust Stock"
+                                                >
+                                                    <Icons.Edit className="w-3.5 h-3.5" />
+                                                </Button>
+                                            </TableCell>
+                                        </TableRow>
+                                    )
+                                })
+                            )}
+                        </TableBody>
+                    </Table>
+                </div>
+                <div className="border-t border-gray-100 p-2">
+                    <Pagination
+                        currentPage={page}
+                        totalCount={pageCount}
+                        pageSize={pageSize}
+                        onPageChange={setPage}
+                        isLoading={loading}
                     />
                 </div>
-            </CardHeader>
-            <CardContent className="p-0 flex-1 overflow-y-auto max-h-[500px] lg:max-h-[700px]">
-                <Table>
-                    <TableHeader className="sticky top-0 bg-gray-50 z-10 shadow-sm">
-                        <TableRow>
-                            <TableHead>Item</TableHead>
-                            <TableHead className="w-20">Size</TableHead>
-                            <TableHead className="w-20">Color</TableHead>
-                            <TableHead className="text-right">Stok</TableHead>
-                            <TableHead>&nbsp;</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {loading ? (
-                            <TableRow><TableCell colSpan={3} className="text-center py-8">Loading...</TableCell></TableRow>
-                        ) : filtered.length === 0 ? (
-                            <TableRow><TableCell colSpan={3} className="text-center py-8 text-gray-400">Tak ada barang</TableCell></TableRow>
-                        ) : (
-                            filtered.map(item => {
-                                const stock = item.inventory_stock?.qty_on_hand || 0
-                                const isSelected = selectedId === item.id
-                                return (
-                                    <TableRow
-                                        key={item.id}
-                                        className={`cursor-pointer transition-colors ${isSelected ? 'bg-blue-50' : 'hover:bg-gray-50'}`}
-                                        onClick={() => onSelect(isSelected ? null : item.id)}
-                                    >
-                                        <TableCell>
-                                            <div className="font-semibold text-gray-900">{item.name}</div>
-                                            <div className="text-xs text-gray-500 font-mono">{item.sku}</div>
-                                        </TableCell>
-                                        <TableCell className="text-center">
-                                            {item.size_name || '-'}
-                                        </TableCell>
-                                        <TableCell className="text-center">
-                                            {item.color_name || '-'}
-                                        </TableCell>
-                                        <TableCell className="text-right">
-                                            <Badge variant={stock > 0 ? 'success' : 'secondary'} className="text-sm">
-                                                {stock.toLocaleString()} {item.uom}
-                                            </Badge>
-                                        </TableCell>
-                                        <TableCell>
-                                            <Button
-                                                size="sm"
-                                                variant="outline"
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    onAdjust(item.id, item.name);
-                                                }}
-                                                title="Adjust Stock"
-                                            >
-                                                <Icons.Edit className="w-3 h-3" />
-                                            </Button>
-                                        </TableCell>
-                                    </TableRow>
-                                )
-                            })
-                        )}
-                    </TableBody>
-                </Table>
-            </CardContent>
-            <Pagination
-                currentPage={page}
-                totalCount={pageCount}
-                pageSize={pageSize}
-                onPageChange={setPage}
-                isLoading={loading}
-                className="border-t border-gray-100"
-            />
-        </Card>
+            </div>
+        </Section>
     )
 }

@@ -156,15 +156,21 @@ export default function COA() {
                                                     {a.is_active ? 'Active' : 'Inactive'}
                                                 </Badge>
                                             </TableCell>
-                                            <TableCell className="space-x-2 flex">
-                                                <Button size="sm" variant="outline" onClick={() => handleEdit(a)} icon={<Icons.Edit className="w-4 h-4" />} />
-                                                <Button
-                                                    size="sm"
-                                                    variant="danger"
-                                                    onClick={() => handleDelete(a.id)}
-                                                    disabled={a.is_system_account}
-                                                    icon={<Icons.Trash className="w-4 h-4" />}
-                                                />
+                                            <TableCell>
+                                                <div className="flex justify-end gap-1">
+                                                    <Button size="sm" variant="ghost" onClick={() => handleEdit(a)} className="h-9 w-9 p-0 text-slate-500 hover:text-indigo-600">
+                                                        <Icons.Edit className="w-[22px] h-[22px]" />
+                                                    </Button>
+                                                    <Button
+                                                        size="sm"
+                                                        variant="ghost"
+                                                        onClick={() => handleDelete(a.id)}
+                                                        disabled={a.is_system_account}
+                                                        className={`h-9 w-9 p-0 ${a.is_system_account ? 'text-slate-300' : 'text-slate-400 hover:text-rose-600'}`}
+                                                    >
+                                                        <Icons.Trash className="w-[22px] h-[22px]" />
+                                                    </Button>
+                                                </div>
                                             </TableCell>
                                         </TableRow>
                                     ))}

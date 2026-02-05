@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "../supabaseClient";
 import { useNavigate, useParams } from "react-router-dom";
 import { Button } from "./ui/Button";
@@ -10,6 +10,7 @@ import DocumentHeaderCard from "./shared/DocumentHeaderCard";
 import LineItemsTable from "./shared/LineItemsTable";
 import RelatedDocumentsCard, { type RelatedDocumentItem } from "./shared/RelatedDocumentsCard";
 import { PurchaseInvoicePrint } from "./print/PurchaseInvoicePrint";
+import { toPng } from "html-to-image";
 
 type PurchaseDetail = {
   id: string;
@@ -76,6 +77,8 @@ export default function PurchaseDetail() {
   const [postError, setPostError] = useState<string | null>(null);
   const [postSuccess, setPostSuccess] = useState<string | null>(null);
   const [isPosting, setIsPosting] = useState(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
+  const printRef = useRef<HTMLDivElement | null>(null);
   const itemsTotal = items.reduce((sum, item) => sum + (item.subtotal || 0), 0);
   const displayTotal = purchase
     ? purchase.total_amount > 0
@@ -298,6 +301,72 @@ export default function PurchaseDetail() {
     }
   }
 
+  const downloadFileName = useMemo(() => {
+    const docNo = purchase?.purchase_no || purchase?.id || "invoice";
+    return `purchase-${docNo}.png`;
+  }, [purchase?.id, purchase?.purchase_no]);
+
+  const handleDownloadImage = async () => {
+    if (!printRef.current) return;
+    setDownloadError(null);
+    try {
+      const source = printRef.current;
+      const clone = source.cloneNode(true) as HTMLDivElement;
+      clone.style.position = "fixed";
+      clone.style.left = "0";
+      clone.style.top = "0";
+      clone.style.opacity = "1";
+      clone.style.zIndex = "9999";
+      clone.style.pointerEvents = "none";
+      clone.style.transform = "none";
+      clone.style.background = "#ffffff";
+      clone.style.width = "794px";
+      clone.style.maxWidth = "794px";
+      clone.style.height = "auto";
+      clone.style.maxHeight = "none";
+      document.body.appendChild(clone);
+      const captureHeight = Math.max(555, clone.scrollHeight);
+      const dataUrl = await toPng(clone, {
+        cacheBust: true,
+        pixelRatio: 2,
+        backgroundColor: "#ffffff",
+        skipFonts: true,
+        width: 794,
+        height: captureHeight,
+        filter: (node) => {
+          if (node.nodeName === "STYLE") {
+            const content = (node as HTMLStyleElement).textContent || "";
+            if (content.includes("@page")) return false;
+          }
+          return true;
+        },
+        style: {
+          visibility: "visible",
+          opacity: "1",
+          transform: "none",
+          position: "static",
+          left: "0",
+          top: "0",
+          zIndex: "auto",
+          fontFamily: "Arial, sans-serif",
+        },
+      });
+      document.body.removeChild(clone);
+      const link = document.createElement("a");
+      link.href = dataUrl;
+      link.download = downloadFileName;
+      link.click();
+    } catch (err) {
+      console.error(err);
+      if (printRef.current) {
+        const clones = Array.from(document.body.querySelectorAll("div"))
+          .filter((el) => el.style.zIndex === "9999" && el.style.position === "fixed");
+        clones.forEach((el) => el.remove());
+      }
+      setDownloadError("Gagal download invoice sebagai gambar.");
+    }
+  };
+
   if (loading) {
     return (
       <div className="w-full p-8 text-center">
@@ -494,6 +563,13 @@ export default function PurchaseDetail() {
               Print
             </Button>
             <Button
+              onClick={handleDownloadImage}
+              variant="outline"
+              icon={<Icons.Image className="w-4 h-4" />}
+            >
+              Download Image
+            </Button>
+            <Button
               onClick={() => navigate("/purchases/history")}
               variant="outline"
               icon={<Icons.ArrowLeft className="w-4 h-4" />}
@@ -531,7 +607,7 @@ export default function PurchaseDetail() {
             )}
           </div>
         </div>
-        {(deleteError || deleteSuccess || postError || postSuccess) && (
+        {(deleteError || deleteSuccess || postError || postSuccess || downloadError) && (
           <div className="w-full">
             {postError && (
               <Alert variant="error" title="Gagal" description={postError} />
@@ -542,6 +618,9 @@ export default function PurchaseDetail() {
                 title="Berhasil"
                 description={postSuccess}
               />
+            )}
+            {downloadError && (
+              <Alert variant="error" title="Gagal" description={downloadError} />
             )}
             {deleteError && (
               <Alert variant="error" title="Gagal" description={deleteError} />
@@ -576,24 +655,30 @@ export default function PurchaseDetail() {
         emptyLabel="No items added"
       />
 
-      <PurchaseInvoicePrint
-        data={{
-          id: purchase.id,
-          purchase_no: purchase.purchase_no,
-          purchase_date: purchase.purchase_date,
-          vendor_name: purchase.vendor_name,
-          terms: purchase.terms,
-          total_amount: purchase.total_amount,
-          discount_amount: purchase.discount_amount,
-          notes: purchase.notes,
-          payment_method_code: purchase.payment_method_code
-        }}
-        items={items}
-        company={{
-          name: "ZIYADA SPORT",
-        }}
-        banks={companyBanks}
-      />
+      <div
+        ref={printRef}
+        className="absolute -left-[99999px] top-0 opacity-0 pointer-events-none print:static print:opacity-100 print:pointer-events-auto"
+      >
+        <PurchaseInvoicePrint
+          data={{
+            id: purchase.id,
+            purchase_no: purchase.purchase_no,
+            purchase_date: purchase.purchase_date,
+            vendor_name: purchase.vendor_name,
+            terms: purchase.terms,
+            total_amount: purchase.total_amount,
+            discount_amount: purchase.discount_amount,
+            notes: purchase.notes,
+            payment_method_code: purchase.payment_method_code
+          }}
+          items={items}
+          company={{
+            name: "ZIYADA SPORT",
+          }}
+          banks={companyBanks}
+          visibleOnScreen
+        />
+      </div>
 
       {purchase.status === "POSTED" && (
         <RelatedDocumentsCard className="print:hidden" items={relatedItems} />

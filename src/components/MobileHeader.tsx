@@ -4,9 +4,10 @@ import { Icons } from './ui/Icons'
 interface MobileHeaderProps {
     mobileMenuOpen: boolean
     onToggleMenu: () => void
+    periodStatus?: 'OPEN' | 'CLOSED' | null
 }
 
-export function MobileHeader({ mobileMenuOpen, onToggleMenu }: MobileHeaderProps) {
+export function MobileHeader({ mobileMenuOpen, onToggleMenu, periodStatus }: MobileHeaderProps) {
     const pageTitle = usePageTitle()
 
     return (
@@ -22,6 +23,11 @@ export function MobileHeader({ mobileMenuOpen, onToggleMenu }: MobileHeaderProps
                 <div className="flex items-center gap-2">
                     <img src="/logo.png" alt="Ziyada ERP" className="h-8 w-auto rounded" />
                     <span className="text-white font-semibold text-sm">{pageTitle}</span>
+                    {periodStatus === 'CLOSED' && (
+                        <span className="text-[10px] uppercase tracking-wide font-semibold bg-red-600/20 text-red-200 border border-red-500/40 rounded-full px-2 py-0.5">
+                            Period Closed
+                        </span>
+                    )}
                 </div>
                 <div className="w-10" /> {/* Spacer for centering */}
             </div>

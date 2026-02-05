@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { supabase } from '../supabaseClient'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/Card'
 import { Button } from './ui/Button'
@@ -8,6 +8,10 @@ import { Textarea } from './ui/Textarea'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/Table'
 import { Icons } from './ui/Icons'
 import OpeningStock from './OpeningStock'
+import { usePagination } from '../hooks/usePagination'
+import { Pagination } from './ui/Pagination'
+import { PageHeader } from './ui/PageHeader'
+import { Section } from './ui/Section'
 
 // --- TYPES ---
 type Item = { id: string; name: string; sku: string }
@@ -203,29 +207,34 @@ function StockAdjustmentPage() {
     const [showOpeningForm, setShowOpeningForm] = useState(false)
     const [refreshTrigger, setRefreshTrigger] = useState(0)
 
-    async function fetchHistory() {
+    const { page, setPage, pageSize, range } = usePagination({ defaultPageSize: 20 });
+    const [totalCount, setTotalCount] = useState(0);
+
+    const [rangeStart, rangeEnd] = range;
+
+    const fetchHistory = useCallback(async () => {
         setLoading(true)
-        const { data, error } = await supabase
+        const { data, error, count } = await supabase
             .from('inventory_adjustments')
             .select(`
                 id, adjusted_at, qty_delta, reason, item_id,
                 item:items (name, sku)
-            `)
+            `, { count: 'exact' })
             .order('adjusted_at', { ascending: false })
-            .limit(50)
+            .range(rangeStart, rangeEnd)
 
         if (!error && data) {
             // @ts-expect-error: Supabase returns typed rows without strict inference here.
             setHistory(data)
+            setTotalCount(count || 0)
         }
         setLoading(false)
-    }
+    }, [rangeStart, rangeEnd])
 
     useEffect(() => {
         // eslint-disable-next-line react-hooks/set-state-in-effect
         fetchHistory()
-    }, [refreshTrigger])
-
+    }, [fetchHistory, refreshTrigger])
 
 
     function handleFormSuccess() {
@@ -236,72 +245,83 @@ function StockAdjustmentPage() {
 
     return (
         <div className="space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div>
-                    <h1 className="hidden md:block text-2xl font-bold text-gray-900">Stock Adjustment History</h1>
-                    <p className="hidden md:block text-gray-500 text-sm">Log penyesuaian stok manual (Opname / Rusak / Hilang)</p>
-                </div>
-                <div className="flex gap-2">
-                    <Button variant="outline" onClick={() => setShowOpeningForm(true)} icon={<Icons.Package className="w-4 h-4" />}>
-                        Set Opening Stock
-                    </Button>
-                    <Button onClick={() => setShowForm(true)} icon={<Icons.Plus className="w-4 h-4" />}>
-                        New Adjustment
-                    </Button>
-                </div>
-            </div>
+            <PageHeader
+                title="Stock Adjustment History"
+                description="Log penyesuaian stok manual (Opname / Rusak / Hilang)"
+                actions={
+                    <div className="flex gap-2">
+                        <Button variant="outline" onClick={() => setShowOpeningForm(true)} icon={<Icons.Package className="w-4 h-4" />}>
+                            Set Opening Stock
+                        </Button>
+                        <Button onClick={() => setShowForm(true)} icon={<Icons.Plus className="w-4 h-4" />}>
+                            New Adjustment
+                        </Button>
+                    </div>
+                }
+            />
 
             {/* HISTORY LIST */}
-            <Card className="shadow-md border-gray-200">
-                <CardContent className="p-0 overflow-hidden">
-                    <Table>
-                        <TableHeader className="bg-gray-50">
-                            <TableRow>
-                                <TableHead>Date</TableHead>
-                                <TableHead>Item (SKU)</TableHead>
-                                <TableHead className="text-right">Qty Delta</TableHead>
-                                <TableHead>Reason</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {loading ? (
+            <Section title="History">
+                <Card className="shadow-md border-gray-200">
+                    <CardContent className="p-0 overflow-hidden">
+                        <Table>
+                            <TableHeader className="bg-gray-50">
                                 <TableRow>
-                                    <TableCell colSpan={4} className="h-24 text-center">Loading...</TableCell>
+                                    <TableHead>Date</TableHead>
+                                    <TableHead>Item (SKU)</TableHead>
+                                    <TableHead className="text-right">Qty Delta</TableHead>
+                                    <TableHead>Reason</TableHead>
                                 </TableRow>
-                            ) : history.length === 0 ? (
-                                <TableRow>
-                                    <TableCell colSpan={4} className="h-24 text-center text-gray-500 italic">
-                                        No adjustments found
-                                    </TableCell>
-                                </TableRow>
-                            ) : (
-                                history.map(h => (
-                                    <TableRow key={h.id}>
-                                        <TableCell className="whitespace-nowrap">
-                                            {new Date(h.adjusted_at).toLocaleDateString()}{" "}
-                                            <span className="text-xs text-gray-400">
-                                                {new Date(h.adjusted_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                            </span>
-                                        </TableCell>
-                                        <TableCell>
-                                            <div className="font-medium">{h.item?.name || 'Unknown'}</div>
-                                            <div className="text-xs text-gray-500">{h.item?.sku}</div>
-                                        </TableCell>
-                                        <TableCell className={`text-right font-bold ${h.qty_delta > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                            {h.qty_delta > 0 ? '+' : ''}{h.qty_delta}
-                                        </TableCell>
-                                        <TableCell className="max-w-xs truncate">
-                                            <div title={h.reason} className="truncate text-gray-600">
-                                                {h.reason}
-                                            </div>
+                            </TableHeader>
+                            <TableBody>
+                                {loading ? (
+                                    <TableRow>
+                                        <TableCell colSpan={4} className="h-24 text-center">Loading...</TableCell>
+                                    </TableRow>
+                                ) : history.length === 0 ? (
+                                    <TableRow>
+                                        <TableCell colSpan={4} className="h-24 text-center text-gray-500 italic">
+                                            No adjustments found
                                         </TableCell>
                                     </TableRow>
-                                ))
-                            )}
-                        </TableBody>
-                    </Table>
-                </CardContent>
-            </Card>
+                                ) : (
+                                    history.map(h => (
+                                        <TableRow key={h.id}>
+                                            <TableCell className="whitespace-nowrap">
+                                                {new Date(h.adjusted_at).toLocaleDateString()}{" "}
+                                                <span className="text-xs text-gray-400">
+                                                    {new Date(h.adjusted_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                </span>
+                                            </TableCell>
+                                            <TableCell>
+                                                <div className="font-medium">{h.item?.name || 'Unknown'}</div>
+                                                <div className="text-xs text-gray-500">{h.item?.sku}</div>
+                                            </TableCell>
+                                            <TableCell className={`text-right font-bold ${h.qty_delta > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                                {h.qty_delta > 0 ? '+' : ''}{h.qty_delta}
+                                            </TableCell>
+                                            <TableCell className="max-w-xs truncate">
+                                                <div title={h.reason} className="truncate text-gray-600">
+                                                    {h.reason}
+                                                </div>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))
+                                )}
+                            </TableBody>
+                        </Table>
+                    </CardContent>
+                    <div className="border-t border-gray-100 p-2">
+                        <Pagination
+                            currentPage={page}
+                            totalCount={totalCount}
+                            pageSize={pageSize}
+                            onPageChange={setPage}
+                            isLoading={loading}
+                        />
+                    </div>
+                </Card>
+            </Section>
 
             {/* ADD ADJUSTMENT DIALOG */}
             {showForm && (

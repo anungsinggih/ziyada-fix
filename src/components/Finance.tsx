@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../supabaseClient";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "./ui/Tabs";
+import { PageHeader } from "./ui/PageHeader";
 import { Card, CardContent } from "./ui/Card";
 import { Alert } from "./ui/Alert";
 import { Button } from "./ui/Button";
@@ -114,29 +114,50 @@ export default function Finance() {
     setError(msg);
   }
 
-  return (
-    <div className="w-full space-y-8">
-      <h2 className="hidden md:block text-3xl font-bold tracking-tight text-gray-900">
-        Finance & Cash Flow
-      </h2>
+  // Handle Tab Change to reset selection
+  function handleTabChange(tab: "AR" | "AP") {
+    setActiveTab(tab);
+    setSelectedId("");
+    setSuccess(null);
+    setError(null);
+  }
 
-      <Card className="border border-blue-200 bg-blue-50/60 shadow-sm">
-        <CardContent className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div>
-            <p className="text-sm font-semibold text-blue-700">
-              Need to reverse vendor purchases?
-            </p>
-            <p className="text-xs text-blue-900/80">
-              Purchase returns automatically correct stock, AP, and COGS. Use
-              the dedicated return flow when goods go back.
-            </p>
-          </div>
+  return (
+    <div className="w-full space-y-6 pb-12">
+      <PageHeader
+        title="Finance & Cash Flow"
+        description="Monitor outstanding invoices, pay bills, and manage cash flow."
+        breadcrumbs={[{ label: 'Dashboard', href: '/' }, { label: 'Finance' }]}
+        actions={
           <Button
-            className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700"
+            variant="outline"
+            className="border-indigo-200 text-indigo-700 bg-indigo-50 hover:bg-indigo-100"
             onClick={() => navigate("/purchase-return")}
+            icon={<Icons.RotateCcw className="w-4 h-4" />}
           >
-            Go to Purchase Returns
+            Purchase Returns
           </Button>
+        }
+      />
+
+      <Card className="border border-blue-200/60 bg-blue-50/40 shadow-sm relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-32 h-32 bg-blue-200/20 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
+        <CardContent className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 relative z-10 p-5">
+          <div className="flex items-start gap-4">
+            <div className="p-2 bg-blue-100 rounded-lg shrink-0 text-blue-600 mt-1">
+              <Icons.Info className="w-5 h-5" />
+            </div>
+            <div className="space-y-1">
+              <p className="text-sm font-semibold text-blue-900">
+                Quick Tip: Purchase Returns
+              </p>
+              <p className="text-sm text-blue-700/80 max-w-2xl">
+                Returns automatically correct stock levels, AP balances, and COGS logic.
+                Always use the dedicated return flow rather than manual adjustments.
+              </p>
+            </div>
+          </div>
+
         </CardContent>
       </Card>
 
@@ -152,35 +173,27 @@ export default function Finance() {
         <Alert variant="success" title="Berhasil" description={success} />
       )}
 
-      <Tabs
-        defaultValue="AR"
-        value={activeTab}
-        onValueChange={(value) => {
-          setActiveTab(value as "AR" | "AP");
-          setSelectedId("");
-          setSuccess(null);
-          setError(null);
-        }}
-      >
-        <div className="flex flex-col gap-2 mb-8">
-          <TabsList className="flex flex-wrap gap-2 overflow-x-auto w-full rounded-lg bg-white border border-gray-100 shadow-sm p-1">
-            <TabsTrigger
-              value="AR"
-              className="min-w-[140px] flex-1 sm:flex-auto flex items-center gap-2 justify-center"
-            >
-              <Icons.ArrowDown className="w-4 h-4 text-green-600" /> Incoming
-            </TabsTrigger>
-            <TabsTrigger
-              value="AP"
-              className="min-w-[140px] flex-1 sm:flex-auto flex items-center gap-2 justify-center"
-            >
-              <Icons.ArrowUp className="w-4 h-4 text-red-600" /> Outgoing
-            </TabsTrigger>
-          </TabsList>
-        </div>
+      {/* Pill Tabs */}
+      <div className="flex flex-wrap gap-1 p-1 bg-slate-100/50 rounded-xl mb-8 overflow-x-auto no-scrollbar border border-slate-200/50 w-fit">
+        <button
+          onClick={() => handleTabChange("AR")}
+          className={`flex items-center gap-2 px-6 py-2.5 text-sm font-medium rounded-lg transition-all whitespace-nowrap ${activeTab === "AR" ? "bg-white text-indigo-600 shadow-sm ring-1 ring-black/5" : "text-slate-500 hover:text-slate-900 hover:bg-slate-200/50"}`}
+        >
+          <Icons.ArrowDown className={`w-4 h-4 ${activeTab === 'AR' ? 'text-indigo-600' : 'text-slate-400'}`} />
+          Incoming (Receivables)
+        </button>
+        <button
+          onClick={() => handleTabChange("AP")}
+          className={`flex items-center gap-2 px-6 py-2.5 text-sm font-medium rounded-lg transition-all whitespace-nowrap ${activeTab === "AP" ? "bg-white text-rose-600 shadow-sm ring-1 ring-black/5" : "text-slate-500 hover:text-slate-900 hover:bg-slate-200/50"}`}
+        >
+          <Icons.ArrowUp className={`w-4 h-4 ${activeTab === 'AP' ? 'text-rose-600' : 'text-slate-400'}`} />
+          Outgoing (Payables)
+        </button>
+      </div>
 
-        <TabsContent value="AR">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-8">
+      <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+        {activeTab === "AR" && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
             <div className={`transition-all duration-300 ${selectedId ? "lg:col-span-2" : "lg:col-span-3"}`}>
               <FinanceARList
                 selectedId={selectedId}
@@ -189,21 +202,23 @@ export default function Finance() {
               />
             </div>
             {selectedId && (
-              <div className="lg:col-span-1">
-                <FinanceReceiptForm
-                  invoiceId={selectedId}
-                  initialAmount={selectedAmount}
-                  paymentMethods={paymentMethods}
-                  onSuccess={handleSuccess}
-                  onError={handleError}
-                />
+              <div className="lg:col-span-1 animate-in slide-in-from-right-4 fade-in duration-300">
+                <div className="sticky top-6">
+                  <FinanceReceiptForm
+                    invoiceId={selectedId}
+                    initialAmount={selectedAmount}
+                    paymentMethods={paymentMethods}
+                    onSuccess={handleSuccess}
+                    onError={handleError}
+                  />
+                </div>
               </div>
             )}
           </div>
-        </TabsContent>
+        )}
 
-        <TabsContent value="AP">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-8">
+        {activeTab === "AP" && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
             <div className={`transition-all duration-300 ${selectedId ? "lg:col-span-2" : "lg:col-span-3"}`}>
               <FinanceAPList
                 selectedId={selectedId}
@@ -212,19 +227,21 @@ export default function Finance() {
               />
             </div>
             {selectedId && (
-              <div className="lg:col-span-1">
-                <FinancePaymentForm
-                  billId={selectedId}
-                  initialAmount={selectedAmount}
-                  paymentMethods={paymentMethods}
-                  onSuccess={handleSuccess}
-                  onError={handleError}
-                />
+              <div className="lg:col-span-1 animate-in slide-in-from-right-4 fade-in duration-300">
+                <div className="sticky top-6">
+                  <FinancePaymentForm
+                    billId={selectedId}
+                    initialAmount={selectedAmount}
+                    paymentMethods={paymentMethods}
+                    onSuccess={handleSuccess}
+                    onError={handleError}
+                  />
+                </div>
               </div>
             )}
           </div>
-        </TabsContent>
-      </Tabs>
+        )}
+      </div>
     </div>
   );
 }

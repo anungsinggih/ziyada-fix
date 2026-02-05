@@ -81,6 +81,12 @@ export const Icons = {
     Refresh: (props: IconProps) => (
         <IconWrapper {...props}><polyline points="23 4 23 10 17 10" /><polyline points="1 20 1 14 7 14" /><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" /></IconWrapper>
     ),
+    RotateCcw: (props: IconProps) => (
+        <IconWrapper {...props}><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /><path d="M3 3v5h5" /></IconWrapper>
+    ),
+    History: (props: IconProps) => (
+        <IconWrapper {...props}><path d="M3 3v5h5" /><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8" /><path d="M12 7v5l4 2" /></IconWrapper>
+    ),
 
     // Navigation / UI
     Menu: (props: IconProps) => (
@@ -150,6 +156,9 @@ export const Icons = {
     AlertCircle: (props: IconProps) => (
         <IconWrapper {...props}><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></IconWrapper>
     ),
+    CheckCircle: (props: IconProps) => (
+        <IconWrapper {...props}><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></IconWrapper>
+    ),
     Printer: (props: IconProps) => (
         <IconWrapper {...props}><polyline points="6 9 6 2 18 2 18 9" /><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><rect x="6" y="14" width="12" height="8" /></IconWrapper>
     ),
@@ -164,5 +173,14 @@ export const Icons = {
     ),
     Image: (props: IconProps) => (
         <IconWrapper {...props}><rect x="3" y="3" width="18" height="18" rx="2" ry="2" /><circle cx="8.5" cy="8.5" r="1.5" /><polyline points="21 15 16 10 5 21" /></IconWrapper>
+    ),
+    User: (props: IconProps) => (
+        <IconWrapper {...props}><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></IconWrapper>
+    ),
+    Building: (props: IconProps) => (
+        <IconWrapper {...props}><rect x="4" y="2" width="16" height="20" rx="2" ry="2" /><line x1="9" y1="22" x2="9" y2="12" /><line x1="15" y1="12" x2="15" y2="22" /><line x1="9" y1="12" x2="15" y2="12" /><line x1="9" y1="7" x2="9.01" y2="7" /><line x1="15" y1="7" x2="15.01" y2="7" /><line x1="9" y1="17" x2="15" y2="17" /></IconWrapper>
+    ),
+    Wallet: (props: IconProps) => (
+        <IconWrapper {...props}><path d="M20 12V8H6a2 2 0 0 1-2-2c0-1.1.9-2 2-2h12v4" /><path d="M4 6v12c0 1.1.9 2 2 2h14v-4" /><path d="M18 12a2 2 0 0 0-2 2c0 1.1.9 2 2 2h4v-4h-4z" /></IconWrapper>
     )
 };

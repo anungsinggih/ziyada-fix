@@ -25,20 +25,22 @@ export function Sheet({ isOpen, onClose, side = 'right', children, contentClassN
     }
 
     return (
-        <div className="fixed inset-0 z-50">
+        <div className="fixed inset-0 z-[100]">
             {/* Overlay */}
             <div
-                className="absolute inset-0 bg-black/50 backdrop-blur-sm animate-in fade-in duration-300"
+                className="absolute inset-0 bg-black/40 backdrop-blur-sm animate-in fade-in duration-300"
                 onClick={onClose}
             />
             {/* Content */}
             <div className={`absolute bg-white shadow-2xl overflow-auto ${sideStyles[side]} ${contentClassName}`}>
-                <div className="p-6 relative">
+                <div className="p-6 relative h-full">
                     <button
                         onClick={onClose}
-                        className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors"
+                        className="absolute top-4 right-4 p-2 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-all focus:outline-none focus:ring-2 focus:ring-indigo-500/20 z-10"
                     >
-                        ✕
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
                     </button>
                     {children}
                 </div>

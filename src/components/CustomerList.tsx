@@ -78,8 +78,14 @@ export default function CustomerList({ customers, loading, onEdit, onDelete, onP
                                                 icon={<Icons.Tag className="w-4 h-4" />}
                                             />
                                         )}
-                                        <Button size="sm" variant="outline" onClick={() => onEdit(c)} icon={<Icons.Edit className="w-4 h-4" />} />
-                                        <Button size="sm" variant="danger" onClick={() => onDelete(c.id)} icon={<Icons.Trash className="w-4 h-4" />} />
+                                        <div className="flex justify-end gap-1">
+                                            <Button size="sm" variant="ghost" onClick={() => onEdit(c)} className="h-9 w-9 p-0 text-slate-500 hover:text-indigo-600">
+                                                <Icons.Edit className="w-[22px] h-[22px]" />
+                                            </Button>
+                                            <Button size="sm" variant="ghost" onClick={() => onDelete(c.id)} className="h-9 w-9 p-0 text-slate-400 hover:text-rose-600">
+                                                <Icons.Trash className="w-[22px] h-[22px]" />
+                                            </Button>
+                                        </div>
                                     </TableCell>
                                 </TableRow>
                             ))}

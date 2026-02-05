@@ -22,6 +22,8 @@ import { EmptyState } from "./ui/EmptyState";
 import { formatCurrency, formatDate, safeDocNo } from "../lib/format";
 import { usePagination } from "../hooks/usePagination";
 import { Pagination } from "./ui/Pagination";
+import { PageHeader } from "./ui/PageHeader";
+import { Section } from "./ui/Section";
 
 type SalesRecord = {
   id: string;
@@ -172,117 +174,122 @@ export default function SalesHistory() {
   }
 
   return (
-    <div className="w-full space-y-6">
-      <div className="flex justify-between items-center">
-        <h2 className="hidden md:block text-3xl font-bold tracking-tight text-gray-900">
-          Sales History
-        </h2>
-        <div className="flex gap-2">
-          <Button
-            onClick={fetchSales}
-            variant="outline"
-            icon={<Icons.Refresh className="w-4 h-4" />}
-          >
-            Refresh
-          </Button>
-          <Button
-            onClick={() => navigate("/sales")}
-            icon={<Icons.Plus className="w-4 h-4" />}
-          >
-            New Sales
-          </Button>
-        </div>
-      </div>
+    <div className="w-full space-y-6 pb-20">
+      <PageHeader
+        title="Sales History"
+        description="View and manage sales transactions."
+        breadcrumbs={[{ label: "Dashboard", href: "/" }, { label: "Sales" }]}
+        actions={
+          <div className="flex gap-2">
+            <Button
+              onClick={fetchSales}
+              variant="outline"
+              icon={<Icons.Refresh className="w-4 h-4" />}
+            >
+              Refresh
+            </Button>
+            <Button
+              onClick={() => navigate("/sales")}
+              icon={<Icons.Plus className="w-4 h-4" />}
+            >
+              New Sales
+            </Button>
+          </div>
+        }
+      />
 
       {error && <Alert variant="error" title="Kesalahan" description={error} />}
       {success && (
         <Alert variant="success" title="Sukses" description={success} />
       )}
 
+      <Section
+        title="Filter Sales"
+        description="Search and filter transactions."
+      >
+        <div className="grid grid-cols-1 sm:grid-cols-12 gap-4 items-end">
+          <div className="col-span-12 sm:col-span-6 lg:col-span-3">
+            <Input
+              label="Search"
+              placeholder="Doc No / Customer"
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
+              containerClassName="!mb-0"
+            />
+          </div>
+          <div className="col-span-6 sm:col-span-3 lg:col-span-2">
+            <Select
+              label="Status"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value as "ALL" | "DRAFT" | "POSTED" | "VOID")}
+              options={[
+                { label: "All Status", value: "ALL" },
+                { label: "Draft", value: "DRAFT" },
+                { label: "Posted", value: "POSTED" },
+                { label: "Void", value: "VOID" },
+              ]}
+              className="!mb-0"
+            />
+          </div>
+          <div className="col-span-6 sm:col-span-3 lg:col-span-2">
+            <Select
+              label="Terms"
+              value={termsFilter}
+              onChange={(e) => setTermsFilter(e.target.value as "ALL" | "CASH" | "CREDIT")}
+              options={[
+                { label: "All Terms", value: "ALL" },
+                { label: "Cash", value: "CASH" },
+                { label: "Credit", value: "CREDIT" },
+              ]}
+              className="!mb-0"
+            />
+          </div>
+          <div className="col-span-12 sm:col-span-6 lg:col-span-4 flex gap-2">
+            <Input
+              label="From"
+              type="date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              containerClassName="!mb-0 w-full"
+            />
+            <Input
+              label="To"
+              type="date"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+              containerClassName="!mb-0 w-full"
+            />
+          </div>
+
+          <div className="col-span-12 sm:col-span-6 lg:col-span-1">
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={() => {
+                setSearch("");
+                setStatusFilter("ALL");
+                setTermsFilter("ALL");
+                setDateFrom("");
+                setDateTo("");
+              }}
+              icon={<Icons.Close className="w-4 h-4" />}
+              title="Clear Filters"
+            >
+              Clear
+            </Button>
+          </div>
+        </div>
+      </Section>
+
       <Card>
         <CardHeader>
-          <CardTitle>All Sales Documents</CardTitle>
+          <CardTitle>Sales List ({totalCount})</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="mb-4 flex flex-col gap-2 md:flex-row md:flex-wrap md:items-end">
-            <div className="md:w-[260px]">
-              <Input
-                label="Search"
-                placeholder="Doc No / Customer"
-                value={search}
-                onChange={(e) => {
-                  setSearch(e.target.value);
-                  setPage(1);
-                }}
-                containerClassName="!mb-0"
-              />
-            </div>
-            <div className="md:w-[150px]">
-              <Input
-                label="From"
-                type="date"
-                value={dateFrom}
-                onChange={(e) => setDateFrom(e.target.value)}
-                containerClassName="!mb-0"
-              />
-            </div>
-            <div className="md:w-[150px]">
-              <Input
-                label="To"
-                type="date"
-                value={dateTo}
-                onChange={(e) => setDateTo(e.target.value)}
-                containerClassName="!mb-0"
-              />
-            </div>
-            <div className="md:w-[150px]">
-              <Select
-                label="Status"
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value as "ALL" | "DRAFT" | "POSTED" | "VOID")}
-                options={[
-                  { label: "All", value: "ALL" },
-                  { label: "Draft", value: "DRAFT" },
-                  { label: "Posted", value: "POSTED" },
-                  { label: "Void", value: "VOID" },
-                ]}
-                className="!mb-0"
-              />
-            </div>
-            <div className="md:w-[150px]">
-              <Select
-                label="Terms"
-                value={termsFilter}
-                onChange={(e) => setTermsFilter(e.target.value as "ALL" | "CASH" | "CREDIT")}
-                options={[
-                  { label: "All", value: "ALL" },
-                  { label: "Cash", value: "CASH" },
-                  { label: "Credit", value: "CREDIT" },
-                ]}
-                className="!mb-0"
-              />
-            </div>
-            <div className="md:w-auto">
-              <div className="flex flex-col gap-1.5">
-                <label className="text-sm font-medium text-transparent">Action</label>
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setSearch("");
-                    setStatusFilter("ALL");
-                    setTermsFilter("ALL");
-                    setDateFrom("");
-                    setDateTo("");
-                  }}
-                  aria-label="Clear filters"
-                  title="Clear filters"
-                  icon={<Icons.Close className="w-4 h-4" />}
-                >
-                  Clear Filter
-                </Button>
-              </div>
-            </div>
-          </div>
+
 
           {sales.length === 0 ? (
             <EmptyState

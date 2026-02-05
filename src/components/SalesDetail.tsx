@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "../supabaseClient";
 import { useNavigate, useParams } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/Card";
@@ -16,6 +16,7 @@ import { Alert } from "./ui/Alert";
 import { Icons } from "./ui/Icons";
 import RelatedDocumentsCard, { type RelatedDocumentItem } from "./shared/RelatedDocumentsCard";
 import { SalesInvoicePrint } from "./print/SalesInvoicePrint";
+import { toPng } from "html-to-image";
 
 type SalesDetail = {
   id: string;
@@ -93,6 +94,8 @@ export default function SalesDetail() {
   const [postError, setPostError] = useState<string | null>(null);
   const [postSuccess, setPostSuccess] = useState<string | null>(null);
   const [isPosting, setIsPosting] = useState(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
+  const printRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (id) {
@@ -333,6 +336,73 @@ export default function SalesDetail() {
     );
   }
 
+  const downloadFileName = useMemo(() => {
+    const docNo = sale?.sales_no || sale?.id || "invoice";
+    return `invoice-${docNo}.png`;
+  }, [sale?.id, sale?.sales_no]);
+
+  const handleDownloadImage = async () => {
+    if (!printRef.current) return;
+    setDownloadError(null);
+    try {
+      const source = printRef.current;
+      const clone = source.cloneNode(true) as HTMLDivElement;
+      clone.style.position = "fixed";
+      clone.style.left = "0";
+      clone.style.top = "0";
+      clone.style.opacity = "1";
+      clone.style.zIndex = "9999";
+      clone.style.pointerEvents = "none";
+      clone.style.transform = "none";
+      clone.style.background = "#ffffff";
+      clone.style.width = "794px";
+      clone.style.maxWidth = "794px";
+      clone.style.height = "auto";
+      clone.style.maxHeight = "none";
+      document.body.appendChild(clone);
+      const captureHeight = Math.max(555, clone.scrollHeight);
+      const dataUrl = await toPng(clone, {
+        cacheBust: true,
+        pixelRatio: 2,
+        backgroundColor: "#ffffff",
+        skipFonts: true,
+        width: 794,
+        height: captureHeight,
+        filter: (node) => {
+          if (node.nodeName === "STYLE") {
+            const content = (node as HTMLStyleElement).textContent || "";
+            if (content.includes("@page")) return false;
+          }
+          return true;
+        },
+        style: {
+          visibility: "visible",
+          opacity: "1",
+          transform: "none",
+          position: "static",
+          left: "0",
+          top: "0",
+          zIndex: "auto",
+          fontFamily: "Arial, sans-serif",
+        },
+      });
+      document.body.removeChild(clone);
+      const link = document.createElement("a");
+      link.href = dataUrl;
+      link.download = downloadFileName;
+      link.click();
+    } catch (err) {
+      console.error(err);
+      if (printRef.current) {
+        // best-effort cleanup if clone appended
+        const clones = Array.from(document.body.querySelectorAll("div"))
+          .filter((el) => el.style.zIndex === "9999" && el.style.position === "fixed");
+        clones.forEach((el) => el.remove());
+      }
+      setDownloadError("Gagal download invoice sebagai gambar.");
+    }
+  };
+
   if (loading) {
     return (
       <div className="w-full p-8 text-center">
@@ -373,6 +443,13 @@ export default function SalesDetail() {
             icon={<Icons.Printer className="w-4 h-4" />}
           >
             Print
+          </Button>
+          <Button
+            onClick={handleDownloadImage}
+            variant="outline"
+            icon={<Icons.Image className="w-4 h-4" />}
+          >
+            Download Image
           </Button>
           <Button
             onClick={() => navigate("/sales/history")}
@@ -423,6 +500,11 @@ export default function SalesDetail() {
                 description={deleteSuccess}
               />
             )}
+          </div>
+        )}
+        {downloadError && (
+          <div className="w-full">
+            <Alert variant="error" title="Gagal" description={downloadError} />
           </div>
         )}
         {(postError || postSuccess) && (
@@ -652,22 +734,28 @@ export default function SalesDetail() {
 
       {/* --- PRINT ONLY SECTION --- */}
       {sale && (
-        <SalesInvoicePrint
-          data={{
-            id: sale.id,
-            sales_no: sale.sales_no,
-            sales_date: sale.sales_date,
-            customer_name: sale.customer_name,
-            terms: sale.terms,
-            total_amount: sale.total_amount,
-            shipping_fee: sale.shipping_fee,
-            discount_amount: sale.discount_amount,
-            notes: sale.notes
-          }}
-          items={items}
-          company={company}
-          banks={companyBanks}
-        />
+        <div
+          ref={printRef}
+          className="absolute -left-[99999px] top-0 opacity-0 pointer-events-none print:static print:opacity-100 print:pointer-events-auto"
+        >
+          <SalesInvoicePrint
+            data={{
+              id: sale.id,
+              sales_no: sale.sales_no,
+              sales_date: sale.sales_date,
+              customer_name: sale.customer_name,
+              terms: sale.terms,
+              total_amount: sale.total_amount,
+              shipping_fee: sale.shipping_fee,
+              discount_amount: sale.discount_amount,
+              notes: sale.notes
+            }}
+            items={items}
+            company={company}
+            banks={companyBanks}
+            visibleOnScreen
+          />
+        </div>
       )}
     </div>
   );

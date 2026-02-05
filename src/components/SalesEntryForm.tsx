@@ -10,6 +10,7 @@ import { Textarea } from "./ui/Textarea";
 import { Icons } from "./ui/Icons";
 import { useNavigate } from "react-router-dom";
 import { TotalFooter } from "./ui/TotalFooter";
+import { Badge } from "./ui/Badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/Dialog";
 import CustomerForm from "./CustomerForm";
 
@@ -400,6 +401,17 @@ export function SalesEntryForm({ onSuccess, onError, onSaved, redirectOnSave = t
                                         ...customers.map((c) => ({
                                             label: c.name,
                                             value: c.id,
+                                            content: (
+                                                <div className="flex items-center justify-between w-full gap-2">
+                                                    <span className="font-medium truncate">{c.name}</span>
+                                                    <Badge
+                                                        variant={c.customer_type === 'KHUSUS' ? 'success' : c.customer_type === 'CUSTOM' ? 'warning' : 'secondary'}
+                                                        className="h-5 px-1.5 text-[10px] uppercase ml-auto shrink-0"
+                                                    >
+                                                        {c.customer_type}
+                                                    </Badge>
+                                                </div>
+                                            )
                                         })),
                                     ]}
                                 />

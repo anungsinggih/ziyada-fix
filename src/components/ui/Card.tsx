@@ -10,7 +10,7 @@ export function Card({ className, ...props }: CardProps) {
     return (
         <div
             className={classNames(
-                "bg-[var(--bg-surface)] border border-[var(--border)] shadow-[0_2px_10px_rgba(0,0,0,0.03)] rounded-lg hover:shadow-[0_5px_15px_rgba(0,0,0,0.05)] transition-shadow duration-300 print:border-0 print:shadow-none",
+                "bg-[var(--bg-surface)] rounded-xl border border-[var(--border-light)] shadow-sm hover:shadow-soft transition-all duration-300 print:shadow-none print:border-0",
                 className || ""
             )}
             {...props}
@@ -19,7 +19,7 @@ export function Card({ className, ...props }: CardProps) {
 }
 
 export function CardHeader({ className, ...props }: CardProps) {
-    return <div className={classNames("p-6 pb-4 border-b border-[var(--border)] print:border-0", className || "")} {...props} />
+    return <div className={classNames("p-6 pb-4 border-b border-[var(--border-light)]", className || "")} {...props} />
 }
 
 export function CardTitle({ className, ...props }: React.HTMLAttributes<HTMLHeadingElement>) {
@@ -35,5 +35,5 @@ export function CardContent({ className, ...props }: CardProps) {
 }
 
 export function CardFooter({ className, ...props }: CardProps) {
-    return <div className={classNames("p-4 bg-[var(--bg-surface-alt)] border-t border-[var(--border)] flex items-center rounded-b-lg print:border-0", className || "")} {...props} />
+    return <div className={classNames("p-4 bg-[var(--bg-surface-alt)] border-t border-[var(--border-light)] flex items-center rounded-b-xl", className || "")} {...props} />
 }

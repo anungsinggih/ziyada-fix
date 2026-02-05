@@ -32,9 +32,10 @@ type PurchaseInvoicePrintProps = {
         bank_account?: string
         bank_holder?: string
     } | null
+    visibleOnScreen?: boolean
 }
 
-export const PurchaseInvoicePrint: FunctionComponent<PurchaseInvoicePrintProps> = ({ data, items, company, banks }) => {
+export const PurchaseInvoicePrint: FunctionComponent<PurchaseInvoicePrintProps> = ({ data, items, company, banks, visibleOnScreen = false }) => {
 
     const subtotal = items.reduce((sum, item) => sum + item.subtotal, 0)
     const diskon = data.discount_amount || 0
@@ -50,7 +51,7 @@ export const PurchaseInvoicePrint: FunctionComponent<PurchaseInvoicePrintProps> 
     const safeDocNo = (no: string | null, id: string) => no || `PO-${id.substring(0, 8).toUpperCase()}`
 
     return (
-        <div className="hidden print:block print:w-[210mm] print:h-[147mm] bg-white text-black relative overflow-hidden font-sans leading-tight page-break-after-avoid">
+        <div className={`${visibleOnScreen ? "block" : "hidden"} print:block print:w-[210mm] print:h-[147mm] bg-white text-black relative overflow-hidden font-sans leading-tight page-break-after-avoid`}>
             {/* --- PAGE SETUP --- */}
             <style>
                 {`

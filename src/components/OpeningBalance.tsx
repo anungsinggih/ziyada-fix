@@ -1,12 +1,13 @@
 import { Fragment, useEffect, useState } from 'react'
 import { supabase } from '../supabaseClient'
-import { Card, CardContent, CardHeader, CardTitle, CardFooter } from './ui/Card'
 import { Button } from './ui/Button'
 import { Input } from './ui/Input'
 import { Select } from './ui/Select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/Table'
 import { Badge } from './ui/Badge'
 import { Icons } from './ui/Icons'
+import { PageHeader } from './ui/PageHeader'
+import { Section } from './ui/Section'
 
 type Account = { id: string; code: string; name: string }
 
@@ -184,8 +185,13 @@ export default function OpeningBalance() {
         new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(val)
 
     return (
-        <div className="w-full space-y-8 pb-10">
-            <h2 className="hidden md:block text-3xl font-bold tracking-tight text-gray-900">Opening Balance Setup</h2>
+        <div className="w-full space-y-6 pb-20">
+            <PageHeader
+                title="Opening Balance Setup"
+                description="Manage initial account balances."
+                breadcrumbs={[{ label: "Dashboard", href: "/" }, { label: "Accounting" }]}
+            />
+
             {error && (
                 <div className="p-4 bg-red-50 text-red-700 border border-red-200 rounded-md flex items-center gap-2">
                     <Icons.Warning className="w-5 h-5 flex-shrink-0" /> {error}
@@ -197,163 +203,221 @@ export default function OpeningBalance() {
                 </div>
             )}
 
-            <Card className="shadow-md">
-                <CardHeader className="bg-gray-50 border-b border-gray-100 flex flex-row items-center justify-between">
-                    <CardTitle>Journal Entry</CardTitle>
-                    <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium">As of Date:</span>
-                        <Input type="date" value={asOfDate} onChange={e => {
-                            setAsOfDate(e.target.value)
-                            // Optional: auto-load if date matches history? May annoy if trying to create new.
-                        }} className="w-40" />
-                        <Button size="sm" variant="outline" onClick={() => handleLoad(asOfDate)} disabled={!asOfDate} icon={<Icons.Refresh className="w-4 h-4" />}>
+            <Section
+                title="Journal Entry"
+                description="Set or update opening balances for a specific date."
+            >
+                <div className="flex flex-col gap-6">
+                    <div className="flex items-end gap-4 max-w-lg">
+                        <div className="flex-1">
+                            <Input
+                                label="As of Date"
+                                type="date"
+                                value={asOfDate}
+                                onChange={e => {
+                                    setAsOfDate(e.target.value)
+                                }}
+                                containerClassName="!mb-0"
+                            />
+                        </div>
+                        <Button
+                            variant="outline"
+                            onClick={() => handleLoad(asOfDate)}
+                            disabled={!asOfDate}
+                            icon={<Icons.Refresh className="w-4 h-4" />}
+                        >
                             Load
                         </Button>
                     </div>
-                </CardHeader>
-                <CardContent className="p-0">
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead className="w-[40%]">Account</TableHead>
-                                <TableHead className="w-[20%]">Debit</TableHead>
-                                <TableHead className="w-[20%]">Credit</TableHead>
-                                <TableHead className="w-[10%]">Action</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {lines.map((line, i) => (
-                                <TableRow key={i}>
-                                    <TableCell>
-                                        <Select
-                                            value={line.account_id || undefined}
-                                            onChange={e => updateLine(i, 'account_id', e.target.value)}
-                                            placeholder="-- Select Account --"
-                                            options={accounts.map(a => ({ label: `${a.code} - ${a.name}`, value: a.id }))}
-                                        />
-                                    </TableCell>
-                                    <TableCell>
-                                        <Input type="number" step="0.01" value={line.debit} onChange={e => updateLine(i, 'debit', parseFloat(e.target.value))} />
-                                    </TableCell>
-                                    <TableCell>
-                                        <Input type="number" step="0.01" value={line.credit} onChange={e => updateLine(i, 'credit', parseFloat(e.target.value))} />
-                                    </TableCell>
-                                    <TableCell>
-                                        <Button variant="danger" size="sm" onClick={() => removeLine(i)} icon={<Icons.Trash className="w-4 h-4" />} />
-                                    </TableCell>
-                                </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
-                </CardContent>
-                <CardFooter className="bg-gray-50 border-t border-gray-100 flex justify-between items-center py-4">
-                    <Button variant="outline" onClick={addLine} icon={<Icons.Plus className="w-4 h-4" />}>Add Line</Button>
 
-                    <div className="flex items-center gap-6">
-                        <div className="flex gap-4 text-sm">
-                            <div className="flex flex-col items-end">
-                                <span className="text-gray-500">Total Debit</span>
-                                <span className="font-mono font-bold">{formatCurrency(totalDebit)}</span>
-                            </div>
-                            <div className="flex flex-col items-end">
-                                <span className="text-gray-500">Total Credit</span>
-                                <span className="font-mono font-bold">{formatCurrency(totalCredit)}</span>
-                            </div>
-                        </div>
-
-                        <Badge variant={isBalanced ? 'success' : 'destructive'} className="text-sm px-3 py-1">
-                            {isBalanced ? 'Balanced' : 'Unbalanced'}
-                        </Badge>
-
-                        <Button
-                            className="bg-blue-600 hover:bg-blue-700 min-w-[150px]"
-                            onClick={handleSave}
-                            disabled={loading || !isBalanced}
-                            icon={loading ? <Icons.Refresh className="w-4 h-4 animate-spin" /> : <Icons.Save className="w-4 h-4" />}
-                        >
-                            {loading ? 'Saving...' : 'Save Balance'}
-                        </Button>
-                    </div>
-                </CardFooter>
-            </Card>
-
-            <div className="space-y-4">
-                <h3 className="text-xl font-bold tracking-tight text-gray-900">History</h3>
-                <Card className="shadow-sm">
-                    <CardContent className="p-0">
+                    <div className="rounded-md border border-gray-200 overflow-hidden">
                         <Table>
-                            <TableHeader>
+                            <TableHeader className="bg-gray-50">
                                 <TableRow>
-                                    <TableHead>As of Date</TableHead>
-                                    <TableHead>Total Debit</TableHead>
-                                    <TableHead>Total Credit</TableHead>
-                                    <TableHead>Entries</TableHead>
-                                    <TableHead className="text-right">Action</TableHead>
+                                    <TableHead className="w-[40%]">Account</TableHead>
+                                    <TableHead className="w-[20%]">Debit</TableHead>
+                                    <TableHead className="w-[20%]">Credit</TableHead>
+                                    <TableHead className="w-[10%] text-right">Action</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {history.length === 0 ? (
-                                    <TableRow>
-                                        <TableCell colSpan={5} className="text-center py-8 text-gray-500">
-                                            No opening balance entries found.
+                                {lines.map((line, i) => (
+                                    <TableRow key={i}>
+                                        <TableCell className="p-2">
+                                            <Select
+                                                value={line.account_id || undefined}
+                                                onChange={e => updateLine(i, 'account_id', e.target.value)}
+                                                placeholder="-- Select Account --"
+                                                options={accounts.map(a => ({ label: `${a.code} - ${a.name}`, value: a.id }))}
+                                                className="!mb-0"
+                                            />
+                                        </TableCell>
+                                        <TableCell className="p-2">
+                                            <Input
+                                                type="number"
+                                                step="0.01"
+                                                value={line.debit}
+                                                onChange={e => updateLine(i, 'debit', parseFloat(e.target.value))}
+                                                containerClassName="!mb-0"
+                                            />
+                                        </TableCell>
+                                        <TableCell className="p-2">
+                                            <Input
+                                                type="number"
+                                                step="0.01"
+                                                value={line.credit}
+                                                onChange={e => updateLine(i, 'credit', parseFloat(e.target.value))}
+                                                containerClassName="!mb-0"
+                                            />
+                                        </TableCell>
+                                        <TableCell className="p-2 text-right">
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={() => removeLine(i)}
+                                                className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                                                icon={<Icons.Trash className="w-4 h-4" />}
+                                            />
                                         </TableCell>
                                     </TableRow>
-                                ) : (
-                                    history.map(h => (
-                                        <Fragment key={h.date}>
-                                            <TableRow>
-                                                <TableCell className="font-medium">{new Date(h.date).toLocaleDateString('id-ID', { dateStyle: 'long' })}</TableCell>
-                                                <TableCell>{formatCurrency(h.debit)}</TableCell>
-                                                <TableCell>{formatCurrency(h.credit)}</TableCell>
-                                                <TableCell>{h.count} Lines</TableCell>
-                                                <TableCell className="text-right space-x-2">
-                                                    <Button size="sm" variant="outline" onClick={() => handleLoad(h.date)} icon={<Icons.Edit className="w-4 h-4" />}>
-                                                        Load / Edit
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row justify-between items-center gap-4 pt-2">
+                        <Button variant="outline" onClick={addLine} icon={<Icons.Plus className="w-4 h-4" />}>
+                            Add Line
+                        </Button>
+
+                        <div className="flex flex-col sm:flex-row items-center gap-6 w-full sm:w-auto">
+                            <div className="flex gap-6 text-sm bg-gray-50 px-4 py-2 rounded-lg border border-gray-100">
+                                <div className="flex flex-col items-end">
+                                    <span className="text-gray-500 text-xs uppercase tracking-wider">Total Debit</span>
+                                    <span className="font-mono font-bold text-gray-900">{formatCurrency(totalDebit)}</span>
+                                </div>
+                                <div className="h-full w-px bg-gray-200"></div>
+                                <div className="flex flex-col items-end">
+                                    <span className="text-gray-500 text-xs uppercase tracking-wider">Total Credit</span>
+                                    <span className="font-mono font-bold text-gray-900">{formatCurrency(totalCredit)}</span>
+                                </div>
+                            </div>
+
+                            <div className="flex items-center gap-3">
+                                <Badge variant={isBalanced ? 'success' : 'destructive'} className="h-9 px-3">
+                                    {isBalanced ? 'Balanced' : 'Unbalanced'}
+                                </Badge>
+
+                                <Button
+                                    className="bg-blue-600 hover:bg-blue-700 min-w-[140px]"
+                                    onClick={handleSave}
+                                    disabled={loading || !isBalanced}
+                                    isLoading={loading}
+                                    icon={<Icons.Save className="w-4 h-4" />}
+                                >
+                                    Save Balance
+                                </Button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </Section>
+
+            <Section
+                title="History"
+                description="Previous opening balance entries."
+            >
+                <div className="rounded-md border border-gray-200 overflow-hidden">
+                    <Table>
+                        <TableHeader className="bg-gray-50">
+                            <TableRow>
+                                <TableHead>As of Date</TableHead>
+                                <TableHead>Total Debit</TableHead>
+                                <TableHead>Total Credit</TableHead>
+                                <TableHead>Entries</TableHead>
+                                <TableHead className="text-right">Action</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {history.length === 0 ? (
+                                <TableRow>
+                                    <TableCell colSpan={5} className="text-center py-8 text-gray-500">
+                                        No opening balance entries found.
+                                    </TableCell>
+                                </TableRow>
+                            ) : (
+                                history.map(h => (
+                                    <Fragment key={h.date}>
+                                        <TableRow className="hover:bg-gray-50/50">
+                                            <TableCell className="font-medium">{new Date(h.date).toLocaleDateString('id-ID', { dateStyle: 'long' })}</TableCell>
+                                            <TableCell>{formatCurrency(h.debit)}</TableCell>
+                                            <TableCell>{formatCurrency(h.credit)}</TableCell>
+                                            <TableCell>
+                                                <Badge variant="outline" className="text-xs bg-white">
+                                                    {h.count} Lines
+                                                </Badge>
+                                            </TableCell>
+                                            <TableCell className="text-right">
+                                                <div className="flex justify-end gap-2">
+                                                    <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                        onClick={() => handleLoad(h.date)}
+                                                        icon={<Icons.Edit className="w-4 h-4" />}
+                                                        title="Load this data"
+                                                    >
+                                                        Edit
                                                     </Button>
                                                     <Button
                                                         size="sm"
                                                         variant="ghost"
                                                         onClick={() => setExpandedDate(expandedDate === h.date ? null : h.date)}
                                                     >
-                                                        {expandedDate === h.date ? 'Hide Detail' : 'Detail'}
+                                                        {expandedDate === h.date ? 'Hide' : 'Detail'}
                                                     </Button>
-                                                </TableCell>
-                                            </TableRow>
-                                            {expandedDate === h.date && historyDetails[h.date] && (
-                                                <TableRow>
-                                                    <TableCell colSpan={5} className="bg-gray-50 p-4">
-                                                        <div className="text-sm font-semibold mb-2">Detail per Akun</div>
-                                                        <Table className="bg-white border">
-                                                            <TableHeader>
+                                                </div>
+                                            </TableCell>
+                                        </TableRow>
+                                        {expandedDate === h.date && historyDetails[h.date] && (
+                                            <TableRow>
+                                                <TableCell colSpan={5} className="bg-gray-50 p-4 border-t border-b border-gray-100 shadow-inner">
+                                                    <div className="text-sm font-semibold mb-3 text-gray-700 flex items-center gap-2">
+                                                        <Icons.Menu className="w-4 h-4" />
+                                                        Detail per Akun
+                                                    </div>
+                                                    <div className="rounded border border-gray-200 bg-white overflow-hidden">
+                                                        <Table>
+                                                            <TableHeader className="bg-gray-50/50">
                                                                 <TableRow>
-                                                                    <TableHead>Akun</TableHead>
-                                                                    <TableHead>Debit</TableHead>
-                                                                    <TableHead>Credit</TableHead>
+                                                                    <TableHead className="text-xs uppercase tracking-wider">Akun</TableHead>
+                                                                    <TableHead className="text-xs uppercase tracking-wider text-right">Debit</TableHead>
+                                                                    <TableHead className="text-xs uppercase tracking-wider text-right">Credit</TableHead>
                                                                 </TableRow>
                                                             </TableHeader>
                                                             <TableBody>
-                                                                {historyDetails[h.date].map(detail => (
-                                                                    <TableRow key={`${detail.account_id}-${detail.debit}-${detail.credit}`}>
-                                                                        <TableCell>
-                                                                            {detail.code ? `${detail.code} - ${detail.name}` : detail.account_id}
+                                                                {historyDetails[h.date].map((detail, idx) => (
+                                                                    <TableRow key={`${detail.account_id}-${idx}`}>
+                                                                        <TableCell className="text-sm font-medium text-gray-700">
+                                                                            {detail.code ? <span className="font-mono text-gray-500 mr-2">{detail.code}</span> : null}
+                                                                            {detail.name || detail.account_id}
                                                                         </TableCell>
-                                                                        <TableCell>{formatCurrency(detail.debit)}</TableCell>
-                                                                        <TableCell>{formatCurrency(detail.credit)}</TableCell>
+                                                                        <TableCell className="text-right font-mono text-sm">{formatCurrency(detail.debit)}</TableCell>
+                                                                        <TableCell className="text-right font-mono text-sm">{formatCurrency(detail.credit)}</TableCell>
                                                                     </TableRow>
                                                                 ))}
                                                             </TableBody>
                                                         </Table>
-                                                    </TableCell>
-                                                </TableRow>
-                                            )}
-                                        </Fragment>
-                                    ))
-                                )}
-                            </TableBody>
-                        </Table>
-                    </CardContent>
-                </Card>
-            </div>
+                                                    </div>
+                                                </TableCell>
+                                            </TableRow>
+                                        )}
+                                    </Fragment>
+                                ))
+                            )}
+                        </TableBody>
+                    </Table>
+                </div>
+            </Section>
         </div>
     )
 }

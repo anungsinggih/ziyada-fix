@@ -142,9 +142,15 @@ export function SimpleMasterCRUD({ table, title, hasCode }: SimpleCRUDProps) {
                                 <TableRow key={item.id}>
                                     {hasCode && <TableCell className="py-1">{item.code}</TableCell>}
                                     <TableCell className="py-1">{item.name}</TableCell>
-                                    <TableCell className="py-1 flex gap-1">
-                                        <button onClick={() => handleEdit(item)} className="text-blue-500 hover:text-blue-700"><Icons.Edit className="w-4 h-4" /></button>
-                                        <button onClick={() => handleDelete(item.id)} className="text-red-500 hover:text-red-700"><Icons.Trash className="w-4 h-4" /></button>
+                                    <TableCell className="py-1">
+                                        <div className="flex justify-end gap-1">
+                                            <Button size="sm" variant="ghost" onClick={() => handleEdit(item)} className="h-9 w-9 p-0 text-slate-500 hover:text-indigo-600">
+                                                <Icons.Edit className="w-[22px] h-[22px]" />
+                                            </Button>
+                                            <Button size="sm" variant="ghost" onClick={() => handleDelete(item.id)} className="h-9 w-9 p-0 text-slate-400 hover:text-rose-600">
+                                                <Icons.Trash className="w-[22px] h-[22px]" />
+                                            </Button>
+                                        </div>
                                     </TableCell>
                                 </TableRow>
                             ))}

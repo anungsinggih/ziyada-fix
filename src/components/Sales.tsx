@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Alert } from "./ui/Alert";
 import { SalesEntryForm } from "./SalesEntryForm";
+import { PageHeader } from "./ui/PageHeader";
 
 export default function Sales() {
   const [error, setError] = useState<string | null>(null);
@@ -19,25 +20,20 @@ export default function Sales() {
   }
 
   return (
-    <div className="relative">
-      <div className="w-full space-y-6 pb-28">
-        <div className="flex items-baseline justify-between">
-          <h2 className="hidden md:block text-3xl font-bold tracking-tight text-gray-900">
-            Sales Management
-          </h2>
-          <span className="hidden md:block text-sm text-gray-500">
-            Draft = editable, Posted = locked
-          </span>
-        </div>
+    <div className="w-full space-y-6 pb-28">
+      <PageHeader
+        title="Sales Management"
+        description="Process sales, manage drafts, and finalize transactions. (Draft = editable, Posted = locked)"
+        breadcrumbs={[{ label: "Dashboard", href: "/" }, { label: "Sales" }]}
+      />
 
-        {error && <Alert variant="error" title="Oops" description={error} />}
-        {success && (
-          <Alert variant="success" title="Berhasil" description={success} />
-        )}
+      {error && <Alert variant="error" title="Oops" description={error} />}
+      {success && (
+        <Alert variant="success" title="Berhasil" description={success} />
+      )}
 
-        <div className="space-y-6">
-          <SalesEntryForm onSuccess={handleSuccess} onError={handleError} />
-        </div>
+      <div className="space-y-6">
+        <SalesEntryForm onSuccess={handleSuccess} onError={handleError} />
       </div>
     </div>
   );

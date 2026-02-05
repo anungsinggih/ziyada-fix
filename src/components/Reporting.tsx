@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../supabaseClient'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from './ui/Tabs'
-import { Card, CardContent } from './ui/Card'
 import { Button } from './ui/Button'
 import { Input } from './ui/Input'
 import { Select } from './ui/Select'
 import { Icons } from './ui/Icons'
+import { PageHeader } from './ui/PageHeader'
+import { Section } from './ui/Section'
 
 type AccountBalance = {
     id: string
@@ -125,179 +126,385 @@ export default function Reporting() {
     const totalLiab = -sum(liabs)
     const totalEquity = -sum(equity) + (-retainedEarnings)
 
+    // Helper to render Account Rows
+    const AccountRow = ({ item, invert = false }: { item: AccountBalance, invert?: boolean }) => (
+        <div className="flex justify-between items-center py-2 border-b border-slate-50 last:border-0 hover:bg-slate-50/50 transition-colors px-2 rounded-sm group">
+            <div className="flex items-center gap-3">
+                <span className="font-mono text-xs text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">{item.code}</span>
+                <span className="text-sm text-slate-700 font-medium group-hover:text-slate-900 transition-colors">{item.name}</span>
+            </div>
+            <span className={`font-mono text-sm ${item.closing_balance < 0 ? 'text-red-600' : 'text-slate-700'}`}>
+                {fmt(invert ? -item.closing_balance : item.closing_balance)}
+            </span>
+        </div>
+    )
+
+    // Print Header Component
+    const PrintHeader = ({ title }: { title: string }) => (
+        <div className="hidden print:block mb-8 border-b-2 border-slate-900 pb-4">
+            <h1 className="text-3xl font-bold text-slate-900 uppercase tracking-widest mb-2">{title}</h1>
+            <div className="flex justify-between items-end text-sm text-slate-600 font-mono">
+                <div>
+                    <p className="font-semibold text-slate-900">Ziyada Business</p>
+                    <p>Financial Report</p>
+                </div>
+                <div className="text-right">
+                    <p>Period: <span className="font-bold text-slate-900">{startDate}</span> to <span className="font-bold text-slate-900">{endDate}</span></p>
+                    <p className="text-xs mt-1">Printed on: {new Date().toLocaleDateString()}</p>
+                </div>
+            </div>
+        </div>
+    )
+
     return (
-        <div className="w-full">
-            <h2 className="hidden md:block text-3xl font-bold tracking-tight text-gray-900 mb-8">Financial Reports</h2>
-
-            <Tabs defaultValue="TB" onValueChange={(val) => setActiveTab(val)}>
-                <div className="flex flex-col gap-4 mb-8">
-                    <TabsList className="flex flex-wrap gap-2 overflow-x-auto w-full rounded-lg bg-white border border-gray-100 shadow-sm p-1">
-                        <TabsTrigger value="TB" className="min-w-[80px] flex-1 sm:flex-auto flex items-center gap-1 justify-center"><Icons.FileText className="w-4 h-4" /> Trial Balance</TabsTrigger>
-                        <TabsTrigger value="BS" className="min-w-[80px] flex-1 sm:flex-auto flex items-center gap-1 justify-center"><Icons.Chart className="w-4 h-4" /> Balance Sheet</TabsTrigger>
-                        <TabsTrigger value="PL" className="min-w-[80px] flex-1 sm:flex-auto flex items-center gap-1 justify-center"><Icons.Chart className="w-4 h-4" /> Profit & Loss</TabsTrigger>
-                        <TabsTrigger value="CF" className="min-w-[80px] flex-1 sm:flex-auto flex items-center gap-1 justify-center"><Icons.DollarSign className="w-4 h-4" /> Cash Flow</TabsTrigger>
-                        <TabsTrigger value="GL" className="min-w-[80px] flex-1 sm:flex-auto flex items-center gap-1 justify-center"><Icons.FileText className="w-4 h-4" /> General Ledger</TabsTrigger>
-                    </TabsList>
-
-                    <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-100 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 flex-1 w-full">
-                            <Input type="date" label="Start" value={startDate} onChange={e => setStartDate(e.target.value)} containerClassName="w-full" />
-                            <Input type="date" label="End" value={endDate} onChange={e => setEndDate(e.target.value)} containerClassName="w-full" />
+        <div className="w-full space-y-6 pb-20 print:pb-0 print:space-y-4">
+            <div className="print:hidden">
+                <PageHeader
+                    title="Financial Reports"
+                    description="Comprehensive financial statements and transaction history."
+                    breadcrumbs={[{ label: "Dashboard", href: "/" }, { label: "Finance Reports" }]}
+                    actions={
+                        <div className="flex gap-2">
+                            <Button variant="outline" icon={<Icons.Printer className="w-4 h-4" />} onClick={() => window.print()}>Print</Button>
+                            <Button variant="primary" icon={<Icons.Refresh className="w-4 h-4" />} onClick={() => handleRunReport()}>Run Report</Button>
                         </div>
-                        <Button onClick={() => handleRunReport()} disabled={loading} className="w-full sm:w-auto">Run Report</Button>
-                    </div>
+                    }
+                />
+            </div>
+
+            <Tabs defaultValue="TB" onValueChange={(val) => setActiveTab(val)} className="space-y-6 print:space-y-0">
+                <div className="print:hidden">
+                    <TabsList className="bg-white border border-slate-200 p-1 rounded-xl shadow-sm inline-flex gap-1">
+                        <TabsTrigger value="TB" className="data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700 px-4 py-2 rounded-lg transition-all flex items-center gap-2"><Icons.FileText className="w-4 h-4" /> Trial Balance</TabsTrigger>
+                        <TabsTrigger value="BS" className="data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700 px-4 py-2 rounded-lg transition-all flex items-center gap-2"><Icons.Chart className="w-4 h-4" /> Balance Sheet</TabsTrigger>
+                        <TabsTrigger value="PL" className="data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700 px-4 py-2 rounded-lg transition-all flex items-center gap-2"><Icons.TrendingUp className="w-4 h-4" /> Profit & Loss</TabsTrigger>
+                        <TabsTrigger value="CF" className="data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700 px-4 py-2 rounded-lg transition-all flex items-center gap-2"><Icons.DollarSign className="w-4 h-4" /> Cash Flow</TabsTrigger>
+                        <TabsTrigger value="GL" className="data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700 px-4 py-2 rounded-lg transition-all flex items-center gap-2"><Icons.History className="w-4 h-4" /> General Ledger</TabsTrigger>
+                    </TabsList>
                 </div>
 
-                {error && <div className="p-4 mb-4 text-red-700 bg-red-100 rounded-lg flex items-center gap-2"><Icons.Warning className="w-5 h-5 flex-shrink-0" /> {error}</div>}
-                {loading && <div className="text-center py-10 text-gray-500">Loading Report Data...</div>}
-
-                <TabsContent value="TB">
-                    <Card>
-                        <CardContent className="p-0">
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-sm text-left whitespace-nowrap">
-                                    <thead className="bg-gray-50 text-gray-700 uppercase">
-                                        <tr><th className="px-6 py-3">Code</th><th className="px-6 py-3">Name</th><th className="px-6 py-3 text-right">Opening</th><th className="px-6 py-3 text-right">Debit</th><th className="px-6 py-3 text-right">Credit</th><th className="px-6 py-3 text-right">Closing</th></tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-gray-100">
-                                        {data.map(d => (
-                                            <tr key={d.id} className="hover:bg-gray-50">
-                                                <td className="px-6 py-3 font-medium text-gray-900">{d.code}</td>
-                                                <td className="px-6 py-3">{d.name}</td>
-                                                <td className="px-6 py-3 text-right text-gray-500">{fmt(d.opening_balance)}</td>
-                                                <td className="px-6 py-3 text-right text-green-600">{fmt(d.debit_movement)}</td>
-                                                <td className="px-6 py-3 text-right text-red-600">{fmt(d.credit_movement)}</td>
-                                                <td className="px-6 py-3 text-right font-bold">{fmt(d.closing_balance)}</td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
+                <div className="print:hidden">
+                    <Section title="Report Parameters" description="Select date range for the report." className="bg-white/50">
+                        <div className="flex flex-col sm:flex-row gap-4 items-end">
+                            <Input type="date" label="Start Date" value={startDate} onChange={e => setStartDate(e.target.value)} containerClassName="flex-1 !mb-0" />
+                            <Input type="date" label="End Date" value={endDate} onChange={e => setEndDate(e.target.value)} containerClassName="flex-1 !mb-0" />
+                            <div className="flex-none">
+                                {/* Button moved to Header Actions for better UX, but kept here for context if needed or removed */}
                             </div>
-                        </CardContent>
-                    </Card>
-                </TabsContent>
-
-                <TabsContent value="PL">
-                    <Card className="max-w-3xl mx-auto">
-                        <CardContent className="p-8 space-y-6">
-                            <div className="text-center mb-8"><h3 className="text-xl font-bold">Income Statement</h3><p className="text-gray-500">{startDate} to {endDate}</p></div>
-                            <div>
-                                <h4 className="font-semibold text-gray-900 border-b pb-2 mb-2">Revenue</h4>
-                                {revenue.map(d => <div key={d.id} className="flex justify-between py-1"><span>{d.code} {d.name}</span><span>{fmt(-d.closing_balance)}</span></div>)}
-                            </div>
-                            <div>
-                                <h4 className="font-semibold text-gray-900 border-b pb-2 mb-2 mt-4">COGS</h4>
-                                {cogs.map(d => <div key={d.id} className="flex justify-between py-1"><span>{d.code} {d.name}</span><span>{fmt(d.closing_balance)}</span></div>)}
-                            </div>
-                            <div>
-                                <h4 className="font-semibold text-gray-900 border-b pb-2 mb-2 mt-4">Expenses</h4>
-                                {expense.map(d => <div key={d.id} className="flex justify-between py-1"><span>{d.code} {d.name}</span><span>{fmt(d.closing_balance)}</span></div>)}
-                            </div>
-                            <div className="flex justify-between font-bold text-lg pt-4 border-t-2 border-gray-900 mt-4">
-                                <span>Net Income</span>
-                                <span className={retainedEarnings < 0 ? 'text-green-600' : 'text-red-600'}>{fmt(-retainedEarnings)}</span>
-                            </div>
-                        </CardContent>
-                    </Card>
-                </TabsContent>
-
-                <TabsContent value="BS">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <Card>
-                            <CardContent className="p-6">
-                                <h3 className="font-bold text-lg mb-4 text-blue-600">Assets</h3>
-                                {assets.map(d => <div key={d.id} className="flex justify-between py-1 border-b border-gray-50 last:border-0"><span>{d.code} {d.name}</span><span className="font-mono">{fmt(d.closing_balance)}</span></div>)}
-                                <div className="flex justify-between font-bold mt-4 pt-4 border-t"><span>Total Assets</span><span>{fmt(totalAsset)}</span></div>
-                            </CardContent>
-                        </Card>
-                        <Card>
-                            <CardContent className="p-6">
-                                <h3 className="font-bold text-lg mb-4 text-purple-600">Liabilities & Equity</h3>
-                                <h4 className="font-semibold text-sm uppercase text-gray-500 mb-2">Liabilities</h4>
-                                {liabs.map(d => <div key={d.id} className="flex justify-between py-1 border-b border-gray-50 last:border-0"><span>{d.code} {d.name}</span><span className="font-mono">{fmt(-d.closing_balance)}</span></div>)}
-
-                                <h4 className="font-semibold text-sm uppercase text-gray-500 mb-2 mt-4">Equity</h4>
-                                {equity.map(d => <div key={d.id} className="flex justify-between py-1 border-b border-gray-50 last:border-0"><span>{d.code} {d.name}</span><span className="font-mono">{fmt(-d.closing_balance)}</span></div>)}
-                                <div className="flex justify-between py-1 text-blue-600"><span>Current Year Earnings</span><span className="font-mono">{fmt(-retainedEarnings)}</span></div>
-
-                                <div className="flex justify-between font-bold mt-4 pt-4 border-t"><span>Total Liab & Equity</span><span>{fmt(totalLiab + totalEquity)}</span></div>
-
-                                <div className={`text-center mt-4 text-xs font-bold py-1 px-2 rounded ${Math.abs(totalAsset - (totalLiab + totalEquity)) < 1 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                                    {Math.abs(totalAsset - (totalLiab + totalEquity)) < 1 ? 'Balanced' : 'Unbalanced'}
-                                </div>
-                            </CardContent>
-                        </Card>
-                    </div>
-                </TabsContent>
-
-                <TabsContent value="GL">
-                    <Card>
-                        <div className="p-4 border-b bg-gray-50">
-                            <Select
-                                label="Select Account to View"
-                                value={glAccount}
-                                onChange={e => setGlAccount(e.target.value)}
-                                options={[
-                                    { label: "-- Choose Account --", value: "" },
-                                    ...accounts.map(a => ({ label: `${a.code} - ${a.name}`, value: a.id }))
-                                ]}
-                            />
-                            <div className="mt-2 text-right"><Button size="sm" onClick={() => handleRunReport('GL')}>Load Transactions</Button></div>
                         </div>
-                        <CardContent className="p-0 overflow-hidden">
-                            <table className="w-full text-sm text-left">
-                                <thead className="bg-gray-50 text-gray-700 uppercase"><tr><th className="px-6 py-3">Date</th><th className="px-6 py-3">Ref</th><th className="px-6 py-3">Memo</th><th className="px-6 py-3 text-right">Debit</th><th className="px-6 py-3 text-right">Credit</th></tr></thead>
-                                <tbody className="divide-y divide-gray-100">
-                                    {glData.map((row, i) => (
-                                        <tr key={i} className="hover:bg-gray-50">
-                                            <td className="px-6 py-3">{row.journal_date || row.ref_type}</td>
-                                            <td className="px-6 py-3 font-mono text-xs">{row.ref_no}</td>
-                                            <td className="px-6 py-3">{row.memo}</td>
-                                            <td className="px-6 py-3 text-right">{fmt(row.debit)}</td>
-                                            <td className="px-6 py-3 text-right">{fmt(row.credit)}</td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </CardContent>
-                    </Card>
-                </TabsContent>
+                    </Section>
+                </div>
 
-                <TabsContent value="CF">
-                    <Card>
-                        <CardContent className="p-6">
-                            <h3 className="text-xl font-bold mb-4">Cash Flow Statement</h3>
-                            {cashflowData.length === 0 ? (
-                                <div className="py-12 text-center text-gray-500">
-                                    <p className="text-lg flex items-center justify-center gap-2"><Icons.Chart className="w-6 h-6 text-gray-400" /> No cashflow data</p>
-                                    <p className="text-sm mt-2">Select a date range and click "Run Report"</p>
-                                    <p className="text-xs mt-1 text-gray-400">Debug: cashflowData.length = {cashflowData.length}</p>
+                {error && (
+                    <div className="p-4 bg-red-50 border border-red-200 text-red-700 rounded-xl flex items-center gap-3 animate-in fade-in slide-in-from-top-2 print:hidden">
+                        <Icons.AlertCircle className="w-5 h-5 flex-shrink-0" />
+                        <span className="font-medium">{error}</span>
+                    </div>
+                )}
+
+                {loading && (
+                    <div className="w-full flex justify-center py-12 print:hidden">
+                        <div className="flex flex-col items-center gap-3">
+                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+                            <p className="text-slate-500 text-sm font-medium">Crunching the numbers...</p>
+                        </div>
+                    </div>
+                )}
+
+                {!loading && (
+                    <div className="animate-in fade-in duration-300">
+                        <TabsContent value="TB" className="print:block">
+                            <PrintHeader title="Trial Balance" />
+                            <Section title="Trial Balance" description="Closing balances for all accounts." className="border-t-4 border-t-indigo-500 print:border-none print:shadow-none print:p-0">
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-sm text-left whitespace-nowrap">
+                                        <thead className="bg-slate-50 text-slate-600 uppercase text-xs font-semibold tracking-wider border-b border-slate-200">
+                                            <tr>
+                                                <th className="px-6 py-3 print:px-2 print:py-1">Code</th>
+                                                <th className="px-6 py-3 print:px-2 print:py-1">Account Name</th>
+                                                <th className="px-6 py-3 text-right print:px-2 print:py-1">Opening</th>
+                                                <th className="px-6 py-3 text-right text-emerald-600 print:px-2 print:py-1">Debit</th>
+                                                <th className="px-6 py-3 text-right text-rose-600 print:px-2 print:py-1">Credit</th>
+                                                <th className="px-6 py-3 text-right text-slate-900 print:px-2 print:py-1">Closing</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100">
+                                            {data.map(d => (
+                                                <tr key={d.id} className="hover:bg-indigo-50/30 transition-colors print:hover:bg-transparent">
+                                                    <td className="px-6 py-3 font-mono text-xs text-slate-500 print:px-2 print:py-1">{d.code}</td>
+                                                    <td className="px-6 py-3 font-medium text-slate-900 print:px-2 print:py-1">{d.name}</td>
+                                                    <td className="px-6 py-3 text-right text-slate-500 font-mono print:px-2 print:py-1">{fmt(d.opening_balance)}</td>
+                                                    <td className="px-6 py-3 text-right text-emerald-600 font-mono print:px-2 print:py-1">{fmt(d.debit_movement)}</td>
+                                                    <td className="px-6 py-3 text-right text-rose-600 font-mono print:px-2 print:py-1">{fmt(d.credit_movement)}</td>
+                                                    <td className="px-6 py-3 text-right font-bold text-slate-900 font-mono print:px-2 print:py-1">{fmt(d.closing_balance)}</td>
+                                                </tr>
+                                            ))}
+                                            {data.length === 0 && <tr><td colSpan={6} className="text-center py-8 text-slate-400">No data available for this period.</td></tr>}
+                                        </tbody>
+                                    </table>
                                 </div>
-                            ) : (
-                                <div className="space-y-3">
-                                    {cashflowData.map((line, idx) => {
-                                        const isTotal = line.category === 'Closing'
-                                        const isNegative = line.amount < 0
-                                        return (
-                                            <div key={idx} className={`flex justify-between py-2 border-b ${isTotal ? 'font-bold text-lg border-t-2 border-gray-800 pt-3' : ''
-                                                }`}>
-                                                <span className="flex gap-2">
-                                                    <span className="text-gray-500 w-20">{line.category}</span>
-                                                    <span className={isTotal ? 'text-gray-900' : 'text-gray-600'}>{line.description}</span>
-                                                </span>
-                                                <span className={`font-mono ${isTotal ? 'text-blue-700' :
-                                                    isNegative ? 'text-red-600' : 'text-green-600'
-                                                    }`}>
-                                                    {fmt(line.amount)}
-                                                </span>
+                            </Section>
+                        </TabsContent>
+
+                        <TabsContent value="BS" className="print:block">
+                            <PrintHeader title="Balance Sheet" />
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 print:grid-cols-2 print:gap-4">
+                                {/* ASSETS */}
+                                <Section title="Assets" description="What the company owns." className="border-t-4 border-t-emerald-500 h-full print:border-none print:shadow-none print:p-0">
+                                    <div className="space-y-4 print:space-y-2">
+                                        <div className="max-h-[500px] overflow-y-auto pr-2 custom-scrollbar print:max-h-none print:overflow-visible">
+                                            {assets.map(d => <AccountRow key={d.id} item={d} />)}
+                                            {assets.length === 0 && <p className="text-center text-slate-400 py-4 italic">No asset accounts found.</p>}
+                                        </div>
+                                        <div className="pt-4 border-t-2 border-slate-100 mt-4 bg-slate-50/50 p-4 rounded-lg flex justify-between items-center relative overflow-hidden group print:bg-transparent print:p-2 print:pt-4 print:mt-2">
+                                            <div className="absolute inset-0 bg-emerald-500/5 group-hover:bg-emerald-500/10 transition-colors print:hidden"></div>
+                                            <span className="font-bold text-slate-700 z-10 uppercase tracking-wide text-xs">Total Assets</span>
+                                            <span className="font-bold text-xl text-emerald-700 z-10 font-mono">{fmt(totalAsset)}</span>
+                                        </div>
+                                    </div>
+                                </Section>
+
+                                {/* LIABILITIES & EQUITY */}
+                                <Section title="Liabilities & Equity" description="What the company owes." className="border-t-4 border-t-purple-500 h-full print:border-none print:shadow-none print:p-0">
+                                    <div className="space-y-6 print:space-y-4">
+                                        {/* Liabilities */}
+                                        <div>
+                                            <h4 className="flex items-center gap-2 font-semibold text-xs uppercase text-slate-500 mb-3 tracking-wider print:mb-1">
+                                                <div className="w-1.5 h-1.5 rounded-full bg-rose-400 print:hidden"></div> Liabilities
+                                            </h4>
+                                            <div className="mb-2">
+                                                {liabs.map(d => <AccountRow key={d.id} item={d} invert />)}
+                                                {liabs.length === 0 && <p className="text-sm text-slate-400 italic px-2">No liability accounts.</p>}
                                             </div>
-                                        )
-                                    })}
+                                        </div>
+
+                                        {/* Equity */}
+                                        <div>
+                                            <h4 className="flex items-center gap-2 font-semibold text-xs uppercase text-slate-500 mb-3 tracking-wider print:mb-1">
+                                                <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 print:hidden"></div> Equity
+                                            </h4>
+                                            <div>
+                                                {equity.map(d => <AccountRow key={d.id} item={d} invert />)}
+                                                <div className="flex justify-between items-center py-2 border-b border-slate-50 px-2 rounded-sm bg-indigo-50/30 print:bg-transparent">
+                                                    <div className="flex items-center gap-3">
+                                                        <span className="font-mono text-xs text-indigo-400 bg-indigo-100 px-1.5 py-0.5 rounded print:bg-transparent print:text-slate-600">RET</span>
+                                                        <span className="text-sm text-indigo-900 font-medium print:text-slate-800">Current Year Earnings</span>
+                                                    </div>
+                                                    <span className={`font-mono text-sm font-bold ${retainedEarnings < 0 ? 'text-red-600' : 'text-indigo-700'}`}>
+                                                        {fmt(-retainedEarnings)}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Summary */}
+                                        <div className="pt-4 border-t-2 border-slate-100 mt-4 bg-slate-50/50 p-4 rounded-lg flex justify-between items-center relative overflow-hidden group print:bg-transparent print:p-2 print:pt-4 print:mt-2">
+                                            <div className="absolute inset-0 bg-purple-500/5 group-hover:bg-purple-500/10 transition-colors print:hidden"></div>
+                                            <span className="font-bold text-slate-700 z-10 uppercase tracking-wide text-xs">Total Liab & Equity</span>
+                                            <span className="font-bold text-xl text-purple-700 z-10 font-mono">{fmt(totalLiab + totalEquity)}</span>
+                                        </div>
+
+                                        {/* Balance Check */}
+                                        <div className={`mt-4 p-3 rounded-lg border flex items-center justify-center gap-2 ${Math.abs(totalAsset - (totalLiab + totalEquity)) < 1
+                                            ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                                            : 'bg-red-50 border-red-200 text-red-700'
+                                            } print:bg-transparent print:border-slate-300 print:text-slate-800`}>
+                                            {Math.abs(totalAsset - (totalLiab + totalEquity)) < 1 ? (
+                                                <>
+                                                    <Icons.CheckCircle className="w-5 h-5 print:text-slate-600" />
+                                                    <span className="font-bold text-sm">Balance Sheet is Balanced</span>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Icons.AlertCircle className="w-5 h-5" />
+                                                    <span className="font-bold text-sm">Unbalanced: Diff {fmt(totalAsset - (totalLiab + totalEquity))}</span>
+                                                </>
+                                            )}
+                                        </div>
+                                    </div>
+                                </Section>
+                            </div>
+                        </TabsContent>
+
+                        <TabsContent value="PL" className="print:block">
+                            <PrintHeader title="Profit & Loss" />
+                            <Section title="Income Statement" description="Profit and Loss statement for the period." className="border-t-4 border-t-blue-500 max-w-4xl mx-auto print:border-none print:shadow-none print:p-0 print:max-w-none">
+                                <div className="space-y-8 p-4 print:p-0 print:space-y-4">
+                                    <div>
+                                        <h4 className="text-lg font-bold text-slate-800 mb-4 pb-2 border-b border-slate-200 flex justify-between items-center print:mb-2 print:text-base">
+                                            <span>Revenue</span>
+                                            <span className="text-sm font-normal text-slate-500 uppercase tracking-wider">Income</span>
+                                        </h4>
+                                        <div className="space-y-1">
+                                            {revenue.map(d => (
+                                                <div key={d.id} className="flex justify-between py-2 border-b border-slate-50 last:border-0 hover:bg-slate-50 px-2 rounded transition-colors print:py-1 print:border-slate-200 print:hover:bg-transparent">
+                                                    <span className="text-slate-700">{d.name}</span>
+                                                    <span className="font-mono font-medium text-slate-900">{fmt(-d.closing_balance)}</span>
+                                                </div>
+                                            ))}
+                                            <div className="flex justify-between py-3 mt-2 bg-blue-50/50 px-3 rounded font-bold text-blue-900 print:bg-transparent print:text-slate-900 print:py-1 print:border-t-2 print:border-slate-300 print:mt-1">
+                                                <span>Total Revenue</span>
+                                                <span className="font-mono">{fmt(-sum(revenue))}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <h4 className="text-lg font-bold text-slate-800 mb-4 pb-2 border-b border-slate-200 flex justify-between items-center print:mb-2 print:text-base">
+                                            <span>Cost of Goods Sold</span>
+                                            <span className="text-sm font-normal text-slate-500 uppercase tracking-wider">COGS</span>
+                                        </h4>
+                                        <div className="space-y-1">
+                                            {cogs.map(d => (
+                                                <div key={d.id} className="flex justify-between py-2 border-b border-slate-50 last:border-0 hover:bg-slate-50 px-2 rounded transition-colors print:py-1 print:border-slate-200 print:hover:bg-transparent">
+                                                    <span className="text-slate-700">{d.name}</span>
+                                                    <span className="font-mono font-medium text-slate-900">{fmt(d.closing_balance)}</span>
+                                                </div>
+                                            ))}
+                                            <div className="flex justify-between py-3 mt-2 bg-amber-50/50 px-3 rounded font-bold text-amber-900 print:bg-transparent print:text-slate-900 print:py-1 print:border-t-2 print:border-slate-300 print:mt-1">
+                                                <span>Total COGS</span>
+                                                <span className="font-mono">{fmt(sum(cogs))}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <div className="flex justify-between items-center p-4 bg-slate-100 rounded-lg border border-slate-200 shadow-sm print:bg-transparent print:border-none print:p-0 print:py-2">
+                                            <span className="font-bold text-slate-700 uppercase tracking-wide">Gross Profit</span>
+                                            <span className="font-bold text-2xl font-mono text-slate-900 print:text-xl">{fmt((-sum(revenue)) - sum(cogs))}</span>
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <h4 className="text-lg font-bold text-slate-800 mb-4 pb-2 border-b border-slate-200 flex justify-between items-center print:mb-2 print:text-base">
+                                            <span>Operating Expenses</span>
+                                            <span className="text-sm font-normal text-slate-500 uppercase tracking-wider">OPEX</span>
+                                        </h4>
+                                        <div className="space-y-1">
+                                            {expense.map(d => (
+                                                <div key={d.id} className="flex justify-between py-2 border-b border-slate-50 last:border-0 hover:bg-slate-50 px-2 rounded transition-colors print:py-1 print:border-slate-200 print:hover:bg-transparent">
+                                                    <span className="text-slate-700">{d.name}</span>
+                                                    <span className="font-mono font-medium text-slate-900">{fmt(d.closing_balance)}</span>
+                                                </div>
+                                            ))}
+                                            <div className="flex justify-between py-3 mt-2 bg-rose-50/50 px-3 rounded font-bold text-rose-900 print:bg-transparent print:text-slate-900 print:py-1 print:border-t-2 print:border-slate-300 print:mt-1">
+                                                <span>Total Expenses</span>
+                                                <span className="font-mono">{fmt(sum(expense))}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className={`flex justify-between items-center p-6 rounded-xl border-2 shadow-sm transform transition-all hover:scale-[1.01] ${retainedEarnings < 0
+                                        ? 'bg-emerald-50 border-emerald-100'
+                                        : 'bg-rose-50 border-rose-100'
+                                        } print:bg-transparent print:border-slate-900 print:shadow-none print:p-4 print:mt-4`}>
+                                        <div className="flex flex-col">
+                                            <span className={`text-sm font-bold uppercase tracking-wider ${retainedEarnings < 0 ? 'text-emerald-600' : 'text-rose-600'} print:text-slate-900`}>Net Income</span>
+                                            <span className="text-xs text-slate-500">Total comprehensive income for the period</span>
+                                        </div>
+                                        <span className={`text-3xl font-black font-mono tracking-tight ${retainedEarnings < 0 ? 'text-emerald-700' : 'text-rose-700'} print:text-slate-900`}>
+                                            {fmt(-retainedEarnings)}
+                                        </span>
+                                    </div>
                                 </div>
-                            )}
-                        </CardContent>
-                    </Card>
-                </TabsContent>
+                            </Section>
+                        </TabsContent>
+
+                        <TabsContent value="CF" className="print:block">
+                            <PrintHeader title="Cash Flow" />
+                            <Section title="Cash Flow Statement" description="Inflow and outflow of cash." className="border-t-4 border-t-cyan-500 print:border-none print:shadow-none print:p-0">
+                                {cashflowData.length === 0 ? (
+                                    <div className="py-20 text-center text-slate-400 bg-slate-50 rounded-lg border-2 border-dashed border-slate-200 print:bg-transparent">
+                                        <Icons.DollarSign className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+                                        <p className="text-lg font-medium">No cash flow data available.</p>
+                                        <p className="text-sm">Try selecting a different date range.</p>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-1 divide-y divide-slate-100">
+                                        {cashflowData.map((line, idx) => {
+                                            const isTotal = line.category === 'Closing'
+                                            const isNegative = line.amount < 0
+                                            return (
+                                                <div key={idx} className={`flex justify-between py-3 px-3 hover:bg-slate-50 rounded transition-colors ${isTotal ? 'bg-slate-100 font-bold border-t-2 border-slate-300 mt-4' : ''
+                                                    } print:px-0 print:py-1 print:hover:bg-transparent print:bg-transparent`}>
+                                                    <div className="flex gap-4">
+                                                        <span className="text-slate-500 text-sm w-32 font-medium uppercase tracking-wider print:w-24">{line.category}</span>
+                                                        <span className={isTotal ? 'text-slate-900' : 'text-slate-700'}>{line.description}</span>
+                                                    </div>
+                                                    <span className={`font-mono font-medium ${isTotal
+                                                        ? 'text-slate-900 text-lg'
+                                                        : isNegative ? 'text-rose-600' : 'text-emerald-600'
+                                                        } print:text-slate-900`}>
+                                                        {fmt(line.amount)}
+                                                    </span>
+                                                </div>
+                                            )
+                                        })}
+                                    </div>
+                                )}
+                            </Section>
+                        </TabsContent>
+
+                        <TabsContent value="GL" className="print:block">
+                            <PrintHeader title="General Ledger" />
+                            <Section title="General Ledger" description="Detailed transaction history." className="border-t-4 border-t-orange-500 print:border-none print:shadow-none print:p-0">
+                                <div className="p-4 bg-slate-50 border-b border-slate-200 flex flex-col sm:flex-row gap-4 items-end mb-4 rounded-lg print:hidden">
+                                    <div className="flex-1 w-full">
+                                        <Select
+                                            label="Select Account"
+                                            value={glAccount}
+                                            onChange={e => setGlAccount(e.target.value)}
+                                            options={[
+                                                { label: "-- Select an Account --", value: "" },
+                                                ...accounts.map(a => ({ label: `${a.code} - ${a.name}`, value: a.id }))
+                                            ]}
+                                            className="w-full !mb-0"
+                                        />
+                                    </div>
+                                    <Button
+                                        onClick={() => handleRunReport('GL')}
+                                        disabled={!glAccount}
+                                        className="w-full sm:w-auto"
+                                        variant={glAccount ? "primary" : "outline"}
+                                    >
+                                        Load Transactions
+                                    </Button>
+                                </div>
+
+                                {glData.length > 0 ? (
+                                    <div className="overflow-x-auto print:overflow-visible">
+                                        <table className="w-full text-sm text-left">
+                                            <thead className="bg-slate-100 text-slate-600 uppercase text-xs font-bold border-b border-slate-200 print:bg-transparent">
+                                                <tr>
+                                                    <th className="px-6 py-3 rounded-tl-lg print:px-1 print:py-1">Date</th>
+                                                    <th className="px-6 py-3 print:px-1 print:py-1">Reference</th>
+                                                    <th className="px-6 py-3 print:px-1 print:py-1">Description</th>
+                                                    <th className="px-6 py-3 text-right print:px-1 print:py-1">Debit</th>
+                                                    <th className="px-6 py-3 text-right rounded-tr-lg print:px-1 print:py-1">Credit</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-100">
+                                                {glData.map((row, i) => (
+                                                    <tr key={i} className="hover:bg-orange-50/30 transition-colors print:hover:bg-transparent">
+                                                        <td className="px-6 py-3 text-slate-900 font-medium whitespace-nowrap print:px-1 print:py-1">{row.journal_date || row.ref_type}</td>
+                                                        <td className="px-6 py-3 font-mono text-xs text-indigo-600 hover:text-indigo-800 hover:underline cursor-pointer print:px-1 print:py-1 print:text-slate-900 print:no-underline">{row.ref_no}</td>
+                                                        <td className="px-6 py-3 text-slate-600 max-w-xs truncate print:px-1 print:py-1 print:max-w-none print:whitespace-normal" title={row.memo}>{row.memo}</td>
+                                                        <td className="px-6 py-3 text-right font-mono text-emerald-600 print:px-1 print:py-1 print:text-slate-900">{row.debit > 0 ? fmt(row.debit) : '-'}</td>
+                                                        <td className="px-6 py-3 text-right font-mono text-rose-600 print:px-1 print:py-1 print:text-slate-900">{row.credit > 0 ? fmt(row.credit) : '-'}</td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                ) : (
+                                    <div className="text-center py-12 text-slate-400 italic">
+                                        {glAccount ? "No transactions found for this period." : "Select an account to view transactions."}
+                                    </div>
+                                )}
+                            </Section>
+                        </TabsContent>
+                    </div>
+                )}
             </Tabs>
         </div>
     )

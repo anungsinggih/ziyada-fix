@@ -7,6 +7,7 @@ type SelectOption = {
     value: string | number
     disabled?: boolean
     searchText?: string // Optional custom search text
+    content?: React.ReactNode // Optional custom React content
 }
 
 interface SelectProps {
@@ -163,7 +164,7 @@ export const Select = React.forwardRef<HTMLButtonElement, SelectProps>(({
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
                                     placeholder={searchPlaceholder}
-                                    className="w-full h-10 px-3 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)]"
+                                    className="w-full h-10 px-3 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-[var(--primary)] transition-all duration-200"
                                     autoComplete="off"
                                     autoCorrect="off"
                                     spellCheck="false"
@@ -196,7 +197,7 @@ export const Select = React.forwardRef<HTMLButtonElement, SelectProps>(({
                                                 }}
                                                 className={`w-full text-left px-4 py-3 text-sm border-b border-gray-100 ${opt.disabled ? 'text-gray-400' : 'text-[var(--text-main)] hover:bg-gray-50'} ${isSelected ? 'bg-[var(--primary)]/10' : ''}`}
                                             >
-                                                {opt.label}
+                                                {opt.content || opt.label}
                                             </button>
                                         )
                                     })
@@ -211,7 +212,7 @@ export const Select = React.forwardRef<HTMLButtonElement, SelectProps>(({
 
     return (
         <div className={`flex flex-col gap-1.5 mb-3 w-full ${className}`}>
-            {label && <label className="text-sm font-medium text-[var(--text-main)]">{label}</label>}
+            {label && <label className="text-sm font-medium text-[var(--text-main)] shadow-sm">{label}</label>}
 
             <SelectPrimitive.Root
                 value={toInternalValue(value)}
@@ -230,7 +231,7 @@ export const Select = React.forwardRef<HTMLButtonElement, SelectProps>(({
             >
                 <SelectPrimitive.Trigger
                     ref={ref}
-                    className={`flex h-10 w-full items-center justify-between rounded-md border border-[var(--border)] bg-white px-3 py-2 text-sm font-normal text-[var(--text-main)] shadow-sm transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] disabled:cursor-not-allowed disabled:opacity-50 ${triggerClassName}`}
+                    className={`flex h-10 w-full items-center justify-between rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm font-normal text-[var(--text-main)] shadow-sm transition-all duration-200 hover:border-gray-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-[var(--primary)] disabled:cursor-not-allowed disabled:opacity-50 ${triggerClassName}`}
                 >
                     <SelectPrimitive.Value placeholder={placeholder || 'Select...'} />
                     <SelectPrimitive.Icon className="text-[var(--text-main)]">
@@ -243,7 +244,7 @@ export const Select = React.forwardRef<HTMLButtonElement, SelectProps>(({
                     {/* eslint-disable-next-line @typescript-eslint/ban-ts-comment */}
                     {/* @ts-ignore: Radix UI SelectContent doesn't expose onInteractOutside in types but accepts it */}
                     <SelectContent
-                        className={`relative z-50 max-w-[95vw] overflow-hidden rounded-xl border border-[var(--border)] bg-white shadow-lg ${contentClassName}`}
+                        className={`relative z-50 max-w-[95vw] overflow-hidden rounded-xl border border-gray-100 bg-white/95 backdrop-blur-md shadow-xl animate-in fade-in-0 zoom-in-95 duration-200 ${contentClassName}`}
                         position="popper"
                         sideOffset={4}
                         align="start"
@@ -322,7 +323,7 @@ export const Select = React.forwardRef<HTMLButtonElement, SelectProps>(({
                                             disabled={opt.disabled}
                                             className="relative flex cursor-pointer select-none items-center justify-between rounded-md px-3 py-2 text-sm text-[var(--text-main)] outline-none data-[highlighted]:bg-[var(--primary)]/10 data-[highlighted]:text-[var(--primary)] focus:bg-[var(--primary)]/10 focus:text-[var(--primary)] disabled:cursor-not-allowed disabled:text-gray-400 disabled:hover:bg-transparent"
                                         >
-                                            <SelectPrimitive.ItemText>{opt.label}</SelectPrimitive.ItemText>
+                                            <SelectPrimitive.ItemText>{opt.content || opt.label}</SelectPrimitive.ItemText>
                                             <SelectPrimitive.ItemIndicator className="text-[var(--primary)]">
                                                 <CheckIcon className="h-4 w-4" />
                                             </SelectPrimitive.ItemIndicator>

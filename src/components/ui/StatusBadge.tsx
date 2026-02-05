@@ -30,8 +30,9 @@ export function StatusBadge({ status, className = '' }: { status: string; classN
   const variant = entry?.variant || 'secondary'
 
   return (
-    <Badge className={`uppercase tracking-widest text-[var(--text-main)] ${className}`} variant={variant}>
-      {label}
+    <Badge className={`pl-2 pr-2.5 py-1 gap-1.5 shadow-sm border border-transparent ${className}`} variant={variant}>
+      <span className="w-1.5 h-1.5 rounded-full bg-current"></span>
+      <span className="capitalize">{label}</span>
     </Badge>
   )
 }
