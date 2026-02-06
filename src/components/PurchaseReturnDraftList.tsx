@@ -3,6 +3,7 @@ import { supabase } from "../supabaseClient";
 import { Button } from "./ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/Card";
 import { Badge } from "./ui/Badge";
+import { Icons } from "./ui/Icons";
 
 type DraftReturn = {
     id: string
@@ -71,9 +72,28 @@ export function PurchaseReturnDraftList({ refreshTrigger, onSuccess, onError }: 
                                         <div className="text-xs text-gray-400">{d.return_date}</div>
                                     </div>
                                 </div>
-                                <Button size="sm" variant="primary" className="w-full mt-2" onClick={() => handlePost(d.id)} disabled={loading}>
-                                    🚀 Post Return
-                                </Button>
+                                <div className="flex gap-2 mt-2">
+                                    <Button
+                                        size="sm"
+                                        variant="primary"
+                                        className="flex-1"
+                                        onClick={() => handlePost(d.id)}
+                                        disabled={loading}
+                                        icon={<Icons.CheckCircle className="w-4 h-4" />}
+                                    >
+                                        Post
+                                    </Button>
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="flex-1"
+                                        onClick={() => window.location.href = `/purchase-return?draft=${d.id}`}
+                                        disabled={loading}
+                                        icon={<Icons.Edit className="w-4 h-4" />}
+                                    >
+                                        Edit
+                                    </Button>
+                                </div>
                             </li>
                         ))}
                     </ul>

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { PurchaseReturnForm } from './PurchaseReturnForm';
 import { PurchaseReturnDraftList } from './PurchaseReturnDraftList';
+import { PageHeader } from './ui/PageHeader';
 
 export default function PurchaseReturn() {
     const [error, setError] = useState<string | null>(null)
@@ -19,19 +20,29 @@ export default function PurchaseReturn() {
     }
 
     return (
-        <div className="w-full space-y-8">
-            <h2 className="hidden md:block text-3xl font-bold tracking-tight text-gray-900">Purchase Return Management</h2>
+        <div className="w-full space-y-6 pb-20">
+            <PageHeader
+                title="Purchase Return Management"
+                description="Process returns to vendors, create drafts, and update stock."
+                breadcrumbs={[
+                    { label: "Dashboard", href: "/" },
+                    { label: "Purchases", href: "/purchases/history" },
+                    { label: "New Return" }
+                ]}
+            />
 
-            {error && <div className="p-4 bg-red-50 text-red-700 border border-red-200 rounded-md">Error: {error}</div>}
-            {success && <div className="p-4 bg-green-50 text-green-700 border border-green-200 rounded-md">Success: {success}</div>}
+            {error && <div className="p-4 bg-red-50 text-red-700 border border-red-200 rounded-md shadow-sm">Error: {error}</div>}
+            {success && <div className="p-4 bg-green-50 text-green-700 border border-green-200 rounded-md shadow-sm">Success: {success}</div>}
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-8">
-                <div className="lg:col-span-2 space-y-6">
+            <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 lg:gap-8">
+                <div className="xl:col-span-2 space-y-6">
                     <PurchaseReturnForm onSuccess={handleSuccess} onError={handleError} />
                 </div>
 
-                <div className="lg:col-span-1">
-                    <PurchaseReturnDraftList refreshTrigger={refreshTrigger} onSuccess={handleSuccess} onError={handleError} />
+                <div className="xl:col-span-1">
+                    <div className="xl:sticky xl:top-6 space-y-6">
+                        <PurchaseReturnDraftList refreshTrigger={refreshTrigger} onSuccess={handleSuccess} onError={handleError} />
+                    </div>
                 </div>
             </div>
         </div>

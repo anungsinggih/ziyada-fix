@@ -96,7 +96,7 @@ export default function SalesReturnDetail() {
                         sku
                     )
                 `)
-                .eq('return_id', returnId)
+                .eq('sales_return_id', returnId)
 
             if (itemsError) throw itemsError
 

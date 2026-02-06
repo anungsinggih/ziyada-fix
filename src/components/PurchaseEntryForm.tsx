@@ -32,9 +32,12 @@ type PurchaseLine = {
 type Props = {
     onSuccess: (msg: string) => void;
     onError: (msg: string) => void;
+    onSaved?: (purchaseId: string) => void;
+    redirectOnSave?: boolean;
+    initialPurchaseId?: string;
 };
 
-export function PurchaseEntryForm({ onSuccess, onError }: Props) {
+export function PurchaseEntryForm({ onSuccess, onError, onSaved, redirectOnSave = true, initialPurchaseId }: Props) {
     const navigate = useNavigate();
     const [vendors, setVendors] = useState<Vendor[]>([]);
     const [items, setItems] = useState<Item[]>([]);
@@ -89,6 +92,75 @@ export function PurchaseEntryForm({ onSuccess, onError }: Props) {
     useEffect(() => {
         fetchMasterData();
     }, [fetchMasterData]);
+
+    useEffect(() => {
+        if (!initialPurchaseId) return;
+
+        const loadPurchase = async () => {
+            setLoading(true);
+            try {
+                const { data: purchaseData, error: purchaseError } = await supabase
+                    .from("purchases")
+                    .select("*")
+                    .eq("id", initialPurchaseId)
+                    .single();
+
+                if (purchaseError) throw purchaseError;
+
+                if (purchaseData.status !== "DRAFT") {
+                    throw new Error(`Cannot edit ${purchaseData.status} purchase.`);
+                }
+
+                setVendorId(purchaseData.vendor_id);
+                setPurchaseDate(purchaseData.purchase_date);
+                setTerms(purchaseData.terms);
+                setPaymentMethodCode(purchaseData.payment_method_code || "CASH");
+                setNotes(purchaseData.notes || "");
+                setDiscountAmount(Number(purchaseData.discount_amount) || 0);
+
+                const { data: itemsData, error: itemsError } = await supabase
+                    .from("purchase_items")
+                    .select(
+                        `
+                        item_id,
+                        qty,
+                        unit_cost,
+                        subtotal,
+                        uom_snapshot,
+                        items (
+                            name,
+                            sku
+                        )
+                    `
+                    )
+                    .eq("purchase_id", initialPurchaseId);
+
+                if (itemsError) throw itemsError;
+
+                const loadedLines: PurchaseLine[] =
+                    itemsData?.map((item) => {
+                        const iData = Array.isArray(item.items) ? item.items[0] : item.items;
+                        return {
+                            item_id: item.item_id,
+                            item_name: iData?.name || "Unknown",
+                            sku: iData?.sku || "",
+                            uom: item.uom_snapshot,
+                            qty: item.qty,
+                            cost_price: item.unit_cost,
+                            subtotal: item.subtotal,
+                        };
+                    }) || [];
+
+                setLines(loadedLines);
+            } catch (err: unknown) {
+                onError(getErrorMessage(err));
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        loadPurchase();
+    }, [initialPurchaseId, onError]);
 
     useEffect(() => {
         if (terms === "CREDIT") {
@@ -167,47 +239,94 @@ export function PurchaseEntryForm({ onSuccess, onError }: Props) {
 
         setLoading(true);
         try {
-            const { data: purData, error: purError } = await supabase
-                .from("purchases")
-                .insert([
-                    {
+            if (initialPurchaseId) {
+                const { error: headerError } = await supabase
+                    .from("purchases")
+                    .update({
                         vendor_id: vendorId,
                         purchase_date: purchaseDate,
                         terms,
-                        status: "DRAFT",
                         notes: notes || null,
                         total_amount: totalAmount,
                         discount_amount: discountAmount || 0,
                         payment_method_code: terms === "CASH" ? paymentMethodCode : null,
-                    },
-                ])
-                .select()
-                .single();
+                    })
+                    .eq("id", initialPurchaseId)
+                    .eq("status", "DRAFT");
 
-            if (purError) throw purError;
-            const purId = purData.id;
+                if (headerError) throw headerError;
 
-            const lineData = lines.map((l) => ({
-                purchase_id: purId,
-                item_id: l.item_id,
-                qty: l.qty,
-                unit_cost: l.cost_price,
-                subtotal: l.subtotal,
-                uom_snapshot: l.uom,
-            }));
-            const { error: linesError } = await supabase
-                .from("purchase_items")
-                .insert(lineData);
-            if (linesError) throw linesError;
+                const { error: deleteError } = await supabase
+                    .from("purchase_items")
+                    .delete()
+                    .eq("purchase_id", initialPurchaseId);
 
-            setLines([]);
-            setVendorId("");
-            setTerms("CASH");
-            setPaymentMethodCode("CASH");
-            setNotes("");
-            setDiscountAmount(0);
-            onSuccess(`Draft Created! ID: ${purId}`);
-            navigate(`/purchases/${purId}`);
+                if (deleteError) throw deleteError;
+
+                const lineData = lines.map((l) => ({
+                    purchase_id: initialPurchaseId,
+                    item_id: l.item_id,
+                    qty: l.qty,
+                    unit_cost: l.cost_price,
+                    subtotal: l.subtotal,
+                    uom_snapshot: l.uom,
+                }));
+                const { error: linesError } = await supabase
+                    .from("purchase_items")
+                    .insert(lineData);
+                if (linesError) throw linesError;
+
+                onSuccess(`Draft Updated! ID: ${initialPurchaseId}`);
+                onSaved?.(initialPurchaseId);
+                if (redirectOnSave) {
+                    navigate(`/purchases/${initialPurchaseId}`);
+                }
+            } else {
+                const { data: purData, error: purError } = await supabase
+                    .from("purchases")
+                    .insert([
+                        {
+                            vendor_id: vendorId,
+                            purchase_date: purchaseDate,
+                            terms,
+                            status: "DRAFT",
+                            notes: notes || null,
+                            total_amount: totalAmount,
+                            discount_amount: discountAmount || 0,
+                            payment_method_code: terms === "CASH" ? paymentMethodCode : null,
+                        },
+                    ])
+                    .select()
+                    .single();
+
+                if (purError) throw purError;
+                const purId = purData.id;
+
+                const lineData = lines.map((l) => ({
+                    purchase_id: purId,
+                    item_id: l.item_id,
+                    qty: l.qty,
+                    unit_cost: l.cost_price,
+                    subtotal: l.subtotal,
+                    uom_snapshot: l.uom,
+                }));
+                const { error: linesError } = await supabase
+                    .from("purchase_items")
+                    .insert(lineData);
+                if (linesError) throw linesError;
+
+                setLines([]);
+                setVendorId("");
+                setTerms("CASH");
+                setPaymentMethodCode("CASH");
+                setNotes("");
+                setDiscountAmount(0);
+                onSuccess(`Draft Created! ID: ${purId}`);
+                onSaved?.(purId);
+                if (redirectOnSave) {
+                    navigate(`/purchases/${purId}`);
+                }
+            }
         } catch (err: unknown) {
             onError(getErrorMessage(err));
         } finally {
@@ -220,7 +339,7 @@ export function PurchaseEntryForm({ onSuccess, onError }: Props) {
             <Card className="shadow-md border-gray-200 h-full">
                 <CardHeader className="bg-gray-50 border-b border-gray-100 pb-4">
                     <CardTitle className="text-lg text-purple-800">
-                        New Purchase Order
+                        {initialPurchaseId ? "Edit Purchase (DRAFT)" : "New Purchase Order"}
                     </CardTitle>
                 </CardHeader>
                 <CardContent className="pt-6">

@@ -143,14 +143,26 @@ export default function SalesReturnHistory() {
                                             </TableCell>
                                             <TableCell><StatusBadge status={ret.status} /></TableCell>
                                             <TableCell>
-                                                <Button
-                                                    size="sm"
-                                                    variant="outline"
-                                                    onClick={() => navigate(`/sales-returns/${ret.id}`)}
-                                                    icon={<Icons.Eye className="w-4 h-4" />}
-                                                >
-                                                    View
-                                                </Button>
+                                                <div className="flex gap-2">
+                                                    {ret.status === 'DRAFT' && (
+                                                        <Button
+                                                            size="sm"
+                                                            variant="outline"
+                                                            onClick={() => navigate(`/sales-return?draft=${ret.id}`)}
+                                                            icon={<Icons.Edit className="w-4 h-4" />}
+                                                        >
+                                                            Edit
+                                                        </Button>
+                                                    )}
+                                                    <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                        onClick={() => navigate(`/sales-returns/${ret.id}`)}
+                                                        icon={<Icons.Eye className="w-4 h-4" />}
+                                                    >
+                                                        View
+                                                    </Button>
+                                                </div>
                                             </TableCell>
                                         </TableRow>
                                     ))}

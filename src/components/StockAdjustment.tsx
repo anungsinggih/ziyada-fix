@@ -12,6 +12,7 @@ import { usePagination } from '../hooks/usePagination'
 import { Pagination } from './ui/Pagination'
 import { PageHeader } from './ui/PageHeader'
 import { Section } from './ui/Section'
+import { getErrorMessage } from '../lib/errors'
 
 // --- TYPES ---
 type Item = { id: string; name: string; sku: string }
@@ -97,8 +98,7 @@ function StockAdjustmentForm({
                 setSuccess(null) // Clear success immediately if we are staying on generic form
             }
         } catch (err: unknown) {
-            if (err instanceof Error) setError(err.message)
-            else setError('Unknown error')
+            setError(getErrorMessage(err))
         } finally {
             setLoading(false)
         }
