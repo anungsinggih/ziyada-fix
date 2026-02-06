@@ -147,7 +147,8 @@ export function FinanceReceiptForm({
                 <Input
                     label="Amount Received"
                     type="number"
-                    value={amount}
+                    step="1"
+                    value={amount === 0 ? "" : amount}
                     max={isPettyCash ? Math.min(initialAmount, 500000) : initialAmount}
                     onChange={(e) => handleAmountChange(e.target.value)}
                 />

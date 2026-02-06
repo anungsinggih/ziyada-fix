@@ -5,6 +5,7 @@ import { Icons } from './ui/Icons'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/Dialog'
 import VendorList from './VendorList'
 import VendorForm, { type Vendor } from './VendorForm'
+import { getErrorMessage } from '../lib/errors'
 
 export default function Vendors() {
     const [vendors, setVendors] = useState<Vendor[]>([])
@@ -21,7 +22,7 @@ export default function Vendors() {
             .select('*')
             .order('name', { ascending: true })
 
-        if (error) setError(error.message)
+        if (error) setError(getErrorMessage(error))
         else setVendors(data as Vendor[] || [])
         setLoading(false)
     }

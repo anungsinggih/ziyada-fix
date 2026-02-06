@@ -123,7 +123,7 @@ export default function OpeningStock({ initialItemId, isEmbedded, onSuccess }: P
                     inputMode="numeric"
                     step="1"
                     placeholder="0"
-                    value={qty || ""}
+                    value={qty === 0 ? "" : qty}
                     onFocus={(e) => e.target.select()}
                     onChange={e => {
                         const val = e.target.value;

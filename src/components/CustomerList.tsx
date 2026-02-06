@@ -4,6 +4,7 @@ import { Button } from './ui/Button'
 import { Input } from './ui/Input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/Table'
 import { Badge } from './ui/Badge'
+import { CustomerBadge } from './ui/CustomerBadge'
 import { Icons } from './ui/Icons'
 import { type Customer } from './CustomerForm'
 
@@ -34,7 +35,7 @@ export default function CustomerList({ customers, loading, onEdit, onDelete, onP
                         value={searchTerm}
                         onChange={e => setSearchTerm(e.target.value)}
                         className="h-9 mb-0"
-                        containerClassName="mb-0"
+                        containerClassName="!mb-0"
                     />
                 </div>
             </CardHeader>
@@ -46,24 +47,18 @@ export default function CustomerList({ customers, loading, onEdit, onDelete, onP
                                 <TableHead>Name</TableHead>
                                 <TableHead>Phone</TableHead>
                                 <TableHead>Address</TableHead>
-                                <TableHead>Type</TableHead>
                                 <TableHead>Status</TableHead>
                                 <TableHead>Actions</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {loading ? <TableRow><TableCell colSpan={6} className="text-center">Loading...</TableCell></TableRow> : filteredCustomers.map(c => (
+                            {loading ? <TableRow><TableCell colSpan={5} className="text-center">Loading...</TableCell></TableRow> : filteredCustomers.map(c => (
                                 <TableRow key={c.id} className={!c.is_active ? 'bg-gray-100 opacity-60' : ''}>
-                                    <TableCell className="font-medium">{c.name}</TableCell>
+                                    <TableCell className="font-medium">
+                                        <CustomerBadge name={c.name} customerType={c.customer_type} />
+                                    </TableCell>
                                     <TableCell>{c.phone}</TableCell>
                                     <TableCell className="max-w-xs truncate">{c.address}</TableCell>
-                                    <TableCell>
-                                        <Badge
-                                            variant={c.customer_type === 'CUSTOM' ? 'warning' : c.customer_type === 'KHUSUS' ? 'secondary' : 'outline'}
-                                        >
-                                            {c.customer_type}
-                                        </Badge>
-                                    </TableCell>
                                     <TableCell>
                                         <Badge variant={c.is_active ? 'success' : 'secondary'}>
                                             {c.is_active ? 'Active' : 'Inactive'}
@@ -93,6 +88,6 @@ export default function CustomerList({ customers, loading, onEdit, onDelete, onP
                     </Table>
                 </div>
             </CardContent>
-        </Card>
+        </Card >
     )
 }

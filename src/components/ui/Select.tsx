@@ -244,7 +244,7 @@ export const Select = React.forwardRef<HTMLButtonElement, SelectProps>(({
                     {/* eslint-disable-next-line @typescript-eslint/ban-ts-comment */}
                     {/* @ts-ignore: Radix UI SelectContent doesn't expose onInteractOutside in types but accepts it */}
                     <SelectContent
-                        className={`relative z-50 max-w-[95vw] overflow-hidden rounded-xl border border-gray-100 bg-white/95 backdrop-blur-md shadow-xl animate-in fade-in-0 zoom-in-95 duration-200 ${contentClassName}`}
+                        className={`relative z-[200] max-w-[95vw] overflow-hidden rounded-xl border border-gray-100 bg-white/95 backdrop-blur-md shadow-xl animate-in fade-in-0 zoom-in-95 duration-200 ${contentClassName}`}
                         position="popper"
                         sideOffset={4}
                         align="start"

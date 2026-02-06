@@ -230,7 +230,7 @@ export default function StockCard({ itemId }: { itemId?: string | null }) {
                 </CardHeader>
                 <div className="flex-1 overflow-y-auto">
                     <Table>
-                        <TableHeader className="bg-white sticky top-0 z-10 shadow-sm">
+                        <TableHeader className="bg-white sticky top-0 z-30 shadow-sm">
                             <TableRow>
                                 <TableHead className="w-24 text-xs uppercase tracking-wider text-slate-500">Date</TableHead>
                                 {!itemId && <TableHead className="text-xs uppercase tracking-wider text-slate-500">Item</TableHead>}

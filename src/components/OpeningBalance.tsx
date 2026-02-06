@@ -7,6 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { Badge } from './ui/Badge'
 import { Icons } from './ui/Icons'
 import { PageHeader } from './ui/PageHeader'
+import { Alert } from './ui/Alert'
 import { Section } from './ui/Section'
 
 type Account = { id: string; code: string; name: string }
@@ -42,6 +43,7 @@ export default function OpeningBalance() {
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [success, setSuccess] = useState<string | null>(null)
+    const [confirmOpening, setConfirmOpening] = useState(false)
 
     useEffect(() => {
         fetchAccounts()
@@ -93,6 +95,7 @@ export default function OpeningBalance() {
         setSuccess(null)
         setLoading(true)
         setAsOfDate(date)
+        setConfirmOpening(false)
         try {
             const { data: lockedData, error: lockedError } = await supabase.rpc('is_date_in_closed_period', { d: date })
             if (lockedError) {
@@ -152,6 +155,7 @@ export default function OpeningBalance() {
         setSuccess(null)
 
         if (!asOfDate) { setError("Date is required"); return }
+        if (!confirmOpening) { setError("Konfirmasi bahwa ini khusus Opening Balance"); return }
         if (!isBalanced) { setError("Debits must equal Credits (T019)"); return }
         if (lines.some(l => !l.account_id)) { setError("All lines must have an account"); return }
 
@@ -188,20 +192,28 @@ export default function OpeningBalance() {
         <div className="w-full space-y-6 pb-20">
             <PageHeader
                 title="Opening Balance Setup"
-                description="Manage initial account balances."
+                description="Opening Balance hanya untuk saldo awal. Untuk jurnal operasional harian gunakan Jurnal Umum."
                 breadcrumbs={[{ label: "Dashboard", href: "/" }, { label: "Accounting" }]}
             />
 
-            {error && (
-                <div className="p-4 bg-red-50 text-red-700 border border-red-200 rounded-md flex items-center gap-2">
-                    <Icons.Warning className="w-5 h-5 flex-shrink-0" /> {error}
-                </div>
-            )}
-            {success && (
-                <div className="p-4 bg-green-50 text-green-700 border border-green-200 rounded-md flex items-center gap-2">
-                    <Icons.Check className="w-5 h-5 flex-shrink-0" /> {success}
-                </div>
-            )}
+            <Alert
+                variant="warning"
+                title="Penting"
+                description="Opening Balance hanya dipakai sekali untuk saldo awal periode. Untuk transaksi harian (gaji, biaya, dll) gunakan Jurnal Umum."
+            />
+
+            <div className="flex flex-wrap gap-2">
+                <Button
+                    variant="outline"
+                    onClick={() => (window.location.href = '/journals/manual')}
+                    icon={<Icons.Edit className="w-4 h-4" />}
+                >
+                    Ke Jurnal Umum
+                </Button>
+            </div>
+
+            {error && <Alert variant="error" title="Oops" description={error} />}
+            {success && <Alert variant="success" title="Sukses" description={success} />}
 
             <Section
                 title="Journal Entry"
@@ -256,8 +268,11 @@ export default function OpeningBalance() {
                                             <Input
                                                 type="number"
                                                 step="0.01"
-                                                value={line.debit}
-                                                onChange={e => updateLine(i, 'debit', parseFloat(e.target.value))}
+                                                value={line.debit === 0 ? "" : line.debit}
+                                                onChange={e => {
+                                                    const val = e.target.value
+                                                    updateLine(i, 'debit', val === "" ? 0 : parseFloat(val))
+                                                }}
                                                 containerClassName="!mb-0"
                                             />
                                         </TableCell>
@@ -265,8 +280,11 @@ export default function OpeningBalance() {
                                             <Input
                                                 type="number"
                                                 step="0.01"
-                                                value={line.credit}
-                                                onChange={e => updateLine(i, 'credit', parseFloat(e.target.value))}
+                                                value={line.credit === 0 ? "" : line.credit}
+                                                onChange={e => {
+                                                    const val = e.target.value
+                                                    updateLine(i, 'credit', val === "" ? 0 : parseFloat(val))
+                                                }}
                                                 containerClassName="!mb-0"
                                             />
                                         </TableCell>
@@ -311,7 +329,7 @@ export default function OpeningBalance() {
                                 <Button
                                     className="bg-blue-600 hover:bg-blue-700 min-w-[140px]"
                                     onClick={handleSave}
-                                    disabled={loading || !isBalanced}
+                                    disabled={loading || !isBalanced || !confirmOpening}
                                     isLoading={loading}
                                     icon={<Icons.Save className="w-4 h-4" />}
                                 >
@@ -319,6 +337,18 @@ export default function OpeningBalance() {
                                 </Button>
                             </div>
                         </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 text-sm text-gray-600">
+                        <input
+                            id="confirm-opening"
+                            type="checkbox"
+                            checked={confirmOpening}
+                            onChange={(e) => setConfirmOpening(e.target.checked)}
+                        />
+                        <label htmlFor="confirm-opening">
+                            Saya paham ini khusus Opening Balance (bukan jurnal operasional).
+                        </label>
                     </div>
                 </div>
             </Section>

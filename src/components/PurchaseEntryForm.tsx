@@ -266,8 +266,9 @@ export function PurchaseEntryForm({ onSuccess, onError }: Props) {
                                 type="number"
                                 inputMode="decimal"
                                 min="0"
+                                step="1"
                                 placeholder="0"
-                                value={discountAmount || ""}
+                                value={discountAmount === 0 ? "" : discountAmount}
                                 onFocus={(e) => e.target.select()}
                                 onChange={(e) => setDiscountAmount(Number(e.target.value))}
                             />
@@ -327,7 +328,8 @@ export function PurchaseEntryForm({ onSuccess, onError }: Props) {
                                             label="Cost Price"
                                             type="number"
                                             inputMode="decimal"
-                                            value={costPrice || ""}
+                                            step="1"
+                                            value={costPrice === 0 ? "" : costPrice}
                                             placeholder="0"
                                             min={0}
                                             onFocus={(e) => e.target.select()}

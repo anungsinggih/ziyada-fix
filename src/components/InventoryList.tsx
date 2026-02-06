@@ -110,7 +110,7 @@ export function InventoryList({ selectedId, onSelect, onAdjust, refreshTrigger }
 
                 <div className="flex-1 overflow-y-auto min-h-0">
                     <Table>
-                        <TableHeader className="bg-white sticky top-0 z-10 shadow-sm">
+                        <TableHeader className="bg-white sticky top-0 z-30 shadow-sm">
                             <TableRow>
                                 <TableHead>Item</TableHead>
                                 <TableHead className="w-20 text-center">Size</TableHead>

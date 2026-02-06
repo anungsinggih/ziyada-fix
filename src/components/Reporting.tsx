@@ -7,6 +7,7 @@ import { Select } from './ui/Select'
 import { Icons } from './ui/Icons'
 import { PageHeader } from './ui/PageHeader'
 import { Section } from './ui/Section'
+import { getErrorMessage } from '../lib/errors'
 
 type AccountBalance = {
     id: string
@@ -100,8 +101,7 @@ export default function Reporting() {
                 setData(data || [])
             }
         } catch (err: unknown) {
-            const msg = err instanceof Error ? err.message : 'Unknown error'
-            setError(msg)
+            setError(getErrorMessage(err))
         } finally {
             setLoading(false)
         }

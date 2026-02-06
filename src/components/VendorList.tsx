@@ -33,7 +33,7 @@ export default function VendorList({ vendors, loading, onEdit, onDelete }: Vendo
                         value={searchTerm}
                         onChange={e => setSearchTerm(e.target.value)}
                         className="h-9 mb-0"
-                        containerClassName="mb-0"
+                        containerClassName="!mb-0"
                     />
                 </div>
             </CardHeader>

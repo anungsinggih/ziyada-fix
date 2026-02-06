@@ -13,6 +13,7 @@ import { Pagination } from './ui/Pagination'
 import { PageHeader } from './ui/PageHeader'
 import { Section } from './ui/Section'
 import { ResponsiveTable } from './ui/ResponsiveTable'
+import { getErrorMessage } from '../lib/errors'
 
 type Item = {
     id: string
@@ -88,7 +89,7 @@ export default function Items() {
             setItems(data || [])
             setTotalCount(count || 0)
         } catch (err: unknown) {
-            if (err instanceof Error) setError(err.message)
+            setError(getErrorMessage(err))
         } finally {
             setLoading(false)
         }

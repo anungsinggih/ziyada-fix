@@ -6,7 +6,9 @@ import { Input } from "./ui/Input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/Table";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/Card";
 import { Icons } from "./ui/Icons";
+import { CustomerBadge } from "./ui/CustomerBadge";
 import { formatCurrency } from "../lib/format";
+import { getErrorMessage } from "../lib/errors";
 
 type ItemRow = {
   id: string;
@@ -19,6 +21,7 @@ export default function CustomerPricePage() {
   const { id: customerId } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [customerName, setCustomerName] = useState<string>("");
+  const [customerType, setCustomerType] = useState<string>("UMUM");
   const [items, setItems] = useState<ItemRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -67,14 +70,15 @@ export default function CustomerPricePage() {
     if (!customerId) return;
     const { data, error } = await supabase
       .from("customers")
-      .select("name")
+      .select("name, customer_type")
       .eq("id", customerId)
       .single();
     if (error) {
-      setError(error.message);
+      setError(getErrorMessage(error));
       return;
     }
     setCustomerName(data?.name ?? "");
+    setCustomerType(data?.customer_type ?? "UMUM");
   }, [customerId]);
 
   const fetchItems = useCallback(async () => {
@@ -131,7 +135,7 @@ export default function CustomerPricePage() {
       setEditedPrices(edited);
       setSelectedIds(new Set());
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to load items");
+      setError(getErrorMessage(err, "Failed to load items"));
     } finally {
       setLoading(false);
     }
@@ -183,7 +187,7 @@ export default function CustomerPricePage() {
 
       fetchItems();
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to save prices");
+      setError(getErrorMessage(err, "Failed to save prices"));
     } finally {
       setSaving(false);
     }
@@ -232,9 +236,9 @@ export default function CustomerPricePage() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-2xl font-bold tracking-tight">Harga Khusus</h2>
-          <p className="text-sm text-slate-500 mt-1">
-            {customerName ? `Customer: ${customerName}` : "Customer"}
-          </p>
+          <div className="mt-1">
+            <CustomerBadge name={customerName || "Customer"} customerType={customerType} />
+          </div>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           <Button variant="outline" onClick={() => navigate("/customers")}>
@@ -283,6 +287,7 @@ export default function CustomerPricePage() {
                   placeholder="Set custom price for selected items"
                   value={bulkValue}
                   onChange={(e) => setBulkValue(e.target.value)}
+                  containerClassName="!mb-0"
                 />
               </div>
               <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:justify-end">

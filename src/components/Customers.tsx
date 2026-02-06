@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/Dialog'
 import CustomerForm, { type Customer } from './CustomerForm'
 import CustomerList from './CustomerList'
 import { useNavigate } from 'react-router-dom'
+import { getErrorMessage } from '../lib/errors'
 
 export default function Customers() {
     const navigate = useNavigate()
@@ -23,7 +24,7 @@ export default function Customers() {
             .select('*')
             .order('name', { ascending: true })
 
-        if (error) setError(error.message)
+        if (error) setError(getErrorMessage(error))
         else setCustomers(data as Customer[] || [])
         setLoading(false)
     }

@@ -12,10 +12,12 @@ import {
 } from "./ui/Table";
 import { Button } from "./ui/Button";
 import { Badge } from "./ui/Badge";
+import { CustomerBadge } from "./ui/CustomerBadge";
 import { Alert } from "./ui/Alert";
 import { Icons } from "./ui/Icons";
 import RelatedDocumentsCard, { type RelatedDocumentItem } from "./shared/RelatedDocumentsCard";
 import { SalesInvoicePrint } from "./print/SalesInvoicePrint";
+import { getErrorMessage } from "../lib/errors";
 import { toPng } from "html-to-image";
 
 type SalesDetail = {
@@ -24,6 +26,7 @@ type SalesDetail = {
   sales_no: string | null;
   customer_id: string;
   customer_name: string;
+  customer_type: string;
   terms: "CASH" | "CREDIT";
   payment_method_code?: string | null;
   total_amount: number;
@@ -128,7 +131,8 @@ export default function SalesDetail() {
                     notes,
                     created_at,
                     customers (
-                        name
+                        name,
+                        customer_type
                     )
                 `,
         )
@@ -140,6 +144,7 @@ export default function SalesDetail() {
       setSale({
         ...saleData,
         customer_name: (saleData.customers as unknown as { name: string })?.name || "Unknown",
+        customer_type: (saleData.customers as unknown as { customer_type: string })?.customer_type || "UMUM",
       });
 
       // payment method label not needed in print layout
@@ -232,7 +237,7 @@ export default function SalesDetail() {
         setRelatedDocs(related);
       }
     } catch (err: unknown) {
-      if (err instanceof Error) setError(err.message || "Failed to fetch sales detail");
+      setError(getErrorMessage(err, "Failed to fetch sales detail"));
     } finally {
       setLoading(false);
     }
@@ -547,7 +552,9 @@ export default function SalesDetail() {
             </div>
             <div>
               <p className="text-gray-600">Customer</p>
-              <p className="font-medium">{sale.customer_name}</p>
+              <div className="font-medium mt-1">
+                <CustomerBadge name={sale.customer_name} customerType={sale.customer_type} />
+              </div>
             </div>
             <div>
               <p className="text-gray-600">Terms</p>

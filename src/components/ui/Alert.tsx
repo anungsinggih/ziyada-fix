@@ -39,13 +39,25 @@ const variantMap: Record<AlertVariant, { bg: string; text: string; border: strin
 
 export function Alert({ title, description, variant = 'info', className = '' }: AlertProps) {
   const selected = variantMap[variant]
+  const renderDescription = () => {
+    if (description == null) return null
+    if (typeof description === 'string' || typeof description === 'number') {
+      return String(description)
+    }
+    if (React.isValidElement(description)) return description
+    try {
+      return JSON.stringify(description)
+    } catch {
+      return String(description)
+    }
+  }
 
   return (
     <div className={`rounded-lg px-4 py-3 flex items-start gap-3 ${selected.bg} ${selected.text} ${selected.border} ${className}`}>
       <span className="shrink-0 mt-0.5">{selected.icon}</span>
       <div className="flex-1 space-y-1">
         {title && <p className="text-sm font-semibold">{title}</p>}
-        {description && <p className="text-sm leading-relaxed text-current/90">{description}</p>}
+        {description && <p className="text-sm leading-relaxed text-current/90">{renderDescription()}</p>}
       </div>
     </div>
   )

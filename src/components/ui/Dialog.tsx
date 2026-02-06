@@ -35,8 +35,8 @@ export function DialogHeader({ children, className = '' }: { children: React.Rea
     return <div className={`px-6 py-5 border-b border-sidebar-border/10 ${className}`}>{children}</div>
 }
 
-export function DialogTitle({ children }: { children: React.ReactNode }) {
-    return <h3 className="text-lg font-bold text-gray-900 leading-6">{children}</h3>
+export function DialogTitle({ children, className = '' }: { children: React.ReactNode, className?: string }) {
+    return <h3 className={`text-lg font-bold text-gray-900 leading-6 ${className}`}>{children}</h3>
 }
 
 export function DialogContent({ children, className = '' }: { children: React.ReactNode, className?: string }) {

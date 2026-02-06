@@ -9,6 +9,7 @@ import { formatCurrency, formatDate, safeDocNo } from "../lib/format";
 import DocumentHeaderCard from "./shared/DocumentHeaderCard";
 import LineItemsTable from "./shared/LineItemsTable";
 import RelatedDocumentsCard, { type RelatedDocumentItem } from "./shared/RelatedDocumentsCard";
+import { getErrorMessage } from "../lib/errors";
 import { PurchaseInvoicePrint } from "./print/PurchaseInvoicePrint";
 import { toPng } from "html-to-image";
 
@@ -228,7 +229,7 @@ export default function PurchaseDetail() {
         setRelatedDocs(related);
       }
     } catch (err: unknown) {
-      if (err instanceof Error) setError(err.message || "Failed to fetch purchase detail");
+      setError(getErrorMessage(err, "Failed to fetch purchase detail"));
     } finally {
       setLoading(false);
     }

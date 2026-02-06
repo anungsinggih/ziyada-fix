@@ -7,6 +7,7 @@ import { Switch } from './ui/Switch'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/Table'
 import { Badge } from './ui/Badge'
 import { Icons } from './ui/Icons'
+import { getErrorMessage } from '../lib/errors'
 
 type Account = {
     id: string
@@ -37,7 +38,7 @@ export default function COA() {
             .select('*')
             .order('code', { ascending: true })
 
-        if (error) setError(error.message)
+        if (error) setError(getErrorMessage(error))
         else setAccounts(data || [])
         setLoading(false)
     }
@@ -63,8 +64,7 @@ export default function COA() {
             resetForm()
             fetchAccounts()
         } catch (err: unknown) {
-            if (err instanceof Error) setError(err.message)
-            else setError('An unknown error occurred')
+            setError(getErrorMessage(err))
         }
     }
 

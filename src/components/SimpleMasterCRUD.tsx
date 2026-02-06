@@ -8,6 +8,7 @@ import { Icons } from './ui/Icons'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/Dialog'
 import { Checkbox } from './ui/Checkbox'
 import { getSizeSortOrder } from '../lib/constants'
+import { getErrorMessage } from '../lib/errors'
 
 type MasterItem = {
     id: string
@@ -39,7 +40,7 @@ export function SimpleMasterCRUD({ table, title, hasCode }: SimpleCRUDProps) {
     const fetchItems = useCallback(async () => {
         setLoading(true)
         const { data, error } = await supabase.from(table).select('*').order('name', { ascending: true })
-        if (error) setError(error.message)
+        if (error) setError(getErrorMessage(error))
         else {
             let normalized = data || []
             if (table === 'sizes') {
@@ -71,8 +72,7 @@ export function SimpleMasterCRUD({ table, title, hasCode }: SimpleCRUDProps) {
             }
             handleSuccess()
         } catch (err: unknown) {
-            if (err instanceof Error) setError(err.message)
-            else setError('An unknown error occurred')
+            setError(getErrorMessage(err, 'An unknown error occurred'))
         }
     }
 
@@ -121,7 +121,7 @@ export function SimpleMasterCRUD({ table, title, hasCode }: SimpleCRUDProps) {
                         value={searchTerm}
                         onChange={e => setSearchTerm(e.target.value)}
                         className="h-8 text-xs mb-0"
-                        containerClassName="mb-0"
+                        containerClassName="!mb-0"
                     />
                 </div>
             </CardHeader>

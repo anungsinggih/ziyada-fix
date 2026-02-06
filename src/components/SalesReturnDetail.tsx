@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../supabaseClient'
+import { getErrorMessage } from "../lib/errors";
 import { useNavigate, useParams } from 'react-router-dom'
 import { Button } from './ui/Button'
 import { Icons } from './ui/Icons'
@@ -105,7 +106,7 @@ export default function SalesReturnDetail() {
                 sku: (item.items as unknown as { sku: string })?.sku || ''
             })) || [])
         } catch (err: unknown) {
-            if (err instanceof Error) setError(err.message || 'Failed to fetch return detail')
+            setError(getErrorMessage(err, 'Failed to fetch return detail'))
         } finally {
             setLoading(false)
         }

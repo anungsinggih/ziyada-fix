@@ -12,6 +12,7 @@ import {
   TableRow,
 } from "./ui/Table";
 import { Alert } from "./ui/Alert";
+import { getErrorMessage } from "../lib/errors";
 import { StatusBadge } from "./ui/StatusBadge";
 
 type Period = {
@@ -28,6 +29,117 @@ type ExportLog = {
   report_type: string;
   exported_at: string | null;
   notes: string;
+};
+
+type AccountBalance = {
+  id: string;
+  code: string;
+  name: string;
+  opening_balance: number;
+  debit_movement: number;
+  credit_movement: number;
+  closing_balance: number;
+};
+
+type GLLine = {
+  journal_date: string;
+  ref_type: string | null;
+  ref_no: string | null;
+  memo: string | null;
+  account_code: string | null;
+  account_name: string | null;
+  debit: number | null;
+  credit: number | null;
+};
+
+type JournalLineRow = {
+  debit: number | null;
+  credit: number | null;
+  account:
+    | { code: string | null; name: string | null }
+    | { code: string | null; name: string | null }[]
+    | null;
+  journal:
+    | {
+        journal_date: string | null;
+        ref_type: string | null;
+        ref_id: string | null;
+        memo: string | null;
+      }
+    | {
+        journal_date: string | null;
+        ref_type: string | null;
+        ref_id: string | null;
+        memo: string | null;
+      }[]
+    | null;
+};
+
+type PeriodInfo = {
+  id: string;
+  name: string;
+  start_date: string;
+  end_date: string;
+};
+
+const toCsv = <T extends Record<string, string | number | null>>(rows: T[]) => {
+  const headers = rows.length ? Object.keys(rows[0]) : [];
+  const escape = (value: string | number | null) => {
+    if (value === null || value === undefined) return "";
+    const str = String(value);
+    if (/[",\n]/.test(str)) return `"${str.replace(/"/g, '""')}"`;
+    return str;
+  };
+  const lines = [
+    headers.join(","),
+    ...rows.map((row) => headers.map((key) => escape(row[key])).join(",")),
+  ];
+  return lines.join("\n");
+};
+
+const downloadCsv = (filename: string, csv: string) => {
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+};
+
+const openPdfPrintWindow = (title: string, period: PeriodInfo, bodyHtml: string) => {
+  const win = window.open("", "_blank");
+  if (!win) return;
+  const css = `
+    @page { size: A4; margin: 16mm; }
+    body { font-family: "Inter", Arial, sans-serif; color: #0f172a; }
+    h1 { font-size: 18px; margin: 0 0 6px; }
+    .meta { font-size: 12px; color: #475569; margin-bottom: 16px; display: flex; justify-content: space-between; }
+    table { width: 100%; border-collapse: collapse; font-size: 11px; }
+    th, td { padding: 6px 8px; border-bottom: 1px solid #e2e8f0; }
+    th { text-align: left; background: #f8fafc; font-weight: 600; }
+    .num { text-align: right; font-variant-numeric: tabular-nums; }
+    .section { margin-top: 16px; }
+  `;
+  win.document.write(`
+    <html>
+      <head>
+        <title>${title}</title>
+        <style>${css}</style>
+      </head>
+      <body>
+        <h1>${title}</h1>
+        <div class="meta">
+          <div>Period: ${period.start_date} – ${period.end_date}</div>
+          <div>${period.name}</div>
+        </div>
+        ${bodyHtml}
+      </body>
+    </html>
+  `);
+  win.document.close();
+  win.focus();
+  setTimeout(() => win.print(), 300);
 };
 
 export default function PeriodLock() {
@@ -120,25 +232,176 @@ export default function PeriodLock() {
     else setLogs(data || []);
   }, []);
 
-  async function handleExport(type: string) {
-    if (!selectedPeriodId) return;
-    // Mock Export: Insert Log
-    const { error } = await supabase.rpc("rpc_export_period_reports", {
-      p_period_id: selectedPeriodId,
-      p_report_type: type,
-      p_notes: "Manual Export via UI",
-    });
+  const fetchPeriodInfo = useCallback(async () => {
+    if (!selectedPeriodId) return null;
+    const { data, error } = await supabase
+      .from("accounting_periods")
+      .select("id,name,start_date,end_date")
+      .eq("id", selectedPeriodId)
+      .single();
+    if (error) {
+      setError(error.message);
+      return null;
+    }
+    return data as PeriodInfo;
+  }, [selectedPeriodId]);
 
-    if (error) setError(error.message);
-    else {
-      alert(`Export ${type} generated (Simulated Download)`);
+  async function handleExport(type: string, format: "CSV" | "PDF" = "CSV") {
+    if (!selectedPeriodId) return;
+    setError(null);
+    const periodInfo = await fetchPeriodInfo();
+    if (!periodInfo) return;
+
+    const baseName = `${type}_${periodInfo.name}_${periodInfo.start_date}_${periodInfo.end_date}`;
+    try {
+      if (type === "TB" || type === "PL") {
+        const { data, error } = await supabase.rpc("rpc_get_account_balances", {
+          p_start_date: periodInfo.start_date,
+          p_end_date: periodInfo.end_date,
+        });
+        if (error) throw error;
+        const balances = (data || []) as AccountBalance[];
+
+        const tbRows = balances.map((row) => ({
+          code: row.code,
+          name: row.name,
+          opening_balance: row.opening_balance,
+          debit_movement: row.debit_movement,
+          credit_movement: row.credit_movement,
+          closing_balance: row.closing_balance,
+        }));
+
+        const plRows = balances
+          .filter((row) =>
+            ["4", "5", "6", "7", "8", "9"].some((prefix) =>
+              row.code?.startsWith(prefix)
+            )
+          )
+          .map((row) => ({
+            code: row.code,
+            name: row.name,
+            closing_balance: row.closing_balance,
+          }));
+
+        const rows = type === "TB" ? tbRows : plRows;
+
+        if (format === "CSV") {
+          const csv = toCsv(rows);
+          downloadCsv(`${baseName}.csv`, csv);
+        } else {
+          if (type === "TB") {
+            const header =
+              "<tr><th>Code</th><th>Name</th><th class='num'>Opening</th><th class='num'>Debit</th><th class='num'>Credit</th><th class='num'>Closing</th></tr>";
+            const body = tbRows
+              .map(
+                (row) => `<tr>
+                  <td>${row.code}</td>
+                  <td>${row.name}</td>
+                  <td class="num">${row.opening_balance}</td>
+                  <td class="num">${row.debit_movement}</td>
+                  <td class="num">${row.credit_movement}</td>
+                  <td class="num">${row.closing_balance}</td>
+                </tr>`
+              )
+              .join("");
+            openPdfPrintWindow(
+              "Trial Balance",
+              periodInfo,
+              `<table>${header}${body}</table>`
+            );
+          } else {
+            const header =
+              "<tr><th>Code</th><th>Name</th><th class='num'>Amount</th></tr>";
+            const body = plRows
+              .map(
+                (row) => `<tr>
+                <td>${row.code}</td>
+                <td>${row.name}</td>
+                <td class="num">${row.closing_balance}</td>
+              </tr>`
+              )
+              .join("");
+            openPdfPrintWindow(
+              "Profit & Loss",
+              periodInfo,
+              `<table>${header}${body}</table>`
+            );
+          }
+        }
+      } else if (type === "GL") {
+        const { data, error } = await supabase
+          .from("journal_lines")
+          .select(
+            "debit,credit,account:accounts(code,name),journal:journals(journal_date,ref_type,ref_id,memo)"
+          )
+          .gte("journal.journal_date", periodInfo.start_date)
+          .lte("journal.journal_date", periodInfo.end_date)
+          .order("journal_date", { foreignTable: "journals", ascending: true });
+        if (error) throw error;
+
+        const rows = (data || []).map((row: JournalLineRow) => {
+          const journal = Array.isArray(row.journal)
+            ? row.journal[0]
+            : row.journal;
+          const account = Array.isArray(row.account)
+            ? row.account[0]
+            : row.account;
+          return {
+            journal_date: journal?.journal_date || "",
+            ref_type: journal?.ref_type || "",
+            ref_no: journal?.ref_id || "",
+            memo: journal?.memo || "",
+            account_code: account?.code || "",
+            account_name: account?.name || "",
+            debit: row.debit ?? 0,
+            credit: row.credit ?? 0,
+          };
+        }) as GLLine[];
+
+        if (format === "CSV") {
+          const csv = toCsv(rows);
+          downloadCsv(`${baseName}.csv`, csv);
+        } else {
+          const header =
+            "<tr><th>Date</th><th>Ref Type</th><th>Ref ID</th><th>Memo</th><th>Account</th><th class='num'>Debit</th><th class='num'>Credit</th></tr>";
+          const body = rows
+            .map(
+              (row) => `<tr>
+                <td>${row.journal_date || ""}</td>
+                <td>${row.ref_type || ""}</td>
+                <td>${row.ref_no || ""}</td>
+                <td>${row.memo || ""}</td>
+                <td>${row.account_code || ""} ${row.account_name || ""}</td>
+                <td class="num">${row.debit ?? 0}</td>
+                <td class="num">${row.credit ?? 0}</td>
+              </tr>`
+            )
+            .join("");
+          openPdfPrintWindow(
+            "General Ledger",
+            periodInfo,
+            `<table>${header}${body}</table>`
+          );
+        }
+      }
+
+      const { error: logError } = await supabase.rpc(
+        "rpc_export_period_reports",
+        {
+          p_period_id: selectedPeriodId,
+          p_report_type: `${type}_${format}`,
+          p_notes: "Manual Export via UI",
+        }
+      );
+      if (logError) setError(logError.message);
       fetchLogs(selectedPeriodId);
+    } catch (err: unknown) {
+      setError(getErrorMessage(err));
     }
   }
 
   // Use effects at the end of definitions
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchPeriods();
   }, [fetchPeriods]);
 
@@ -258,22 +521,40 @@ export default function PeriodLock() {
           <CardContent className="pt-6">
             <div className="flex flex-wrap gap-4 mb-6">
               <Button
-                onClick={() => handleExport("GL")}
+                onClick={() => handleExport("GL", "CSV")}
                 className="bg-indigo-600 hover:bg-indigo-700 text-white"
               >
-                Export GL
+                Export GL (CSV)
               </Button>
               <Button
-                onClick={() => handleExport("TB")}
+                onClick={() => handleExport("TB", "CSV")}
                 className="bg-indigo-600 hover:bg-indigo-700 text-white"
               >
-                Export Trial Balance
+                Export Trial Balance (CSV)
               </Button>
               <Button
-                onClick={() => handleExport("PL")}
+                onClick={() => handleExport("PL", "CSV")}
                 className="bg-indigo-600 hover:bg-indigo-700 text-white"
               >
-                Export P&L
+                Export P&L (CSV)
+              </Button>
+              <Button
+                onClick={() => handleExport("GL", "PDF")}
+                variant="outline"
+              >
+                Export GL (PDF)
+              </Button>
+              <Button
+                onClick={() => handleExport("TB", "PDF")}
+                variant="outline"
+              >
+                Export Trial Balance (PDF)
+              </Button>
+              <Button
+                onClick={() => handleExport("PL", "PDF")}
+                variant="outline"
+              >
+                Export P&L (PDF)
               </Button>
             </div>
 

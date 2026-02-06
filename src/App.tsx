@@ -36,6 +36,7 @@ const Reporting = lazy(() => import('./components/Reporting'))
 const PeriodLock = lazy(() => import('./components/PeriodLock'))
 const DevResetData = lazy(() => import('./components/DevResetData'))
 const Journals = lazy(() => import('./components/Journals'))
+const ManualJournal = lazy(() => import('./components/ManualJournal'))
 const Dashboard = lazy(() => import('./components/Dashboard'))
 const CompanySettings = lazy(() => import('./components/CompanySettings'))
 const Attributes = lazy(() => import('./components/Attributes'))
@@ -205,7 +206,7 @@ function App() {
         {/* Mobile menu backdrop */}
         {mobileMenuOpen && (
           <div
-            className="fixed inset-0 bg-black bg-opacity-50 z-40 md:hidden"
+            className="fixed inset-0 bg-black bg-opacity-50 z-50 md:hidden"
             onClick={() => setMobileMenuOpen(false)}
           />
         )}
@@ -254,33 +255,33 @@ function App() {
               {/* Transactions Group */}
               <SidebarGroup title="Sales" defaultOpen={true}>
                 <ul className="space-y-1 px-2">
-                  <li><SidebarLink to="/sales/history" icon={Icons.FileText}>Sales History</SidebarLink></li>
-                  <li><SidebarLink to="/sales-returns/history" icon={Icons.FileText}>Sales Return History</SidebarLink></li>
+                  <li><SidebarLink to="/sales/history" icon={Icons.FileText}>Sales</SidebarLink></li>
+                  <li><SidebarLink to="/sales-returns/history" icon={Icons.FileText}>Sales Return</SidebarLink></li>
                 </ul>
               </SidebarGroup>
 
               <SidebarGroup title="Purchases">
                 <ul className="space-y-1 px-2">
-                  <li><SidebarLink to="/purchases/history" icon={Icons.FileText}>Purchase History</SidebarLink></li>
-                  <li><SidebarLink to="/purchase-returns/history" icon={Icons.FileText}>Purchase Return History</SidebarLink></li>
+                  <li><SidebarLink to="/purchases/history" icon={Icons.FileText}>Purchase</SidebarLink></li>
+                  <li><SidebarLink to="/purchase-returns/history" icon={Icons.FileText}>Purchase Return</SidebarLink></li>
                 </ul>
               </SidebarGroup>
 
               <SidebarGroup title="Inventory">
                 <ul className="space-y-1 px-2">
                   <li><SidebarLink to="/inventory" icon={Icons.Chart}>Overview</SidebarLink></li>
-                  <li><SidebarLink to="/stock-adj" icon={Icons.Edit}>Stock Adj (History)</SidebarLink></li>
+                  <li><SidebarLink to="/stock-adj" icon={Icons.Edit}>Stock Adjustment</SidebarLink></li>
                 </ul>
               </SidebarGroup>
 
               {/* Master Data */}
               <SidebarGroup title="Master Data">
                 <ul className="space-y-1 px-2">
-                  <li><SidebarLink to="/items" icon={Icons.Package}>Items</SidebarLink></li>
+                  <li><SidebarLink to="/items" icon={Icons.Package}>Products</SidebarLink></li>
                   <li><SidebarLink to="/attributes" icon={Icons.Settings}>Attributes & Groups</SidebarLink></li>
                   <li><SidebarLink to="/brands-categories" icon={Icons.Tag}>Brands & Categories</SidebarLink></li>
                   <li><SidebarLink to="/customers" icon={Icons.Users}>Customers</SidebarLink></li>
-                  <li><SidebarLink to="/vendors" icon={Icons.Users}>Vendors</SidebarLink></li>
+                  <li><SidebarLink to="/vendors" icon={Icons.Users}>Suppliers</SidebarLink></li>
                 </ul>
               </SidebarGroup>
 
@@ -291,8 +292,8 @@ function App() {
                     <li><SidebarLink to="/coa" icon={Icons.FileText}>COA</SidebarLink></li>
                     <li><SidebarLink to="/opening-balance" icon={Icons.DollarSign}>Opening Balance</SidebarLink></li>
                     <li><SidebarLink to="/journals" icon={Icons.FileText}>Journals</SidebarLink></li>
-                    <li><SidebarLink to="/reports" icon={Icons.Chart}>Reports</SidebarLink></li>
-                    <li><SidebarLink to="/period-lock" icon={Icons.Info}>Period Lock</SidebarLink></li>
+                    <li><SidebarLink to="/reports" icon={Icons.Chart}>Finance Reports</SidebarLink></li>
+                    <li><SidebarLink to="/period-lock" icon={Icons.Info}>Period Management</SidebarLink></li>
                   </ul>
                 </SidebarGroup>
               )}
@@ -397,6 +398,7 @@ function App() {
                 <Route path="/opening-stock" element={<OpeningStock />} />
                 <Route path="/stock-card" element={<StockCard />} />
                 <Route path="/journals" element={canAccessFinance ? <Journals /> : <NotAuthorized />} />
+                <Route path="/journals/manual" element={canAccessFinance ? <ManualJournal /> : <NotAuthorized />} />
                 <Route path="/reports" element={canAccessFinance ? <Reporting /> : <NotAuthorized />} />
                 <Route path="/period-lock" element={canAccessFinance ? <PeriodLock /> : <NotAuthorized />} />
                 <Route path="/period-reports" element={canAccessFinance ? <Reporting /> : <NotAuthorized />} />

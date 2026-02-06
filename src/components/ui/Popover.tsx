@@ -18,7 +18,7 @@ export function Popover({ trigger, children, className = '' }: PopoverProps) {
             {isOpen && (
                 <>
                     <div
-                        className="fixed inset-0 z-10"
+                        className="fixed inset-0 z-[200]"
                         onClick={() => setIsOpen(false)}
                     />
                     <div className={`absolute z-20 mt-2 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none animate-in fade-in slide-in-from-top-1 duration-200 ${className}`}>

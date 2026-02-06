@@ -220,7 +220,8 @@ export function SalesReturnForm({ onSuccess, onError }: Props) {
                                             <Input
                                                 id={row._inputId}
                                                 type="number"
-                                                defaultValue={0}
+                                                defaultValue=""
+                                                placeholder="0"
                                                 min={0}
                                                 max={row.qty}
                                                 className="w-24 h-8"
@@ -234,7 +235,8 @@ export function SalesReturnForm({ onSuccess, onError }: Props) {
                                                 size="sm"
                                                 variant="outline"
                                                 onClick={() => {
-                                                    const val = parseFloat((document.getElementById(row._inputId) as HTMLInputElement).value)
+                                                    const raw = (document.getElementById(row._inputId) as HTMLInputElement).value
+                                                    const val = raw === "" ? 0 : parseFloat(raw)
                                                     handleAddItem(row, val)
                                                 }}
                                             >

@@ -123,7 +123,8 @@ export function FinancePaymentForm({
                 <Input
                     label="Amount Paid"
                     type="number"
-                    value={amount}
+                    step="1"
+                    value={amount === 0 ? "" : amount}
                     max={initialAmount}
                     onChange={(e) => handleAmountChange(e.target.value)}
                 />

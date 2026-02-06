@@ -5,6 +5,7 @@ import { Button } from './ui/Button'
 import { Input } from './ui/Input'
 import { Checkbox } from './ui/Checkbox'
 import { Icons } from './ui/Icons'
+import { getErrorMessage } from '../lib/errors'
 
 interface QuickMasterDialogProps {
     table: string
@@ -39,8 +40,7 @@ export function QuickMasterDialog({ table, title, isOpen, onClose, onSuccess, ha
             onSuccess(data.id)
             handleClose()
         } catch (err: unknown) {
-            if (err instanceof Error) setError(err.message)
-            else setError('Unknown error occurred')
+            setError(getErrorMessage(err, 'Unknown error occurred'))
         } finally {
             setLoading(false)
         }

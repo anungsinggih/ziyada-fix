@@ -240,13 +240,48 @@ export default function ItemForm({ existingItem, onSuccess, onCancel }: ItemForm
                 </div>
 
                 <div className="grid grid-cols-2 gap-3 pt-2">
-                    <Input label="Harga Umum" type="number" step="0.01" value={formData.price_default} onChange={e => setFormData({ ...formData, price_default: parseFloat(e.target.value) })} />
-                    <Input label="Harga Khusus" type="number" step="0.01" value={formData.price_khusus} onChange={e => setFormData({ ...formData, price_khusus: parseFloat(e.target.value) })} />
+                    <Input
+                        label="Harga Umum"
+                        type="number"
+                        step="0.01"
+                        value={formData.price_default === 0 ? "" : formData.price_default}
+                        onChange={e => {
+                            const val = e.target.value
+                            setFormData({ ...formData, price_default: val === "" ? 0 : parseFloat(val) })
+                        }}
+                    />
+                    <Input
+                        label="Harga Khusus"
+                        type="number"
+                        step="0.01"
+                        value={formData.price_khusus === 0 ? "" : formData.price_khusus}
+                        onChange={e => {
+                            const val = e.target.value
+                            setFormData({ ...formData, price_khusus: val === "" ? 0 : parseFloat(val) })
+                        }}
+                    />
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
-                    <Input label="Buy Price (Cost)" type="number" step="0.01" value={formData.default_price_buy} onChange={e => setFormData({ ...formData, default_price_buy: parseFloat(e.target.value) })} />
-                    <Input label="Min Stock" type="number" value={formData.min_stock} onChange={e => setFormData({ ...formData, min_stock: parseFloat(e.target.value) })} />
+                    <Input
+                        label="Buy Price (Cost)"
+                        type="number"
+                        step="0.01"
+                        value={formData.default_price_buy === 0 ? "" : formData.default_price_buy}
+                        onChange={e => {
+                            const val = e.target.value
+                            setFormData({ ...formData, default_price_buy: val === "" ? 0 : parseFloat(val) })
+                        }}
+                    />
+                    <Input
+                        label="Min Stock"
+                        type="number"
+                        value={formData.min_stock === 0 ? "" : formData.min_stock}
+                        onChange={e => {
+                            const val = e.target.value
+                            setFormData({ ...formData, min_stock: val === "" ? 0 : parseFloat(val) })
+                        }}
+                    />
                 </div>
 
                 <Checkbox label="Active" checked={formData.is_active} onChange={e => setFormData({ ...formData, is_active: e.target.checked })} />

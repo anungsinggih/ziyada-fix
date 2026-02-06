@@ -381,8 +381,9 @@ export default function PurchaseEdit() {
                             type="number"
                             inputMode="decimal"
                             min="0"
+                            step="1"
                             placeholder="0"
-                            value={discountAmount || ""}
+                            value={discountAmount === 0 ? "" : discountAmount}
                             onFocus={(e) => e.target.select()}
                             onChange={(e) => setDiscountAmount(Number(e.target.value))}
                         />
@@ -461,7 +462,8 @@ export default function PurchaseEdit() {
                                     inputMode="decimal"
                                     min="0"
                                     placeholder="0"
-                                    value={costPrice || ""}
+                                    step="1"
+                                    value={costPrice === 0 ? "" : costPrice}
                                     onFocus={(e) => e.target.select()}
                                     onChange={(e) => setCostPrice(parseCostValue(e.target.value))}
                                 />
@@ -522,7 +524,7 @@ export default function PurchaseEdit() {
                                                     value={line.unit_cost}
                                                     onChange={(e) => updateLineCost(idx, parseFloat(e.target.value) || 0)}
                                                     min="0"
-                                                    step="1000"
+                                                    step="1"
                                                     className="w-28 text-right"
                                                 />
                                             </TableCell>

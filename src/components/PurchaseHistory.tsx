@@ -116,7 +116,13 @@ export default function PurchaseHistory() {
       setPurchases(enriched);
       setTotalCount(count || 0);
     } catch (err: unknown) {
-      if (err instanceof Error) setError(err.message || "Failed to fetch purchases");
+      if (err instanceof Error) {
+        setError(err.message || "Failed to fetch purchases");
+      } else if (err && typeof err === "object" && "message" in err) {
+        setError(String((err as { message?: string }).message || "Failed to fetch purchases"));
+      } else {
+        setError("Failed to fetch purchases");
+      }
     } finally {
       setLoading(false);
     }
@@ -156,7 +162,13 @@ export default function PurchaseHistory() {
       navigate(`/purchases/${purchaseId}`);
     } catch (err: unknown) {
       setSuccess(null);
-      if (err instanceof Error) setError(err.message || "Failed to post purchase");
+      if (err instanceof Error) {
+        setError(err.message || "Failed to post purchase");
+      } else if (err && typeof err === "object" && "message" in err) {
+        setError(String((err as { message?: string }).message || "Failed to post purchase"));
+      } else {
+        setError("Failed to post purchase");
+      }
     } finally {
       setPostingId(null);
     }

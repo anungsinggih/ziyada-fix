@@ -6,8 +6,9 @@ import { Input } from './ui/Input'
 import { Badge } from './ui/Badge'
 import { Button } from './ui/Button'
 import { Icons } from './ui/Icons'
-import { useLocation } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { formatCurrency, formatDate } from '../lib/format'
+import { getErrorMessage } from '../lib/errors'
 
 type JournalEntry = {
     id: string
@@ -152,6 +153,7 @@ export default function Journals() {
     const [startDate, setStartDate] = useState('')
     const [endDate, setEndDate] = useState('')
     const location = useLocation()
+    const navigate = useNavigate()
 
     const filterJournals = useCallback(() => {
         let filtered = [...journals]
@@ -258,8 +260,7 @@ export default function Journals() {
             setJournals(enrichedJournals)
             setFilteredJournals(enrichedJournals)
         } catch (err: unknown) {
-            const msg = err instanceof Error ? err.message : 'Failed to fetch journals'
-            setError(msg)
+            setError(getErrorMessage(err, 'Failed to fetch journals'))
         } finally {
             setLoading(false)
         }
@@ -295,13 +296,21 @@ export default function Journals() {
         <div className="w-full space-y-6">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <h2 className="hidden md:block text-3xl font-bold tracking-tight text-gray-900">Journal Entries</h2>
-                <Button
-                    onClick={fetchJournals}
-                    variant="outline"
-                    icon={<Icons.Refresh className="w-4 h-4" />}
-                >
-                    Refresh
-                </Button>
+                <div className="flex gap-2">
+                    <Button
+                        onClick={fetchJournals}
+                        variant="outline"
+                        icon={<Icons.Refresh className="w-4 h-4" />}
+                    >
+                        Refresh
+                    </Button>
+                    <Button
+                        onClick={() => navigate('/journals/manual')}
+                        icon={<Icons.Edit className="w-4 h-4" />}
+                    >
+                        Jurnal Umum
+                    </Button>
+                </div>
             </div>
 
             {error && (

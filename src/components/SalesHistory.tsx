@@ -16,6 +16,7 @@ import { Select } from "./ui/Select";
 import { Alert } from "./ui/Alert";
 import { StatusBadge } from "./ui/StatusBadge";
 import { Badge } from "./ui/Badge";
+import { CustomerBadge } from "./ui/CustomerBadge";
 import { Icons } from './ui/Icons'
 import { ResponsiveTable } from './ui/ResponsiveTable';
 import { EmptyState } from "./ui/EmptyState";
@@ -31,6 +32,7 @@ type SalesRecord = {
   sales_no: string | null;
   customer_id: string;
   customer_name: string;
+  customer_type: string;
   terms: "CASH" | "CREDIT";
   total_amount: number;
   status: "DRAFT" | "POSTED" | "VOID";
@@ -76,7 +78,8 @@ export default function SalesHistory() {
                     status,
                     created_at,
                     customers (
-                        name
+                        name,
+                        customer_type
                     )
                 `,
           { count: "exact" }
@@ -111,12 +114,19 @@ export default function SalesHistory() {
         data?.map((sale) => ({
           ...sale,
           customer_name: (sale.customers as unknown as { name: string })?.name || "Unknown",
+          customer_type: (sale.customers as unknown as { customer_type: string })?.customer_type || "UMUM",
         })) || [];
 
       setSales(enriched);
       setTotalCount(count || 0);
     } catch (err: unknown) {
-      if (err instanceof Error) setError(err.message || "Failed to fetch sales");
+      if (err instanceof Error) {
+        setError(err.message || "Failed to fetch sales");
+      } else if (err && typeof err === "object" && "message" in err) {
+        setError(String((err as { message?: string }).message || "Failed to fetch sales"));
+      } else {
+        setError("Failed to fetch sales");
+      }
     } finally {
       setLoading(false);
     }
@@ -158,7 +168,13 @@ export default function SalesHistory() {
       navigate(`/sales/${saleId}`);
     } catch (err: unknown) {
       setSuccess(null);
-      if (err instanceof Error) setError(err.message || "Failed to post sales");
+      if (err instanceof Error) {
+        setError(err.message || "Failed to post sales");
+      } else if (err && typeof err === "object" && "message" in err) {
+        setError(String((err as { message?: string }).message || "Failed to post sales"));
+      } else {
+        setError("Failed to post sales");
+      }
     } finally {
       setPostingId(null);
     }
@@ -318,7 +334,9 @@ export default function SalesHistory() {
                       <TableCell className="font-mono text-sm">
                         {safeDocNo(sale.sales_no, sale.id)}
                       </TableCell>
-                      <TableCell>{sale.customer_name}</TableCell>
+                      <TableCell>
+                        <CustomerBadge name={sale.customer_name} customerType={sale.customer_type} />
+                      </TableCell>
                       <TableCell>
                         <Badge
                           className={

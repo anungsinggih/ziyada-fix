@@ -11,7 +11,7 @@ export function MobileHeader({ mobileMenuOpen, onToggleMenu, periodStatus }: Mob
     const pageTitle = usePageTitle()
 
     return (
-        <div className="md:hidden fixed top-0 left-0 right-0 z-30 bg-gradient-to-r from-slate-900 via-slate-900 to-slate-800 border-b border-slate-800 shadow-lg print:hidden">
+        <div className="md:hidden fixed top-0 left-0 right-0 z-40 bg-gradient-to-r from-slate-900 via-slate-900 to-slate-800 border-b border-slate-800 shadow-lg print:hidden">
             <div className="flex items-center justify-between px-4 py-3">
                 <button
                     onClick={onToggleMenu}

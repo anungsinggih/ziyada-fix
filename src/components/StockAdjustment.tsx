@@ -133,7 +133,7 @@ function StockAdjustmentForm({
                         type="number"
                         inputMode="numeric"
                         step="1"
-                        value={delta || ""}
+                        value={delta === 0 ? "" : delta}
                         onFocus={(e) => e.target.select()}
                         onChange={e => {
                             const val = e.target.value;
@@ -349,7 +349,7 @@ function StockAdjustmentPage() {
 
             {/* OPENING STOCK DIALOG */}
             {showOpeningForm && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
                     <div className="bg-white rounded-lg shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200">
                         <div className="bg-blue-50 px-6 py-4 border-b border-blue-100 flex justify-between items-center">
                             <h3 className="font-bold text-blue-900 flex items-center gap-2">

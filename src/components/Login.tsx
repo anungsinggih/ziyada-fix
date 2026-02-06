@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardFooter } from './ui/Card'
 import { Input } from './ui/Input'
 import { Button } from './ui/Button'
 import { Icons } from './ui/Icons'
+import { getErrorMessage } from '../lib/errors'
 
 export default function Login() {
     const [email, setEmail] = useState('')
@@ -19,7 +20,7 @@ export default function Login() {
 
         // Try Sign In
         const { error } = await supabase.auth.signInWithPassword({ email, password })
-        if (error) setError(error.message)
+        if (error) setError(getErrorMessage(error))
         setLoading(false)
     }
 
@@ -36,7 +37,7 @@ export default function Login() {
             }
         })
 
-        if (error) setError(error.message)
+        if (error) setError(getErrorMessage(error))
         else setMsg("Sign Up Successful! Check your email or try Signing In (if email confirm disabled).")
 
         setLoading(false)
