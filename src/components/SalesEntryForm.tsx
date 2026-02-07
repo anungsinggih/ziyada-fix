@@ -2,18 +2,18 @@ import { useCallback, useEffect, useState, useRef } from "react";
 import { supabase } from "../supabaseClient";
 import { Button } from "./ui/Button";
 import { Input } from "./ui/Input";
-import { Select } from "./ui/Select";
 import { ButtonSelect } from "./ui/ButtonSelect";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "./ui/Card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/Table";
 import { Textarea } from "./ui/Textarea";
 import { Icons } from "./ui/Icons";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { TotalFooter } from "./ui/TotalFooter";
 import { Badge } from "./ui/Badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/Dialog";
 import CustomerForm, { type Customer } from "./CustomerForm";
 import { PricingService, type PriceCheckResult } from "../services/pricingService";
+import { Combobox } from "./ui/Combobox";
 
 type Item = {
     id: string;
@@ -25,6 +25,7 @@ type Item = {
     color_name?: string;
     price_default: number;
     price_khusus: number;
+    type: string;
 };
 type SalesLine = {
     item_id: string;
@@ -46,6 +47,7 @@ type Props = {
 
 export function SalesEntryForm({ onSuccess, onError, onSaved, redirectOnSave = true, initialSalesId }: Props) {
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
     const [customers, setCustomers] = useState<Customer[]>([]);
     const [items, setItems] = useState<Item[]>([]);
     const [loading, setLoading] = useState(false);
@@ -70,10 +72,11 @@ export function SalesEntryForm({ onSuccess, onError, onSaved, redirectOnSave = t
     const [selectedItemId, setSelectedItemId] = useState("");
     const [qty, setQty] = useState(1);
     const [inputPrice, setInputPrice] = useState<number | null>(null);
+    const [itemFilter, setItemFilter] = useState<"ALL" | "TRADED" | "FINISHED_GOOD">("ALL");
 
     // Refs for Accessibility/Keyboard Nav
     const customerSelectRef = useRef<HTMLButtonElement>(null);
-    const itemSelectRef = useRef<HTMLButtonElement>(null);
+    // const itemSelectRef = useRef<HTMLButtonElement>(null); // Replaced by Combobox ref logic if needed, or simple focus
     const qtyInputRef = useRef<HTMLInputElement>(null);
 
     const getErrorMessage = useCallback((error: unknown) => {
@@ -87,6 +90,27 @@ export function SalesEntryForm({ onSuccess, onError, onSaved, redirectOnSave = t
         return String(error);
     }, []);
 
+    const normalizeLines = useCallback((source: SalesLine[]) => {
+        const map = new Map<string, SalesLine>();
+        source.forEach((line) => {
+            const key = `${line.item_id}::${line.unit_price}::${line.uom}`;
+            const existing = map.get(key);
+            if (!existing) {
+                map.set(key, { ...line });
+                return;
+            }
+            const mergedQty = existing.qty + line.qty;
+            map.set(key, {
+                ...existing,
+                qty: mergedQty,
+                subtotal: existing.subtotal + line.subtotal
+            });
+        });
+        return Array.from(map.values());
+    }, []);
+
+    const presetCustomerId = searchParams.get("customer") || "";
+
     const fetchMasterData = useCallback(async () => {
         try {
             const { data: custData, error: custError } = await supabase
@@ -97,7 +121,7 @@ export function SalesEntryForm({ onSuccess, onError, onSaved, redirectOnSave = t
 
             const { data: itemData, error: itemError } = await supabase
                 .from("items")
-                .select("id, name, sku, uom, price_default, price_khusus, sizes(name), colors(name), inventory_stock(qty_on_hand)")
+                .select("id, name, sku, uom, price_default, price_khusus, type, sizes(name), colors(name), inventory_stock(qty_on_hand)")
                 .eq("is_active", true)
                 .in("type", ["TRADED", "FINISHED_GOOD"]);
             if (itemError) throw itemError;
@@ -175,20 +199,21 @@ export function SalesEntryForm({ onSuccess, onError, onSaved, redirectOnSave = t
 
                 if (itemsError) throw itemsError;
 
-                const loadedLines: SalesLine[] = itemsData?.map(item => {
-                    const iData = Array.isArray(item.items) ? item.items[0] : item.items;
-                    return {
-                        item_id: item.item_id,
-                        item_name: iData?.name || 'Unknown',
-                        sku: iData?.sku || '',
-                        uom: item.uom_snapshot,
-                        qty: item.qty,
-                        unit_price: item.unit_price,
-                        subtotal: item.subtotal
-                    };
-                }) || [];
+        const loadedLines: SalesLine[] = itemsData?.map(item => {
+            const iData = Array.isArray(item.items) ? item.items[0] : item.items;
+            return {
+                item_id: item.item_id,
+                item_name: iData?.name || 'Unknown',
+                sku: iData?.sku || '',
+                uom: item.uom_snapshot,
+                qty: item.qty,
+                unit_price: item.unit_price,
+                subtotal: item.subtotal
+            };
+        }) || [];
 
-                setLines(loadedLines);
+        const uniqueLines = normalizeLines(loadedLines);
+        setLines(uniqueLines);
             } catch (err: unknown) {
                 onError(getErrorMessage(err));
             } finally {
@@ -197,13 +222,19 @@ export function SalesEntryForm({ onSuccess, onError, onSaved, redirectOnSave = t
         };
 
         loadSales();
-    }, [initialSalesId, onError, getErrorMessage]);
+    }, [initialSalesId, onError, getErrorMessage, normalizeLines]);
 
     useEffect(() => {
         if (!customerId) {
             customerSelectRef.current?.focus();
         }
     }, [customerId]);
+
+    useEffect(() => {
+        if (presetCustomerId && !customerId) {
+            setCustomerId(presetCustomerId);
+        }
+    }, [presetCustomerId, customerId]);
 
     async function handleCustomerCreated() {
         setIsCustomerModalOpen(false);
@@ -313,6 +344,18 @@ export function SalesEntryForm({ onSuccess, onError, onSaved, redirectOnSave = t
         const item = items.find((i) => i.id === selectedItemId);
         if (!item) return;
 
+        // Stock Validation
+        const currentStock = item.stock_qty ?? 0;
+        const existingQty = lines
+            .filter((l) => l.item_id === selectedItemId)
+            .reduce((sum, l) => sum + l.qty, 0);
+        const totalRequested = existingQty + qty;
+
+        if (totalRequested > currentStock) {
+            onError(`Stock tidak cukup! Tersedia: ${currentStock}, Diminta: ${totalRequested}`);
+            return;
+        }
+
         const customer = customers.find((c) => c.id === customerId);
         let price = item.price_default;
         if (customer?.customer_type === 'CUSTOM') {
@@ -323,17 +366,32 @@ export function SalesEntryForm({ onSuccess, onError, onSaved, redirectOnSave = t
             price = item.price_khusus;
         }
 
+        const finalUnitPrice = inputPrice !== null ? inputPrice : price;
         const newLine: SalesLine = {
             item_id: item.id,
             item_name: item.name,
             sku: item.sku,
             uom: item.uom,
             qty: qty,
-            unit_price: inputPrice !== null ? inputPrice : price,
-            subtotal: qty * (inputPrice !== null ? inputPrice : price),
+            unit_price: finalUnitPrice,
+            subtotal: qty * finalUnitPrice,
         };
 
-        setLines([...lines, newLine]);
+        setLines((prev) => {
+            const existingIndex = prev.findIndex(
+                (l) => l.item_id === newLine.item_id && l.unit_price === newLine.unit_price
+            );
+            if (existingIndex === -1) return [...prev, newLine];
+            const next = [...prev];
+            const existing = next[existingIndex];
+            const mergedQty = existing.qty + newLine.qty;
+            next[existingIndex] = {
+                ...existing,
+                qty: mergedQty,
+                subtotal: mergedQty * existing.unit_price,
+            };
+            return next;
+        });
         setSelectedItemId("");
         setQty(1);
         setInputPrice(null);
@@ -341,7 +399,11 @@ export function SalesEntryForm({ onSuccess, onError, onSaved, redirectOnSave = t
         // Auto-focus back to item select for rapid entry
         // Slight delay to allow state update and UI render if needed, but usually direct focus works
         setTimeout(() => {
-            itemSelectRef.current?.focus();
+            // For Combobox, we might want to focus the trigger again if possible, or just leave it.
+            // If we want to focus the trigger, we need a ref to it.
+            // For now, let's assume user might want to check the list.
+            const btn = document.querySelector('button[role="combobox"]');
+            if (btn instanceof HTMLElement) btn.focus();
         }, 0);
     }
 
@@ -379,14 +441,6 @@ export function SalesEntryForm({ onSuccess, onError, onSaved, redirectOnSave = t
 
                 if (headerError) throw headerError;
 
-                // Delete existing items to replace with new ones
-                const { error: deleteError } = await supabase
-                    .from("sales_items")
-                    .delete()
-                    .eq("sales_id", initialSalesId);
-
-                if (deleteError) throw deleteError;
-
                 salesId = initialSalesId;
             } else {
                 // INSERT new
@@ -412,7 +466,12 @@ export function SalesEntryForm({ onSuccess, onError, onSaved, redirectOnSave = t
                 salesId = salesData.id;
             }
 
-            const lineData = lines.map((l) => ({
+            const normalizedLines = normalizeLines(lines);
+            if (normalizedLines.length !== lines.length) {
+                setLines(normalizedLines);
+            }
+
+            const lineData = normalizedLines.map((l) => ({
                 sales_id: salesId,
                 item_id: l.item_id,
                 qty: l.qty,
@@ -421,10 +480,13 @@ export function SalesEntryForm({ onSuccess, onError, onSaved, redirectOnSave = t
                 uom_snapshot: l.uom,
             }));
 
-            const { error: linesError } = await supabase
-                .from("sales_items")
-                .insert(lineData);
-            if (linesError) throw linesError;
+            // Use RPC for Atomic Update (Prevents Duplicate Items Bug)
+            const { error: rpcError } = await supabase.rpc('rpc_update_sales_draft_items', {
+                p_sales_id: salesId,
+                p_items: lineData
+            });
+
+            if (rpcError) throw rpcError;
 
             // Only clear form if creating new, or maybe clear anyway? 
             // If editing, we probably want to navigate away or close.
@@ -461,6 +523,7 @@ export function SalesEntryForm({ onSuccess, onError, onSaved, redirectOnSave = t
         discountAmount,
         paymentMethodCode,
         lines,
+        normalizeLines,
         onSuccess,
         onSaved,
         redirectOnSave,
@@ -525,7 +588,12 @@ export function SalesEntryForm({ onSuccess, onError, onSaved, redirectOnSave = t
             }
             if (e.key === "F4") {
                 e.preventDefault();
-                itemSelectRef.current?.focus();
+                // Focus Combobox Trigger
+                const btn = document.querySelector('button[role="combobox"]');
+                if (btn instanceof HTMLElement) {
+                    btn.focus();
+                    btn.click(); // Optional: open it immediately
+                }
             }
         };
         window.addEventListener("keydown", handleKeyDown);
@@ -569,29 +637,29 @@ export function SalesEntryForm({ onSuccess, onError, onSaved, redirectOnSave = t
                                         </button>
                                     </div>
                                 </div>
-                                <Select
+                                <Combobox
                                     ref={customerSelectRef}
-                                    label=""
+                                    containerClassName="mb-3"
                                     value={customerId}
-                                    onChange={(e) => setCustomerId(e.target.value)}
-                                    options={[
-                                        { label: "-- Select Customer --", value: "" },
-                                        ...customers.map((c) => ({
-                                            label: c.name,
-                                            value: c.id,
-                                            content: (
-                                                <div className="flex items-center justify-between w-full gap-2">
-                                                    <span className="font-medium truncate">{c.name}</span>
-                                                    <Badge
-                                                        variant={c.customer_type === 'KHUSUS' ? 'success' : c.customer_type === 'CUSTOM' ? 'warning' : 'secondary'}
-                                                        className="h-5 px-1.5 text-[10px] uppercase ml-auto shrink-0"
-                                                    >
-                                                        {c.customer_type}
-                                                    </Badge>
-                                                </div>
-                                            )
-                                        })),
-                                    ]}
+                                    onChange={(val) => setCustomerId(val)}
+                                    placeholder="-- Select Customer --"
+                                    searchPlaceholder="Search customer..."
+                                    options={customers.map((c) => ({
+                                        label: c.name,
+                                        value: c.id,
+                                        keywords: [c.name],
+                                        content: (
+                                            <div className="flex items-center justify-between w-full gap-2">
+                                                <span className="font-medium truncate">{c.name}</span>
+                                                <Badge
+                                                    variant={c.customer_type === 'KHUSUS' ? 'success' : c.customer_type === 'CUSTOM' ? 'warning' : 'secondary'}
+                                                    className="h-5 px-1.5 text-[10px] uppercase ml-auto shrink-0"
+                                                >
+                                                    {c.customer_type}
+                                                </Badge>
+                                            </div>
+                                        )
+                                    }))}
                                 />
                             </div>
                             <Input
@@ -659,26 +727,66 @@ export function SalesEntryForm({ onSuccess, onError, onSaved, redirectOnSave = t
                                 </h4>
                                 <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 items-stretch sm:items-end">
                                     <div className="flex-grow">
-                                        <Select
-                                            ref={itemSelectRef}
-                                            label="Product (F4)"
-                                            value={selectedItemId}
-                                            onChange={(e) => {
-                                                setSelectedItemId(e.target.value);
-                                                // Auto focus to Qty when item is selected
-                                                if (e.target.value) {
-                                                    setTimeout(() => qtyInputRef.current?.focus(), 0);
-                                                }
-                                            }}
-                                            options={[
-                                                { label: "-- Select Item --", value: "" },
-                                                ...items.map((i) => ({
-                                                    label: `${i.sku} - ${i.name}${i.size_name || i.color_name ? ` • ${[i.size_name, i.color_name].filter(Boolean).join(" • ")}` : ""}`,
-                                                    value: i.id,
-                                                })),
-                                            ]}
-                                            className="!mb-0"
-                                        />
+                                        <div className="flex flex-col gap-1.5 mb-1">
+                                            <div className="flex justify-between items-center">
+                                                <label className="text-sm font-medium text-[var(--text-main)]">Product (F4)</label>
+                                                {/* Mini Filter Tabs */}
+                                                <div className="flex bg-gray-100 p-0.5 rounded-lg">
+                                                    {(["ALL", "TRADED", "FINISHED_GOOD"] as const).map(type => (
+                                                        <button
+                                                            key={type}
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setItemFilter(type);
+                                                                setSelectedItemId(""); // Reset selection on filter change
+                                                            }}
+                                                            className={`px-2 py-0.5 text-[10px] uppercase font-bold rounded-md transition-all ${itemFilter === type
+                                                                ? "bg-white text-blue-700 shadow-sm"
+                                                                : "text-gray-400 hover:text-gray-600"
+                                                                }`}
+                                                        >
+                                                            {type === "FINISHED_GOOD" ? "F.GOOD" : type}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                            <Combobox
+                                                value={selectedItemId}
+                                                onChange={(val) => {
+                                                    setSelectedItemId(val);
+                                                    if (val) {
+                                                        setTimeout(() => qtyInputRef.current?.focus(), 0);
+                                                    }
+                                                }}
+                                                placeholder="Select Item..."
+                                                searchPlaceholder="Search SKU or Name..."
+                                                options={items
+                                                    .filter(i => itemFilter === "ALL" ? true : i.type === itemFilter)
+                                                    // Re-checking fetchMasterData... it fetches: id, name, sku, uom... but NOT TYPE?
+                                                    // Ah, fetchMasterData filters .in("type", ["TRADED", "FINISHED_GOOD"]).
+                                                    // But we didn't select 'type' column to be stored in state 'items'.
+                                                    // I need to add 'type' to the fetch logic first!
+                                                    // Falling back to filtering by what we have or fixing fetch. Refactoring fetch in next step if needed.
+                                                    // Actually, let's assume we fetch it. I will add 'type' to fetch and Item type definition in a separate edit or assume I fix it.
+                                                    // For now, I will map basic options without filter until I fix the fetch.
+                                                    .map((i) => ({
+                                                        label: `${i.sku} - ${i.name}`,
+                                                        value: i.id,
+                                                        keywords: [i.sku, i.name],
+                                                        content: (
+                                                            <div className="flex justify-between w-full">
+                                                                <span><span className="font-mono text-gray-500 mr-2">{i.sku}</span>{i.name}</span>
+                                                                {i.stock_qty !== undefined && (
+                                                                    <span className={`text-xs ${Number(i.stock_qty) <= 0 ? 'text-red-500' : 'text-green-600'}`}>
+                                                                        Stock: {i.stock_qty}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        )
+                                                    }))}
+                                                className="!mb-0"
+                                            />
+                                        </div>
                                     </div>
                                     <div className="w-28">
                                         <Input

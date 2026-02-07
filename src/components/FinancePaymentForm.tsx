@@ -11,6 +11,7 @@ type Props = {
     paymentMethods: { code: string; name: string }[];
     onSuccess: (message: string) => void;
     onError: (message: string) => void;
+    embedded?: boolean;
 };
 
 export function FinancePaymentForm({
@@ -19,6 +20,7 @@ export function FinancePaymentForm({
     paymentMethods,
     onSuccess,
     onError,
+    embedded = false,
 }: Props) {
     const [trxDate, setTrxDate] = useState(
         new Date().toISOString().split("T")[0]
@@ -105,48 +107,56 @@ export function FinancePaymentForm({
                 { label: "BANK", value: "BANK" },
             ];
 
+    const content = (
+        <>
+            <div className="text-xs text-gray-500 font-mono mb-2">
+                REF: {billId}
+            </div>
+            <Input
+                label="Date"
+                type="date"
+                value={trxDate}
+                onChange={(e) => setTrxDate(e.target.value)}
+            />
+            <Input
+                label="Amount Paid"
+                type="number"
+                step="1"
+                value={amount === 0 ? "" : amount}
+                max={initialAmount}
+                onChange={(e) => handleAmountChange(e.target.value)}
+            />
+            <div className="text-[11px] text-gray-500 flex items-center justify-between">
+                <span>Outstanding: {initialAmount.toLocaleString()}</span>
+                <span>Remaining: {Math.max(initialAmount - amount, 0).toLocaleString()}</span>
+            </div>
+            <Select
+                label="Method"
+                value={method}
+                onChange={(e) => setMethod(e.target.value)}
+                options={methodOptions}
+            />
+            <Button
+                className="w-full mt-4 bg-red-600 hover:bg-red-700"
+                onClick={handleSubmit}
+                disabled={submitting}
+                isLoading={submitting}
+            >
+                Confirm Payment
+            </Button>
+        </>
+    );
+
+    if (embedded) {
+        return <div className="space-y-4">{content}</div>;
+    }
+
     return (
         <Card className="border-red-200 shadow-md sticky top-6">
             <CardHeader className="bg-red-100/50 border-b border-red-100">
                 <CardTitle className="text-red-900">Process Payment</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4 pt-6">
-                <div className="text-xs text-gray-500 font-mono mb-2">
-                    REF: {billId}
-                </div>
-                <Input
-                    label="Date"
-                    type="date"
-                    value={trxDate}
-                    onChange={(e) => setTrxDate(e.target.value)}
-                />
-                <Input
-                    label="Amount Paid"
-                    type="number"
-                    step="1"
-                    value={amount === 0 ? "" : amount}
-                    max={initialAmount}
-                    onChange={(e) => handleAmountChange(e.target.value)}
-                />
-                <div className="text-[11px] text-gray-500 flex items-center justify-between">
-                    <span>Outstanding: {initialAmount.toLocaleString()}</span>
-                    <span>Remaining: {Math.max(initialAmount - amount, 0).toLocaleString()}</span>
-                </div>
-                <Select
-                    label="Method"
-                    value={method}
-                    onChange={(e) => setMethod(e.target.value)}
-                    options={methodOptions}
-                />
-                <Button
-                    className="w-full mt-4 bg-red-600 hover:bg-red-700"
-                    onClick={handleSubmit}
-                    disabled={submitting}
-                    isLoading={submitting}
-                >
-                    Confirm Payment
-                </Button>
-            </CardContent>
+            <CardContent className="space-y-4 pt-6">{content}</CardContent>
         </Card>
     );
 }

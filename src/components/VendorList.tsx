@@ -12,9 +12,11 @@ interface VendorListProps {
     loading: boolean
     onEdit: (vendor: Vendor) => void
     onDelete: (id: string) => void
+    onView: (vendor: Vendor) => void
+    onCreatePurchase: (vendor: Vendor) => void
 }
 
-export default function VendorList({ vendors, loading, onEdit, onDelete }: VendorListProps) {
+export default function VendorList({ vendors, loading, onEdit, onDelete, onView, onCreatePurchase }: VendorListProps) {
     const [searchTerm, setSearchTerm] = useState('')
 
     const filteredVendors = vendors.filter(v =>
@@ -52,7 +54,15 @@ export default function VendorList({ vendors, loading, onEdit, onDelete }: Vendo
                         <TableBody>
                             {loading ? <TableRow><TableCell colSpan={5} className="text-center">Loading...</TableCell></TableRow> : filteredVendors.map(v => (
                                 <TableRow key={v.id} className={!v.is_active ? 'bg-gray-100 opacity-60' : ''}>
-                                    <TableCell className="font-medium">{v.name}</TableCell>
+                                    <TableCell className="font-medium">
+                                        <button
+                                            type="button"
+                                            onClick={() => onView(v)}
+                                            className="text-left text-slate-900 hover:text-blue-700"
+                                        >
+                                            {v.name}
+                                        </button>
+                                    </TableCell>
                                     <TableCell>{v.phone}</TableCell>
                                     <TableCell className="max-w-xs truncate">{v.address}</TableCell>
                                     <TableCell>
@@ -62,6 +72,9 @@ export default function VendorList({ vendors, loading, onEdit, onDelete }: Vendo
                                     </TableCell>
                                     <TableCell>
                                         <div className="flex justify-end gap-1">
+                                            <Button size="sm" variant="outline" onClick={() => onCreatePurchase(v)} className="h-9 w-9 p-0 text-slate-500 hover:text-indigo-600">
+                                                <Icons.Cart className="w-[20px] h-[20px]" />
+                                            </Button>
                                             <Button size="sm" variant="ghost" onClick={() => onEdit(v)} className="h-9 w-9 p-0 text-slate-500 hover:text-indigo-600">
                                                 <Icons.Edit className="w-[22px] h-[22px]" />
                                             </Button>

@@ -5,10 +5,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "./ui/Card";
 import { Select } from "./ui/Select";
 import { Input } from "./ui/Input";
 import { Separator } from "./ui/Separator";
+import { Icons } from "./ui/Icons";
 
 import { formatCurrency } from "../lib/format";
 import { getErrorMessage } from "../lib/errors";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 
 type Sale = {
     id: string
@@ -45,6 +46,7 @@ type Props = {
 };
 
 export function SalesReturnForm({ onSuccess, onError }: Props) {
+    const navigate = useNavigate()
     const [postedSales, setPostedSales] = useState<Sale[]>([])
     const [selectedSaleId, setSelectedSaleId] = useState('')
     const [salesItems, setSalesItems] = useState<SaleItem[]>([])
@@ -58,6 +60,7 @@ export function SalesReturnForm({ onSuccess, onError }: Props) {
     }))
     const location = useLocation()
     const draftId = useMemo(() => new URLSearchParams(location.search).get('draft'), [location.search])
+    const salesParamId = useMemo(() => new URLSearchParams(location.search).get('sales'), [location.search])
     const isEditing = Boolean(draftId)
 
     const fetchPostedSales = useCallback(async () => {
@@ -75,6 +78,20 @@ export function SalesReturnForm({ onSuccess, onError }: Props) {
     useEffect(() => {
         fetchPostedSales()
     }, [fetchPostedSales])
+
+    const ensureSaleInList = useCallback(async (saleId: string) => {
+        const { data, error } = await supabase
+            .from('sales')
+            .select('*, customer:customers(name)')
+            .eq('id', saleId)
+            .single()
+
+        if (error || !data) return
+        setPostedSales((prev) => {
+            if (prev.some((row) => row.id === data.id)) return prev
+            return [data, ...prev]
+        })
+    }, [])
 
     const fetchDraft = useCallback(async (returnId: string) => {
         setLoading(true)
@@ -103,7 +120,7 @@ export function SalesReturnForm({ onSuccess, onError }: Props) {
                 .eq('sales_return_id', returnId)
             if (itemsError) throw itemsError
 
-            setLines(itemsData?.map(item => ({
+            const loadedLines = itemsData?.map(item => ({
                 item_id: item.item_id,
                 sku: (item.items as unknown as { sku: string })?.sku || '',
                 name: (item.items as unknown as { name: string })?.name || '',
@@ -112,7 +129,8 @@ export function SalesReturnForm({ onSuccess, onError }: Props) {
                 uom: item.uom_snapshot,
                 subtotal: item.subtotal,
                 cost_snapshot: item.cost_snapshot
-            })) || [])
+            })) || []
+            setLines(normalizeLines(loadedLines))
         } catch (err: unknown) {
             onError(getErrorMessage(err, 'Failed to load draft'))
         } finally {
@@ -125,6 +143,12 @@ export function SalesReturnForm({ onSuccess, onError }: Props) {
             fetchDraft(draftId)
         }
     }, [draftId, fetchDraft])
+
+    useEffect(() => {
+        if (!salesParamId || draftId) return
+        setSelectedSaleId(salesParamId)
+        ensureSaleInList(salesParamId)
+    }, [salesParamId, draftId, ensureSaleInList])
 
     const fetchSalesItems = useCallback(async (salesId: string) => {
         const { data, error } = await supabase
@@ -146,6 +170,24 @@ export function SalesReturnForm({ onSuccess, onError }: Props) {
         fetchSalesItems(selectedSaleId)
     }, [selectedSaleId, fetchSalesItems])
 
+    const normalizeLines = (source: ReturnItem[]) => {
+        const map = new Map<string, ReturnItem>()
+        source.forEach((line) => {
+            const key = `${line.item_id}::${line.unit_price}::${line.uom}::${line.cost_snapshot}`
+            const existing = map.get(key)
+            if (existing) {
+                map.set(key, {
+                    ...existing,
+                    qty: existing.qty + line.qty,
+                    subtotal: existing.subtotal + line.subtotal
+                })
+            } else {
+                map.set(key, { ...line })
+            }
+        })
+        return Array.from(map.values())
+    }
+
     function handleAddItem(sItem: SaleItem, returnQty: number) {
         if (returnQty <= 0) return
         if (returnQty > sItem.qty) {
@@ -153,9 +195,26 @@ export function SalesReturnForm({ onSuccess, onError }: Props) {
             return
         }
 
-        const existing = lines.find(l => l.item_id === sItem.item_id)
+        const existing = lines.find(l =>
+            l.item_id === sItem.item_id &&
+            l.unit_price === sItem.unit_price &&
+            l.uom === sItem.uom_snapshot &&
+            l.cost_snapshot === sItem.avg_cost_snapshot
+        )
         if (existing) {
-            const newLines = lines.map(l => l.item_id === sItem.item_id ? { ...l, qty: returnQty, subtotal: returnQty * l.unit_price } : l)
+            const newLines = lines.map(l => {
+                if (
+                    l.item_id !== sItem.item_id ||
+                    l.unit_price !== sItem.unit_price ||
+                    l.uom !== sItem.uom_snapshot ||
+                    l.cost_snapshot !== sItem.avg_cost_snapshot
+                ) return l
+                return {
+                    ...l,
+                    qty: l.qty + returnQty,
+                    subtotal: l.subtotal + (returnQty * l.unit_price)
+                }
+            })
             setLines(newLines)
         } else {
             setLines([...lines, {
@@ -183,6 +242,8 @@ export function SalesReturnForm({ onSuccess, onError }: Props) {
 
         try {
             const returnDate = draftReturnDate || new Date().toISOString().split('T')[0]
+            const normalizedLines = normalizeLines(lines)
+            const totalAmount = normalizedLines.reduce((sum, line) => sum + (line.subtotal || 0), 0)
 
             if (isEditing && draftId) {
                 const { error: updateError } = await supabase
@@ -190,7 +251,8 @@ export function SalesReturnForm({ onSuccess, onError }: Props) {
                     .update({
                         sales_id: selectedSaleId,
                         return_date: returnDate,
-                        status: 'DRAFT'
+                        status: 'DRAFT',
+                        total_amount: totalAmount
                     })
                     .eq('id', draftId)
                 if (updateError) throw updateError
@@ -201,7 +263,7 @@ export function SalesReturnForm({ onSuccess, onError }: Props) {
                     .eq('sales_return_id', draftId)
                 if (delError) throw delError
 
-                const itemsPayload = lines.map(l => ({
+                const itemsPayload = normalizedLines.map(l => ({
                     sales_return_id: draftId,
                     item_id: l.item_id,
                     uom_snapshot: l.uom,
@@ -215,6 +277,7 @@ export function SalesReturnForm({ onSuccess, onError }: Props) {
                 if (linesError) throw linesError
 
                 onSuccess(`Return Draft Updated: ${draftId}`)
+                navigate(`/sales-returns/${draftId}`)
             } else {
                 // 1. Header
                 const { data: retData, error: retError } = await supabase
@@ -222,7 +285,8 @@ export function SalesReturnForm({ onSuccess, onError }: Props) {
                     .insert([{
                         sales_id: selectedSaleId,
                         return_date: returnDate,
-                        status: 'DRAFT'
+                        status: 'DRAFT',
+                        total_amount: totalAmount
                     }])
                     .select()
                     .single()
@@ -230,7 +294,7 @@ export function SalesReturnForm({ onSuccess, onError }: Props) {
                 if (retError) throw retError
 
                 // 2. Items
-                const itemsPayload = lines.map(l => ({
+                const itemsPayload = normalizedLines.map(l => ({
                     sales_return_id: retData.id,
                     item_id: l.item_id,
                     uom_snapshot: l.uom,
@@ -244,6 +308,7 @@ export function SalesReturnForm({ onSuccess, onError }: Props) {
                 if (linesError) throw linesError
 
                 onSuccess(`Return Draft Created: ${retData.id}`)
+                navigate(`/sales-returns/${retData.id}`)
             }
 
             setLines([])
@@ -259,6 +324,14 @@ export function SalesReturnForm({ onSuccess, onError }: Props) {
 
     return (
         <div className="space-y-6">
+            <div className="flex justify-between items-center">
+                <h2 className="hidden md:block text-3xl font-bold tracking-tight text-gray-900">Sales Return</h2>
+                <div className="flex gap-2">
+                    <Button onClick={() => navigate('/sales-returns/history')} variant="outline" icon={<Icons.FileText className="w-4 h-4" />}>
+                        Return History
+                    </Button>
+                </div>
+            </div>
             <Card className="shadow-md border-gray-200">
                 <CardHeader className="bg-blue-50/50 pb-4 border-b border-blue-100">
                     <CardTitle className="text-blue-900 flex items-center gap-2">

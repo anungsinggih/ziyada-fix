@@ -74,6 +74,12 @@ export default function ItemForm({ existingItem, onSuccess, onCancel }: ItemForm
         }
     }, [existingItem, uoms, sizes, colors])
 
+    useEffect(() => {
+        if (formData.type === 'FINISHED_GOOD' && formData.default_price_buy !== 0) {
+            setFormData(prev => ({ ...prev, default_price_buy: 0 }))
+        }
+    }, [formData.type, formData.default_price_buy])
+
     async function fetchMasterData() {
         const [uomRes, sizeRes, colorRes, brandRes, categoryRes] = await Promise.all([
             supabase.from('uoms').select('id, code, name').eq('is_active', true),
@@ -112,7 +118,7 @@ export default function ItemForm({ existingItem, onSuccess, onCancel }: ItemForm
                 category_id: formData.category_id || null,
                 price_default: formData.price_default,
                 price_khusus: formData.price_khusus,
-                default_price_buy: formData.default_price_buy,
+                default_price_buy: formData.type === 'FINISHED_GOOD' ? 0 : formData.default_price_buy,
                 min_stock: formData.min_stock,
                 is_active: formData.is_active,
                 uom: selectedUom?.code || 'PCS'
@@ -272,6 +278,7 @@ export default function ItemForm({ existingItem, onSuccess, onCancel }: ItemForm
                             const val = e.target.value
                             setFormData({ ...formData, default_price_buy: val === "" ? 0 : parseFloat(val) })
                         }}
+                        disabled={formData.type === 'FINISHED_GOOD'}
                     />
                     <Input
                         label="Min Stock"
@@ -283,6 +290,11 @@ export default function ItemForm({ existingItem, onSuccess, onCancel }: ItemForm
                         }}
                     />
                 </div>
+                {formData.type === 'FINISHED_GOOD' && (
+                    <div className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-md px-2 py-1">
+                        Untuk FINISHED_GOOD, HPP otomatis 0 (HPP dihitung periodik saat closing).
+                    </div>
+                )}
 
                 <Checkbox label="Active" checked={formData.is_active} onChange={e => setFormData({ ...formData, is_active: e.target.checked })} />
 

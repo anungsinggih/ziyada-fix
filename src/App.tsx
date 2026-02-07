@@ -10,7 +10,9 @@ import Login from './components/Login'
 
 // Lazy load all page components
 const Customers = lazy(() => import('./components/Customers'))
+const CustomerDetail = lazy(() => import('./components/CustomerDetail'))
 const Vendors = lazy(() => import('./components/Vendors'))
+const VendorDetail = lazy(() => import('./components/VendorDetail'))
 const CustomerPricePage = lazy(() => import('./components/CustomerPricePage'))
 const COA = lazy(() => import('./components/COA'))
 const OpeningBalance = lazy(() => import('./components/OpeningBalance'))
@@ -81,28 +83,7 @@ function PageWrapper({ children }: { children: React.ReactNode }) {
   )
 }
 
-function SidebarGroup({ title, children, defaultOpen = false }: { title: string, children: React.ReactNode, defaultOpen?: boolean }) {
-  const [isOpen, setIsOpen] = useState(defaultOpen)
-  return (
-    <div className="mb-6">
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center justify-between px-3 py-2 text-xs font-bold text-slate-500 uppercase tracking-wider hover:text-slate-300 transition-colors focus:outline-none group"
-      >
-        <span>{title}</span>
-        {isOpen ?
-          <Icons.ChevronDown className="w-3 h-3 text-slate-600 group-hover:text-slate-400" /> :
-          <Icons.ChevronRight className="w-3 h-3 text-slate-600 group-hover:text-slate-400" />
-        }
-      </button>
-      {isOpen && (
-        <div className="mt-1 animate-in slide-in-from-top-1 duration-200 space-y-0.5">
-          {children}
-        </div>
-      )}
-    </div>
-  )
-}
+
 
 function NotAuthorized({ message = "Anda tidak memiliki akses ke halaman ini." }: { message?: string }) {
   return (
@@ -124,6 +105,8 @@ function App() {
   const [periodStatus, setPeriodStatus] = useState<'OPEN' | 'CLOSED' | null>(null)
   const isOwner = userProfile?.role === 'OWNER'
   const canAccessFinance = isOwner
+
+  const isAdmin = userProfile?.role === 'ADMIN'
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -151,7 +134,7 @@ function App() {
   }, [session])
 
   useEffect(() => {
-    if (!session || !isOwner) {
+    if (!session || (!isOwner && !isAdmin)) {
       setPeriodStatus(null)
       return
     }
@@ -174,7 +157,7 @@ function App() {
     return () => {
       active = false
     }
-  }, [session, isOwner])
+  }, [session, isOwner, isAdmin])
 
   async function fetchUserProfile(userId: string) {
     try {
@@ -245,57 +228,49 @@ function App() {
             </div>
 
           </div>
-          <div className="flex-1 overflow-y-auto py-6 px-4 space-y-8">
+          <div className="flex-1 overflow-y-auto py-6 px-4 space-y-2">
             {/* Dashboard */}
-            <div className="mb-8 pl-0">
+            <div className="px-2">
               <SidebarLink to="/" icon={Icons.Chart} end={true}>Dashboard</SidebarLink>
             </div>
 
             <div className="space-y-2">
               {/* Transactions Group */}
-              <SidebarGroup title="Sales" defaultOpen={true}>
-                <ul className="space-y-1 px-2">
-                  <li><SidebarLink to="/sales/history" icon={Icons.FileText}>Sales</SidebarLink></li>
-                  <li><SidebarLink to="/sales-returns/history" icon={Icons.FileText}>Sales Return</SidebarLink></li>
-                </ul>
-              </SidebarGroup>
+              <div className="px-2">
+                <SidebarLink to="/sales/history" icon={Icons.FileText}>Sales</SidebarLink>
+              </div>
+              <div className="px-2">
+                <SidebarLink to="/purchases/history" icon={Icons.FileText}>Purchase</SidebarLink>
+              </div>
 
-              <SidebarGroup title="Purchases">
-                <ul className="space-y-1 px-2">
-                  <li><SidebarLink to="/purchases/history" icon={Icons.FileText}>Purchase</SidebarLink></li>
-                  <li><SidebarLink to="/purchase-returns/history" icon={Icons.FileText}>Purchase Return</SidebarLink></li>
-                </ul>
-              </SidebarGroup>
-
-              <SidebarGroup title="Inventory">
-                <ul className="space-y-1 px-2">
-                  <li><SidebarLink to="/inventory" icon={Icons.Chart}>Overview</SidebarLink></li>
-                  <li><SidebarLink to="/stock-adj" icon={Icons.Edit}>Stock Adjustment</SidebarLink></li>
-                </ul>
-              </SidebarGroup>
-
-              {/* Master Data */}
-              <SidebarGroup title="Master Data">
-                <ul className="space-y-1 px-2">
-                  <li><SidebarLink to="/items" icon={Icons.Package}>Products</SidebarLink></li>
-                  <li><SidebarLink to="/attributes" icon={Icons.Settings}>Attributes & Groups</SidebarLink></li>
-                  <li><SidebarLink to="/brands-categories" icon={Icons.Tag}>Brands & Categories</SidebarLink></li>
-                  <li><SidebarLink to="/customers" icon={Icons.Users}>Customers</SidebarLink></li>
-                  <li><SidebarLink to="/vendors" icon={Icons.Users}>Suppliers</SidebarLink></li>
-                </ul>
-              </SidebarGroup>
+              <div className="px-2">
+                <SidebarLink to="/inventory" icon={Icons.Chart}>Inventory</SidebarLink>
+              </div>
+              <div className="px-2">
+                <SidebarLink to="/items" icon={Icons.Package}>Master Data</SidebarLink>
+              </div>
+              <div className="px-2">
+                <SidebarLink to="/customers" icon={Icons.Users}>Customers</SidebarLink>
+              </div>
+              <div className="px-2">
+                <SidebarLink to="/vendors" icon={Icons.Users}>Vendors</SidebarLink>
+              </div>
 
               {canAccessFinance && (
-                <SidebarGroup title="Accounting">
-                  <ul className="space-y-1 px-2">
-                    <li><SidebarLink to="/finance" icon={Icons.DollarSign}>Finance (AR/AP)</SidebarLink></li>
-                    <li><SidebarLink to="/coa" icon={Icons.FileText}>COA</SidebarLink></li>
-                    <li><SidebarLink to="/opening-balance" icon={Icons.DollarSign}>Opening Balance</SidebarLink></li>
-                    <li><SidebarLink to="/journals" icon={Icons.FileText}>Journals</SidebarLink></li>
-                    <li><SidebarLink to="/reports" icon={Icons.Chart}>Finance Reports</SidebarLink></li>
-                    <li><SidebarLink to="/period-lock" icon={Icons.Info}>Period Management</SidebarLink></li>
-                  </ul>
-                </SidebarGroup>
+                <>
+                  <div className="px-2">
+                    <SidebarLink to="/finance" icon={Icons.DollarSign}>Finance (AR/AP)</SidebarLink>
+                  </div>
+                  <div className="px-2">
+                    <SidebarLink to="/coa" icon={Icons.FileText}>COA</SidebarLink>
+                  </div>
+                  <div className="px-2">
+                    <SidebarLink to="/journals" icon={Icons.FileText}>Journals</SidebarLink>
+                  </div>
+                  <div className="px-2">
+                    <SidebarLink to="/reports" icon={Icons.Chart}>Finance Reports</SidebarLink>
+                  </div>
+                </>
               )}
 
               {/* System Sidebar Removed - Access via Profile */}
@@ -327,25 +302,32 @@ function App() {
                 </div>
               </button>
               {userMenuOpen && (
-                <div className="absolute left-0 right-0 bottom-full mb-2 mx-3 rounded-md border border-slate-700 bg-slate-900 shadow-lg overflow-hidden">
-                  <Link
-                    to="/settings"
-                    onClick={() => setUserMenuOpen(false)}
-                    className="flex items-center gap-2 px-3 py-2 text-sm text-slate-200 hover:bg-slate-800"
-                  >
-                    <Icons.Settings className="w-4 h-4" />
-                    Settings
-                  </Link>
-                  <button
-                    onClick={() => {
-                      setUserMenuOpen(false)
-                      supabase.auth.signOut()
-                    }}
-                    className="w-full text-left flex items-center gap-2 px-3 py-2 text-sm text-slate-200 hover:bg-slate-800"
-                  >
-                    <Icons.Close className="w-4 h-4" />
-                    Sign Out
-                  </button>
+                <div className="absolute left-0 right-0 bottom-full mb-2 mx-3 rounded-lg border border-slate-700/50 bg-slate-900/95 backdrop-blur-sm shadow-xl overflow-hidden ring-1 ring-white/5">
+                  <div className="p-1.5 space-y-0.5">
+                    <Link
+                      to="/settings"
+                      onClick={() => setUserMenuOpen(false)}
+                      className="flex items-center gap-3 px-3 py-2.5 text-sm text-slate-200 hover:bg-gradient-to-r hover:from-indigo-500/10 hover:to-purple-500/10 rounded-md transition-all duration-200 group"
+                    >
+                      <div className="p-1.5 rounded-md bg-slate-800 group-hover:bg-indigo-500/20 transition-colors">
+                        <Icons.Settings className="w-4 h-4 text-slate-400 group-hover:text-indigo-400 transition-colors" />
+                      </div>
+                      <span className="font-medium group-hover:text-white transition-colors">Settings</span>
+                    </Link>
+                    <div className="h-px bg-gradient-to-r from-transparent via-slate-700 to-transparent my-1" />
+                    <button
+                      onClick={() => {
+                        setUserMenuOpen(false)
+                        supabase.auth.signOut()
+                      }}
+                      className="w-full text-left flex items-center gap-3 px-3 py-2.5 text-sm text-slate-200 hover:bg-gradient-to-r hover:from-red-500/10 hover:to-rose-500/10 rounded-md transition-all duration-200 group"
+                    >
+                      <div className="p-1.5 rounded-md bg-slate-800 group-hover:bg-red-500/20 transition-colors">
+                        <Icons.LogOut className="w-4 h-4 text-slate-400 group-hover:text-red-400 transition-colors" />
+                      </div>
+                      <span className="font-medium group-hover:text-white transition-colors">Sign Out</span>
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
@@ -374,8 +356,10 @@ function App() {
             <PageWrapper>
               <Routes>
                 <Route path="/customers" element={<Customers />} />
+                <Route path="/customers/:id" element={<CustomerDetail />} />
                 <Route path="/customers/:id/pricing" element={<CustomerPricePage />} />
                 <Route path="/vendors" element={<Vendors />} />
+                <Route path="/vendors/:id" element={<VendorDetail />} />
                 <Route path="/coa" element={<COA />} />
                 <Route path="/opening-balance" element={<OpeningBalance />} />
                 <Route path="/sales" element={<Sales />} />

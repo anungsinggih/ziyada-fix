@@ -44,10 +44,13 @@ export default function OpeningBalance() {
     const [error, setError] = useState<string | null>(null)
     const [success, setSuccess] = useState<string | null>(null)
     const [confirmOpening, setConfirmOpening] = useState(false)
+    const [showForm, setShowForm] = useState(true)
+    const [isEditing, setIsEditing] = useState(false)
 
     useEffect(() => {
         fetchAccounts()
         fetchHistory()
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
 
     async function fetchAccounts() {
@@ -86,8 +89,13 @@ export default function OpeningBalance() {
             })
         })
 
-        setHistory(Object.values(agg).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()))
+        const sortedHistory = Object.values(agg).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+        setHistory(sortedHistory)
         setHistoryDetails(details)
+
+        if (!isEditing) {
+            setShowForm(sortedHistory.length === 0)
+        }
     }
 
     async function handleLoad(date: string) {
@@ -96,6 +104,8 @@ export default function OpeningBalance() {
         setLoading(true)
         setAsOfDate(date)
         setConfirmOpening(false)
+        setIsEditing(true)
+        setShowForm(true)
         try {
             const { data: lockedData, error: lockedError } = await supabase.rpc('is_date_in_closed_period', { d: date })
             if (lockedError) {
@@ -175,6 +185,10 @@ export default function OpeningBalance() {
 
             if (error) throw error
             setSuccess("Opening Balance saved successfully!")
+            setIsEditing(false)
+            setShowForm(false)
+            setAsOfDate('')
+            setLines([{ account_id: '', debit: 0, credit: 0 }])
             fetchHistory() // Refresh history
         } catch (err: unknown) {
             if (err instanceof Error) setError(err.message)
@@ -215,143 +229,162 @@ export default function OpeningBalance() {
             {error && <Alert variant="error" title="Oops" description={error} />}
             {success && <Alert variant="success" title="Sukses" description={success} />}
 
-            <Section
-                title="Journal Entry"
-                description="Set or update opening balances for a specific date."
-            >
-                <div className="flex flex-col gap-6">
-                    <div className="flex items-end gap-4 max-w-lg">
-                        <div className="flex-1">
-                            <Input
-                                label="As of Date"
-                                type="date"
-                                value={asOfDate}
-                                onChange={e => {
-                                    setAsOfDate(e.target.value)
+            {showForm && (
+                <Section
+                    title="Journal Entry"
+                    description="Set or update opening balances for a specific date."
+                    action={
+                        history.length > 0 ? (
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                    setShowForm(false)
+                                    setIsEditing(false)
+                                    setAsOfDate('')
+                                    setLines([{ account_id: '', debit: 0, credit: 0 }])
                                 }}
-                                containerClassName="!mb-0"
-                            />
+                                icon={<Icons.Close className="w-4 h-4" />}
+                            >
+                                Hide Form
+                            </Button>
+                        ) : null
+                    }
+                >
+                    <div className="flex flex-col gap-6">
+                        <div className="flex items-end gap-4 max-w-lg">
+                            <div className="flex-1">
+                                <Input
+                                    label="As of Date"
+                                    type="date"
+                                    value={asOfDate}
+                                    onChange={e => {
+                                        setAsOfDate(e.target.value)
+                                    }}
+                                    containerClassName="!mb-0"
+                                />
+                            </div>
+                            <Button
+                                variant="outline"
+                                onClick={() => handleLoad(asOfDate)}
+                                disabled={!asOfDate}
+                                icon={<Icons.Refresh className="w-4 h-4" />}
+                            >
+                                Load
+                            </Button>
                         </div>
-                        <Button
-                            variant="outline"
-                            onClick={() => handleLoad(asOfDate)}
-                            disabled={!asOfDate}
-                            icon={<Icons.Refresh className="w-4 h-4" />}
-                        >
-                            Load
-                        </Button>
-                    </div>
 
-                    <div className="rounded-md border border-gray-200 overflow-hidden">
-                        <Table>
-                            <TableHeader className="bg-gray-50">
-                                <TableRow>
-                                    <TableHead className="w-[40%]">Account</TableHead>
-                                    <TableHead className="w-[20%]">Debit</TableHead>
-                                    <TableHead className="w-[20%]">Credit</TableHead>
-                                    <TableHead className="w-[10%] text-right">Action</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {lines.map((line, i) => (
-                                    <TableRow key={i}>
-                                        <TableCell className="p-2">
-                                            <Select
-                                                value={line.account_id || undefined}
-                                                onChange={e => updateLine(i, 'account_id', e.target.value)}
-                                                placeholder="-- Select Account --"
-                                                options={accounts.map(a => ({ label: `${a.code} - ${a.name}`, value: a.id }))}
-                                                className="!mb-0"
-                                            />
-                                        </TableCell>
-                                        <TableCell className="p-2">
-                                            <Input
-                                                type="number"
-                                                step="0.01"
-                                                value={line.debit === 0 ? "" : line.debit}
-                                                onChange={e => {
-                                                    const val = e.target.value
-                                                    updateLine(i, 'debit', val === "" ? 0 : parseFloat(val))
-                                                }}
-                                                containerClassName="!mb-0"
-                                            />
-                                        </TableCell>
-                                        <TableCell className="p-2">
-                                            <Input
-                                                type="number"
-                                                step="0.01"
-                                                value={line.credit === 0 ? "" : line.credit}
-                                                onChange={e => {
-                                                    const val = e.target.value
-                                                    updateLine(i, 'credit', val === "" ? 0 : parseFloat(val))
-                                                }}
-                                                containerClassName="!mb-0"
-                                            />
-                                        </TableCell>
-                                        <TableCell className="p-2 text-right">
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                onClick={() => removeLine(i)}
-                                                className="text-red-500 hover:text-red-700 hover:bg-red-50"
-                                                icon={<Icons.Trash className="w-4 h-4" />}
-                                            />
-                                        </TableCell>
+                        <div className="rounded-md border border-gray-200 overflow-hidden">
+                            <Table>
+                                <TableHeader className="bg-gray-50">
+                                    <TableRow>
+                                        <TableHead className="w-[40%]">Account</TableHead>
+                                        <TableHead className="w-[20%]">Debit</TableHead>
+                                        <TableHead className="w-[20%]">Credit</TableHead>
+                                        <TableHead className="w-[10%] text-right">Action</TableHead>
                                     </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
-                    </div>
+                                </TableHeader>
+                                <TableBody>
+                                    {lines.map((line, i) => (
+                                        <TableRow key={i}>
+                                            <TableCell className="p-2">
+                                                <Select
+                                                    value={line.account_id || undefined}
+                                                    onChange={e => updateLine(i, 'account_id', e.target.value)}
+                                                    placeholder="-- Select Account --"
+                                                    options={accounts.map(a => ({ label: `${a.code} - ${a.name}`, value: a.id }))}
+                                                    className="!mb-0"
+                                                />
+                                            </TableCell>
+                                            <TableCell className="p-2">
+                                                <Input
+                                                    type="number"
+                                                    step="0.01"
+                                                    value={line.debit === 0 ? "" : line.debit}
+                                                    onChange={e => {
+                                                        const val = e.target.value
+                                                        updateLine(i, 'debit', val === "" ? 0 : parseFloat(val))
+                                                    }}
+                                                    containerClassName="!mb-0"
+                                                />
+                                            </TableCell>
+                                            <TableCell className="p-2">
+                                                <Input
+                                                    type="number"
+                                                    step="0.01"
+                                                    value={line.credit === 0 ? "" : line.credit}
+                                                    onChange={e => {
+                                                        const val = e.target.value
+                                                        updateLine(i, 'credit', val === "" ? 0 : parseFloat(val))
+                                                    }}
+                                                    containerClassName="!mb-0"
+                                                />
+                                            </TableCell>
+                                            <TableCell className="p-2 text-right">
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    onClick={() => removeLine(i)}
+                                                    className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                                                    icon={<Icons.Trash className="w-4 h-4" />}
+                                                />
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </div>
 
-                    <div className="flex flex-col sm:flex-row justify-between items-center gap-4 pt-2">
-                        <Button variant="outline" onClick={addLine} icon={<Icons.Plus className="w-4 h-4" />}>
-                            Add Line
-                        </Button>
+                        <div className="flex flex-col sm:flex-row justify-between items-center gap-4 pt-2">
+                            <Button variant="outline" onClick={addLine} icon={<Icons.Plus className="w-4 h-4" />}>
+                                Add Line
+                            </Button>
 
-                        <div className="flex flex-col sm:flex-row items-center gap-6 w-full sm:w-auto">
-                            <div className="flex gap-6 text-sm bg-gray-50 px-4 py-2 rounded-lg border border-gray-100">
-                                <div className="flex flex-col items-end">
-                                    <span className="text-gray-500 text-xs uppercase tracking-wider">Total Debit</span>
-                                    <span className="font-mono font-bold text-gray-900">{formatCurrency(totalDebit)}</span>
+                            <div className="flex flex-col sm:flex-row items-center gap-6 w-full sm:w-auto">
+                                <div className="flex gap-6 text-sm bg-gray-50 px-4 py-2 rounded-lg border border-gray-100">
+                                    <div className="flex flex-col items-end">
+                                        <span className="text-gray-500 text-xs uppercase tracking-wider">Total Debit</span>
+                                        <span className="font-mono font-bold text-gray-900">{formatCurrency(totalDebit)}</span>
+                                    </div>
+                                    <div className="h-full w-px bg-gray-200"></div>
+                                    <div className="flex flex-col items-end">
+                                        <span className="text-gray-500 text-xs uppercase tracking-wider">Total Credit</span>
+                                        <span className="font-mono font-bold text-gray-900">{formatCurrency(totalCredit)}</span>
+                                    </div>
                                 </div>
-                                <div className="h-full w-px bg-gray-200"></div>
-                                <div className="flex flex-col items-end">
-                                    <span className="text-gray-500 text-xs uppercase tracking-wider">Total Credit</span>
-                                    <span className="font-mono font-bold text-gray-900">{formatCurrency(totalCredit)}</span>
+
+                                <div className="flex items-center gap-3">
+                                    <Badge variant={isBalanced ? 'success' : 'destructive'} className="h-9 px-3">
+                                        {isBalanced ? 'Balanced' : 'Unbalanced'}
+                                    </Badge>
+
+                                    <Button
+                                        className="bg-blue-600 hover:bg-blue-700 min-w-[140px]"
+                                        onClick={handleSave}
+                                        disabled={loading || !isBalanced || !confirmOpening}
+                                        isLoading={loading}
+                                        icon={<Icons.Save className="w-4 h-4" />}
+                                    >
+                                        Save Balance
+                                    </Button>
                                 </div>
-                            </div>
-
-                            <div className="flex items-center gap-3">
-                                <Badge variant={isBalanced ? 'success' : 'destructive'} className="h-9 px-3">
-                                    {isBalanced ? 'Balanced' : 'Unbalanced'}
-                                </Badge>
-
-                                <Button
-                                    className="bg-blue-600 hover:bg-blue-700 min-w-[140px]"
-                                    onClick={handleSave}
-                                    disabled={loading || !isBalanced || !confirmOpening}
-                                    isLoading={loading}
-                                    icon={<Icons.Save className="w-4 h-4" />}
-                                >
-                                    Save Balance
-                                </Button>
                             </div>
                         </div>
-                    </div>
 
-                    <div className="flex items-center gap-2 text-sm text-gray-600">
-                        <input
-                            id="confirm-opening"
-                            type="checkbox"
-                            checked={confirmOpening}
-                            onChange={(e) => setConfirmOpening(e.target.checked)}
-                        />
-                        <label htmlFor="confirm-opening">
-                            Saya paham ini khusus Opening Balance (bukan jurnal operasional).
-                        </label>
+                        <div className="flex items-center gap-2 text-sm text-gray-600">
+                            <input
+                                id="confirm-opening"
+                                type="checkbox"
+                                checked={confirmOpening}
+                                onChange={(e) => setConfirmOpening(e.target.checked)}
+                            />
+                            <label htmlFor="confirm-opening">
+                                Saya paham ini khusus Opening Balance (bukan jurnal operasional).
+                            </label>
+                        </div>
                     </div>
-                </div>
-            </Section>
+                </Section>
+            )}
 
             <Section
                 title="History"

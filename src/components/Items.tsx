@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
 import { Button } from './ui/Button'
 import { Input } from './ui/Input'
@@ -37,6 +38,7 @@ type Item = {
 }
 
 export default function Items() {
+    const navigate = useNavigate()
     const [items, setItems] = useState<Item[]>([])
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
@@ -161,12 +163,34 @@ export default function Items() {
                 }
             />
 
+
+
             {error && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg relative flex items-center gap-2"><Icons.Warning className="w-5 h-5 flex-shrink-0" /> {error}</div>}
 
             <Section
                 title={`Item List (${totalCount})`}
                 description="View and filter all registered items."
                 className="min-h-[500px]"
+                action={
+                    <div className="flex gap-2">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            icon={<Icons.Settings className="w-4 h-4" />}
+                            onClick={() => navigate('/attributes')}
+                        >
+                            Attributes
+                        </Button>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            icon={<Icons.Tag className="w-4 h-4" />}
+                            onClick={() => navigate('/brands-categories')}
+                        >
+                            Brands & Categories
+                        </Button>
+                    </div>
+                }
             >
                 <div className="space-y-4">
                     {/* Filters Toolbar */}

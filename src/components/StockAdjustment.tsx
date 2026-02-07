@@ -3,7 +3,7 @@ import { supabase } from '../supabaseClient'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/Card'
 import { Button } from './ui/Button'
 import { Input } from './ui/Input'
-import { Select } from './ui/Select'
+import { Combobox } from './ui/Combobox'
 import { Textarea } from './ui/Textarea'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/Table'
 import { Icons } from './ui/Icons'
@@ -53,6 +53,8 @@ function StockAdjustmentForm({
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [success, setSuccess] = useState<string | null>(null)
+    const [notice, setNotice] = useState<string | null>(null)
+    const [requireCloseAck, setRequireCloseAck] = useState(false)
 
     useEffect(() => {
         if (!initialItemId) fetchItems()
@@ -75,9 +77,11 @@ function StockAdjustmentForm({
         setLoading(true)
         setError(null)
         setSuccess(null)
+        setNotice(null)
+        setRequireCloseAck(false)
 
         try {
-            const { error } = await supabase.rpc('rpc_adjust_stock', {
+            const { data, error } = await supabase.rpc('rpc_adjust_stock', {
                 p_item_id: itemId,
                 p_qty_delta: delta,
                 p_reason: reason
@@ -87,12 +91,23 @@ function StockAdjustmentForm({
 
             const msg = "Adjustment Saved Successfully!"
             setSuccess(msg)
+            const journalSkipped =
+                (data as { journal_skipped?: boolean } | null | undefined)?.journal_skipped ??
+                (Array.isArray(data) ? (data[0] as { journal_skipped?: boolean } | undefined)?.journal_skipped : undefined)
+            if (journalSkipped) {
+                setNotice("Journal skipped (cost 0). Set purchase price/avg cost if you need accounting impact.")
+                if (onSuccess) {
+                    setRequireCloseAck(true)
+                }
+            }
             setDelta(0)
             setReason('')
 
             // If onSuccess is provided, call it. Otherwise, clear form for new entry.
             if (onSuccess) {
-                onSuccess()
+                if (!journalSkipped) {
+                    onSuccess()
+                }
             } else {
                 if (!initialItemId) setItemId('')
                 setSuccess(null) // Clear success immediately if we are staying on generic form
@@ -108,6 +123,7 @@ function StockAdjustmentForm({
         <div className="space-y-6 pt-2">
             {error && <div className="p-3 bg-red-100 text-red-700 rounded-md text-sm font-medium">{error}</div>}
             {success && <div className="p-3 bg-green-100 text-green-700 rounded-md text-sm font-medium">{success}</div>}
+            {notice && <div className="p-3 bg-amber-50 text-amber-700 rounded-md text-sm font-medium">{notice}</div>}
 
             <div className="space-y-4">
                 {initialItemId ? (
@@ -116,15 +132,16 @@ function StockAdjustmentForm({
                         <Input value={initialItemName || itemId} disabled className="bg-gray-100" />
                     </div>
                 ) : (
-                    <Select
-                        label="Item"
-                        value={itemId}
-                        onChange={e => setItemId(e.target.value)}
-                        options={[
-                            { label: "-- Select Item --", value: "" },
-                            ...items.map(i => ({ label: `${i.sku} - ${i.name}`, value: i.id }))
-                        ]}
-                    />
+                    <div className="flex flex-col gap-1.5 mb-3">
+                        <Combobox
+                            label="Item"
+                            value={itemId}
+                            onChange={setItemId}
+                            placeholder="-- Select Item --"
+                            searchPlaceholder="Search Item..."
+                            options={items.map(i => ({ label: `${i.sku} - ${i.name}`, value: i.id }))}
+                        />
+                    </div>
                 )}
 
                 <div>
@@ -158,14 +175,23 @@ function StockAdjustmentForm({
                             Cancel
                         </Button>
                     )}
-                    <Button
-                        onClick={handleSubmit}
-                        disabled={loading}
-                        isLoading={loading}
-                        className={isEmbedded ? "w-auto" : "w-full"}
-                    >
-                        Confirm Adjustment
-                    </Button>
+                    {requireCloseAck && onSuccess ? (
+                        <Button
+                            onClick={onSuccess}
+                            className={isEmbedded ? "w-auto" : "w-full"}
+                        >
+                            Close
+                        </Button>
+                    ) : (
+                        <Button
+                            onClick={handleSubmit}
+                            disabled={loading}
+                            isLoading={loading}
+                            className={isEmbedded ? "w-auto" : "w-full"}
+                        >
+                            Confirm Adjustment
+                        </Button>
+                    )}
                 </div>
             </div>
         </div>

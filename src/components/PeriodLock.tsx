@@ -12,8 +12,10 @@ import {
   TableRow,
 } from "./ui/Table";
 import { Alert } from "./ui/Alert";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/Dialog";
 import { getErrorMessage } from "../lib/errors";
 import { StatusBadge } from "./ui/StatusBadge";
+import { formatCurrency } from "../lib/format";
 
 type Period = {
   id: string;
@@ -56,23 +58,23 @@ type JournalLineRow = {
   debit: number | null;
   credit: number | null;
   account:
-    | { code: string | null; name: string | null }
-    | { code: string | null; name: string | null }[]
-    | null;
+  | { code: string | null; name: string | null }
+  | { code: string | null; name: string | null }[]
+  | null;
   journal:
-    | {
-        journal_date: string | null;
-        ref_type: string | null;
-        ref_id: string | null;
-        memo: string | null;
-      }
-    | {
-        journal_date: string | null;
-        ref_type: string | null;
-        ref_id: string | null;
-        memo: string | null;
-      }[]
-    | null;
+  | {
+    journal_date: string | null;
+    ref_type: string | null;
+    ref_id: string | null;
+    memo: string | null;
+  }
+  | {
+    journal_date: string | null;
+    ref_type: string | null;
+    ref_id: string | null;
+    memo: string | null;
+  }[]
+  | null;
 };
 
 type PeriodInfo = {
@@ -151,14 +153,30 @@ export default function PeriodLock() {
   // Form
   const buildCurrentPeriodDefaults = () => {
     const now = new Date();
-    const start = new Date(now.getFullYear(), now.getMonth(), 1);
-    const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-    const toDate = (d: Date) => d.toISOString().split("T")[0];
-    const name = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, "0")}`;
+    const year = now.getFullYear();
+    const month = now.getMonth(); // 0-11
+
+    // Start: 1st of current month
+    const start = new Date(year, month, 1);
+    // End: 0th of next month = last day of current month
+    const end = new Date(year, month + 1, 0);
+
+    // Format YYYY-MM-DD using local time
+    const toLocalYMD = (d: Date) => {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, "0");
+      const day = String(d.getDate()).padStart(2, "0");
+      return `${y}-${m}-${day}`;
+    };
+
+    const name = start.toLocaleDateString("id-ID", {
+      month: "long",
+      year: "numeric",
+    });
     return {
       name,
-      start_date: toDate(start),
-      end_date: toDate(end),
+      start_date: toLocalYMD(start),
+      end_date: toLocalYMD(end),
     };
   };
 
@@ -167,6 +185,12 @@ export default function PeriodLock() {
   // Exports
   const [selectedPeriodId, setSelectedPeriodId] = useState("");
   const [logs, setLogs] = useState<ExportLog[]>([]);
+  const [closeModalOpen, setCloseModalOpen] = useState(false);
+  const [closingPeriod, setClosingPeriod] = useState<Period | null>(null);
+  const [closingAmount, setClosingAmount] = useState<number | null>(null);
+  const [closingSkipped, setClosingSkipped] = useState(false);
+  const [closingLoading, setClosingLoading] = useState(false);
+  const [closingError, setClosingError] = useState<string | null>(null);
 
   // -- 1. PERIODS OPS --
   // Wrap in useCallback to allow usage in useEffect dependency
@@ -205,15 +229,15 @@ export default function PeriodLock() {
   }
 
   async function toggleStatus(p: Period) {
-    if (
-      !confirm(`Switch status to ${p.status === "OPEN" ? "CLOSED" : "OPEN"}?`)
-    )
+    if (p.status === "OPEN") {
+      await openCloseModal(p);
       return;
+    }
 
-    const newStatus = p.status === "OPEN" ? "CLOSED" : "OPEN";
+    if (!confirm("Re-open this period?")) return;
     const { error } = await supabase.rpc("rpc_set_period_status", {
       p_period_id: p.id,
-      p_status: newStatus,
+      p_status: "OPEN",
     });
     if (error) setError(error.message);
     else fetchPeriods();
@@ -245,6 +269,78 @@ export default function PeriodLock() {
     }
     return data as PeriodInfo;
   }, [selectedPeriodId]);
+
+  const openCloseModal = async (p: Period) => {
+    setClosingPeriod(p);
+    setCloseModalOpen(true);
+    setClosingError(null);
+    setClosingAmount(null);
+    setClosingSkipped(false);
+    setClosingLoading(true);
+    try {
+      const { data, error } = await supabase.rpc("rpc_get_account_balances", {
+        p_start_date: p.start_date,
+        p_end_date: p.end_date,
+      });
+      if (error) throw error;
+      const row = (data || []).find((r: { code: string }) => r.code === "1310");
+      if (!row) {
+        throw new Error("Persediaan Bahan Baku (1310) tidak ditemukan di Trial Balance.");
+      }
+      const amount = Number(row.closing_balance) || 0;
+      setClosingAmount(amount);
+      setClosingSkipped(amount === 0);
+    } catch (err: unknown) {
+      setClosingError(getErrorMessage(err));
+    } finally {
+      setClosingLoading(false);
+    }
+  };
+
+  const handleCloseAndLock = async () => {
+    if (!closingPeriod) return;
+    setClosingLoading(true);
+    setClosingError(null);
+    try {
+      const { data: existingClose, error: existingError } = await supabase
+        .from("journals")
+        .select("id")
+        .eq("ref_type", "period_close_hpp")
+        .eq("ref_id", closingPeriod.id)
+        .limit(1);
+      if (existingError) throw existingError;
+
+      const shouldClose =
+        (!existingClose || existingClose.length === 0) &&
+        (closingAmount ?? 0) > 0;
+      if (shouldClose) {
+        const { error: closeError } = await supabase.rpc("rpc_close_period_hpp", {
+          p_period_id: closingPeriod.id,
+        });
+        if (closeError) throw closeError;
+      }
+
+      const { error: lockError } = await supabase.rpc("rpc_set_period_status", {
+        p_period_id: closingPeriod.id,
+        p_status: "CLOSED",
+      });
+      if (lockError) throw lockError;
+
+      if (shouldClose) {
+        setSuccess("Closing HPP dibuat dan periode berhasil di-lock.");
+      } else if (existingClose && existingClose.length > 0) {
+        setSuccess("Periode berhasil di-lock (closing HPP sudah ada).");
+      } else {
+        setSuccess("Periode berhasil di-lock (closing HPP tidak dibuat karena saldo 0).");
+      }
+      setCloseModalOpen(false);
+      fetchPeriods();
+    } catch (err: unknown) {
+      setClosingError(getErrorMessage(err));
+    } finally {
+      setClosingLoading(false);
+    }
+  };
 
   async function handleExport(type: string, format: "CSV" | "PDF" = "CSV") {
     if (!selectedPeriodId) return;
@@ -492,7 +588,7 @@ export default function PeriodLock() {
                           variant={p.status === "OPEN" ? "danger" : "outline"}
                           onClick={() => toggleStatus(p)}
                         >
-                          {p.status === "OPEN" ? "Lock" : "Re-open"}
+                          {p.status === "OPEN" ? "Close HPP & Lock" : "Re-open"}
                         </Button>
                         <Button
                           size="sm"
@@ -601,6 +697,55 @@ export default function PeriodLock() {
           </CardContent>
         </Card>
       )}
+
+      <Dialog isOpen={closeModalOpen} onClose={() => setCloseModalOpen(false)}>
+        <DialogHeader>
+          <DialogTitle>Closing HPP Bulanan</DialogTitle>
+        </DialogHeader>
+        <DialogContent className="sm:max-w-lg">
+          <div className="space-y-4 text-sm text-slate-700">
+            <p>
+              Periode:{" "}
+              <span className="font-semibold">
+                {closingPeriod?.name} ({closingPeriod?.start_date} – {closingPeriod?.end_date})
+              </span>
+            </p>
+            {closingError && (
+              <Alert variant="error" title="Error" description={closingError} />
+            )}
+            <div className="rounded-lg border border-slate-200 p-3 bg-slate-50">
+              <div className="flex items-center justify-between">
+                <span>Debit 5100 - HPP</span>
+                <span className="font-semibold">
+                  {closingAmount !== null ? formatCurrency(closingAmount) : "-"}
+                </span>
+              </div>
+              <div className="flex items-center justify-between mt-2">
+                <span>Credit 1310 - Persediaan Bahan Baku</span>
+                <span className="font-semibold">
+                  {closingAmount !== null ? formatCurrency(closingAmount) : "-"}
+                </span>
+              </div>
+              {closingSkipped && (
+                <div className="mt-3 text-xs text-amber-600">
+                  Skipped (saldo 0)
+                </div>
+              )}
+            </div>
+            <p className="text-xs text-slate-500">
+              Nilai diambil otomatis dari saldo Trial Balance akun 1310 pada periode ini.
+            </p>
+          </div>
+          <div className="flex justify-end gap-2 pt-4">
+            <Button variant="outline" onClick={() => setCloseModalOpen(false)} disabled={closingLoading}>
+              Cancel
+            </Button>
+            <Button onClick={handleCloseAndLock} disabled={closingLoading || closingAmount === null}>
+              {closingLoading ? "Processing..." : "Create Closing & Lock"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

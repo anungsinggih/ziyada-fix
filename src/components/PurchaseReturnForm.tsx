@@ -5,10 +5,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "./ui/Card";
 import { Select } from "./ui/Select";
 import { Input } from "./ui/Input";
 import { Separator } from "./ui/Separator";
+import { Icons } from "./ui/Icons";
 
 import { formatCurrency } from "../lib/format";
 import { getErrorMessage } from "../lib/errors";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 
 type Purchase = {
     id: string
@@ -43,6 +44,7 @@ type Props = {
 };
 
 export function PurchaseReturnForm({ onSuccess, onError }: Props) {
+    const navigate = useNavigate()
     const [postedPurchases, setPostedPurchases] = useState<Purchase[]>([])
     const [selectedPurchaseId, setSelectedPurchaseId] = useState('')
     const [purchaseItems, setPurchaseItems] = useState<PurchaseItem[]>([])
@@ -56,6 +58,7 @@ export function PurchaseReturnForm({ onSuccess, onError }: Props) {
     }))
     const location = useLocation()
     const draftId = useMemo(() => new URLSearchParams(location.search).get('draft'), [location.search])
+    const purchaseParamId = useMemo(() => new URLSearchParams(location.search).get('purchase'), [location.search])
     const isEditing = Boolean(draftId)
 
     const fetchPostedPurchases = useCallback(async () => {
@@ -73,6 +76,20 @@ export function PurchaseReturnForm({ onSuccess, onError }: Props) {
     useEffect(() => {
         fetchPostedPurchases()
     }, [fetchPostedPurchases])
+
+    const ensurePurchaseInList = useCallback(async (purchaseId: string) => {
+        const { data, error } = await supabase
+            .from('purchases')
+            .select('*, vendor:vendors(name)')
+            .eq('id', purchaseId)
+            .single()
+
+        if (error || !data) return
+        setPostedPurchases((prev) => {
+            if (prev.some((row) => row.id === data.id)) return prev
+            return [data, ...prev]
+        })
+    }, [])
 
     const fetchDraft = useCallback(async (returnId: string) => {
         setLoading(true)
@@ -100,7 +117,7 @@ export function PurchaseReturnForm({ onSuccess, onError }: Props) {
                 .eq('purchase_return_id', returnId)
             if (itemsError) throw itemsError
 
-            setLines(itemsData?.map(item => ({
+            const loadedLines = itemsData?.map(item => ({
                 item_id: item.item_id,
                 sku: (item.items as unknown as { sku: string })?.sku || '',
                 name: (item.items as unknown as { name: string })?.name || '',
@@ -108,7 +125,8 @@ export function PurchaseReturnForm({ onSuccess, onError }: Props) {
                 unit_cost: item.unit_cost,
                 uom: item.uom_snapshot,
                 subtotal: item.subtotal
-            })) || [])
+            })) || []
+            setLines(normalizeLines(loadedLines))
         } catch (err: unknown) {
             onError(getErrorMessage(err, 'Failed to load draft'))
         } finally {
@@ -121,6 +139,12 @@ export function PurchaseReturnForm({ onSuccess, onError }: Props) {
             fetchDraft(draftId)
         }
     }, [draftId, fetchDraft])
+
+    useEffect(() => {
+        if (!purchaseParamId || draftId) return
+        setSelectedPurchaseId(purchaseParamId)
+        ensurePurchaseInList(purchaseParamId)
+    }, [purchaseParamId, draftId, ensurePurchaseInList])
 
     const fetchPurchaseItems = useCallback(async (purchaseId: string) => {
         const { data, error } = await supabase
@@ -142,6 +166,24 @@ export function PurchaseReturnForm({ onSuccess, onError }: Props) {
         fetchPurchaseItems(selectedPurchaseId)
     }, [selectedPurchaseId, fetchPurchaseItems])
 
+    const normalizeLines = (source: ReturnItem[]) => {
+        const map = new Map<string, ReturnItem>()
+        source.forEach((line) => {
+            const key = `${line.item_id}::${line.unit_cost}::${line.uom}`
+            const existing = map.get(key)
+            if (existing) {
+                map.set(key, {
+                    ...existing,
+                    qty: existing.qty + line.qty,
+                    subtotal: existing.subtotal + line.subtotal
+                })
+            } else {
+                map.set(key, { ...line })
+            }
+        })
+        return Array.from(map.values())
+    }
+
     function handleAddItem(pItem: PurchaseItem, returnQty: number) {
         if (returnQty <= 0) return
         if (returnQty > pItem.qty) {
@@ -149,9 +191,24 @@ export function PurchaseReturnForm({ onSuccess, onError }: Props) {
             return
         }
 
-        const existing = lines.find(l => l.item_id === pItem.item_id)
+        const existing = lines.find(l =>
+            l.item_id === pItem.item_id &&
+            l.unit_cost === pItem.unit_cost &&
+            l.uom === pItem.uom_snapshot
+        )
         if (existing) {
-            const newLines = lines.map(l => l.item_id === pItem.item_id ? { ...l, qty: returnQty, subtotal: returnQty * l.unit_cost } : l)
+            const newLines = lines.map(l => {
+                if (
+                    l.item_id !== pItem.item_id ||
+                    l.unit_cost !== pItem.unit_cost ||
+                    l.uom !== pItem.uom_snapshot
+                ) return l
+                return {
+                    ...l,
+                    qty: l.qty + returnQty,
+                    subtotal: l.subtotal + (returnQty * l.unit_cost)
+                }
+            })
             setLines(newLines)
         } else {
             setLines([...lines, {
@@ -178,6 +235,8 @@ export function PurchaseReturnForm({ onSuccess, onError }: Props) {
 
         try {
             const returnDate = draftReturnDate || new Date().toISOString().split('T')[0]
+            const normalizedLines = normalizeLines(lines)
+            const totalAmount = normalizedLines.reduce((sum, line) => sum + (line.subtotal || 0), 0)
 
             if (isEditing && draftId) {
                 const { error: updateError } = await supabase
@@ -185,7 +244,8 @@ export function PurchaseReturnForm({ onSuccess, onError }: Props) {
                     .update({
                         purchase_id: selectedPurchaseId,
                         return_date: returnDate,
-                        status: 'DRAFT'
+                        status: 'DRAFT',
+                        total_amount: totalAmount
                     })
                     .eq('id', draftId)
                 if (updateError) throw updateError
@@ -196,7 +256,7 @@ export function PurchaseReturnForm({ onSuccess, onError }: Props) {
                     .eq('purchase_return_id', draftId)
                 if (delError) throw delError
 
-                const itemsPayload = lines.map(l => ({
+                const itemsPayload = normalizedLines.map(l => ({
                     purchase_return_id: draftId,
                     item_id: l.item_id,
                     uom_snapshot: l.uom,
@@ -208,6 +268,7 @@ export function PurchaseReturnForm({ onSuccess, onError }: Props) {
                 if (linesError) throw linesError
 
                 onSuccess(`Return Draft Updated: ${draftId}`)
+                navigate(`/purchase-returns/${draftId}`)
             } else {
                 // 1. Header
                 const { data: retData, error: retError } = await supabase
@@ -215,7 +276,8 @@ export function PurchaseReturnForm({ onSuccess, onError }: Props) {
                     .insert([{
                         purchase_id: selectedPurchaseId,
                         return_date: returnDate,
-                        status: 'DRAFT'
+                        status: 'DRAFT',
+                        total_amount: totalAmount
                     }])
                     .select()
                     .single()
@@ -223,7 +285,7 @@ export function PurchaseReturnForm({ onSuccess, onError }: Props) {
                 if (retError) throw retError
 
                 // 2. Items
-                const itemsPayload = lines.map(l => ({
+                const itemsPayload = normalizedLines.map(l => ({
                     purchase_return_id: retData.id,
                     item_id: l.item_id,
                     uom_snapshot: l.uom,
@@ -236,6 +298,7 @@ export function PurchaseReturnForm({ onSuccess, onError }: Props) {
                 if (linesError) throw linesError
 
                 onSuccess(`Return Draft Created: ${retData.id}`)
+                navigate(`/purchase-returns/${retData.id}`)
             }
 
             setLines([])
@@ -251,6 +314,14 @@ export function PurchaseReturnForm({ onSuccess, onError }: Props) {
 
     return (
         <div className="space-y-6">
+            <div className="flex justify-between items-center">
+                <h2 className="hidden md:block text-3xl font-bold tracking-tight text-gray-900">Purchase Return</h2>
+                <div className="flex gap-2">
+                    <Button onClick={() => navigate('/purchase-returns/history')} variant="outline" icon={<Icons.FileText className="w-4 h-4" />}>
+                        Return History
+                    </Button>
+                </div>
+            </div>
             <Card className="shadow-md border-gray-200">
                 <CardHeader className="bg-purple-50/50 pb-4 border-b border-purple-100">
                     <CardTitle className="text-purple-900 flex items-center gap-2">

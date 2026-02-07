@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../supabaseClient'
 import { getErrorMessage } from "../lib/errors";
 import { useNavigate, useParams } from 'react-router-dom'
@@ -40,13 +40,31 @@ export default function PurchaseReturnDetail() {
     const [error, setError] = useState<string | null>(null)
     const [posting, setPosting] = useState(false)
 
-    useEffect(() => {
-        if (id) {
-            fetchReturnDetail(id)
-        }
-    }, [id])
+    const normalizeItems = useCallback((rows: ReturnItem[]) => {
+        const map = new Map<string, ReturnItem>()
+        rows.forEach((row) => {
+            const key = `${row.item_id}::${row.unit_cost}::${row.uom_snapshot}`
+            const existing = map.get(key)
+            if (!existing) {
+                map.set(key, { ...row })
+                return
+            }
+            const totalQty = existing.qty + row.qty
+            const totalSubtotal = existing.subtotal + row.subtotal
+            const weightedCost = totalQty > 0
+                ? ((existing.unit_cost * existing.qty) + (row.unit_cost * row.qty)) / totalQty
+                : existing.unit_cost
+            map.set(key, {
+                ...existing,
+                qty: totalQty,
+                subtotal: totalSubtotal,
+                unit_cost: Number(weightedCost.toFixed(4))
+            })
+        })
+        return Array.from(map.values())
+    }, [])
 
-    async function fetchReturnDetail(returnId: string) {
+    const fetchReturnDetail = useCallback(async (returnId: string) => {
         setLoading(true)
         setError(null)
 
@@ -99,17 +117,24 @@ export default function PurchaseReturnDetail() {
 
             if (itemsError) throw itemsError
 
-            setItems(itemsData?.map(item => ({
+            const mappedItems = itemsData?.map(item => ({
                 ...item,
                 item_name: (item.items as unknown as { name: string })?.name || 'Unknown',
                 sku: (item.items as unknown as { sku: string })?.sku || ''
-            })) || [])
+            })) || []
+            setItems(normalizeItems(mappedItems))
         } catch (err: unknown) {
             setError(getErrorMessage(err, 'Failed to fetch return detail'))
         } finally {
             setLoading(false)
         }
-    }
+    }, [normalizeItems])
+
+    useEffect(() => {
+        if (id) {
+            fetchReturnDetail(id)
+        }
+    }, [id, fetchReturnDetail])
 
     async function handlePost() {
         if (!returnDoc) return

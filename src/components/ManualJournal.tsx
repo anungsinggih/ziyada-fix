@@ -84,8 +84,12 @@ export default function ManualJournal() {
       setError("Tanggal jurnal wajib diisi");
       return;
     }
-    if (payload.length === 0) {
-      setError("Minimal 1 baris jurnal");
+    if (!memo.trim()) {
+      setError("Memo wajib diisi");
+      return;
+    }
+    if (payload.length < 2) {
+      setError("Minimal 2 baris jurnal (double entry)");
       return;
     }
     if (!totals.balanced) {
@@ -144,7 +148,8 @@ export default function ManualJournal() {
             label="Memo"
             value={memo}
             onChange={(e) => setMemo(e.target.value)}
-            placeholder="Contoh: Gaji Bulan Februari"
+            placeholder="Contoh: Gaji Bulan Februari (Wajib diisi)"
+            required
             containerClassName="md:col-span-2 !mb-0"
           />
         </div>

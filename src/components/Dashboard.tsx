@@ -61,6 +61,17 @@ type AgingBuckets = {
     bucket_61_plus: number
 }
 
+type TrendPoint = {
+    date: string
+    total: number
+}
+
+type StockTrendPoint = {
+    date: string
+    qty_in: number
+    qty_out: number
+}
+
 export default function Dashboard({ isOwner }: { isOwner: boolean }) {
     const navigate = useNavigate()
     const [metrics, setMetrics] = useState<DashboardMetrics | null>(null)
@@ -69,6 +80,14 @@ export default function Dashboard({ isOwner }: { isOwner: boolean }) {
     const [periodInfo, setPeriodInfo] = useState<PeriodInfo | null>(null)
     const [arAging, setArAging] = useState<AgingBuckets | null>(null)
     const [apAging, setApAging] = useState<AgingBuckets | null>(null)
+    const [salesTrend, setSalesTrend] = useState<TrendPoint[]>([])
+    const [purchaseTrend, setPurchaseTrend] = useState<TrendPoint[]>([])
+    const [stockTrend, setStockTrend] = useState<StockTrendPoint[]>([])
+    const [trendLoading, setTrendLoading] = useState(false)
+    const [trendRangeDays, setTrendRangeDays] = useState(14)
+    const [hoveredSalesIndex, setHoveredSalesIndex] = useState<number | null>(null)
+    const [hoveredPurchaseIndex, setHoveredPurchaseIndex] = useState<number | null>(null)
+    const [hoveredStockIndex, setHoveredStockIndex] = useState<number | null>(null)
 
     const fetchMetrics = useCallback(async () => {
         setLoading(true)
@@ -137,6 +156,85 @@ export default function Dashboard({ isOwner }: { isOwner: boolean }) {
         }
     }, [computeAgingBuckets])
 
+    const fetchTrends = useCallback(async () => {
+        const buildDateRange = (days: number) => {
+            const today = new Date()
+            const dates: string[] = []
+            for (let i = days - 1; i >= 0; i -= 1) {
+                const d = new Date(today)
+                d.setDate(today.getDate() - i)
+                dates.push(d.toISOString().split('T')[0])
+            }
+            return dates
+        }
+
+        const range = buildDateRange(trendRangeDays)
+        const startDate = range[0]
+        setTrendLoading(true)
+
+        try {
+            const [salesRes, purchaseRes, stockRes] = await Promise.all([
+                supabase
+                    .from('sales')
+                    .select('sales_date,total_amount')
+                    .eq('status', 'POSTED')
+                    .gte('sales_date', startDate),
+                supabase
+                    .from('purchases')
+                    .select('purchase_date,total_amount')
+                    .eq('status', 'POSTED')
+                    .gte('purchase_date', startDate),
+                supabase
+                    .from('view_stock_card')
+                    .select('trx_date,qty_change')
+                    .gte('trx_date', startDate)
+            ])
+
+            if (salesRes.error) throw salesRes.error
+            if (purchaseRes.error) throw purchaseRes.error
+            if (stockRes.error) throw stockRes.error
+
+            const salesMap = new Map<string, number>()
+                ; (salesRes.data || []).forEach(row => {
+                    if (!row.sales_date) return
+                    const d = row.sales_date as string
+                    salesMap.set(d, (salesMap.get(d) || 0) + Number(row.total_amount || 0))
+                })
+            const purchaseMap = new Map<string, number>()
+                ; (purchaseRes.data || []).forEach(row => {
+                    if (!row.purchase_date) return
+                    const d = row.purchase_date as string
+                    purchaseMap.set(d, (purchaseMap.get(d) || 0) + Number(row.total_amount || 0))
+                })
+
+            const stockMap = new Map<string, { qty_in: number; qty_out: number }>()
+                ; (stockRes.data || []).forEach(row => {
+                    if (!row.trx_date) return
+                    const d = (row.trx_date as string)
+                    const entry = stockMap.get(d) || { qty_in: 0, qty_out: 0 }
+                    const change = Number(row.qty_change || 0)
+                    if (change >= 0) entry.qty_in += change
+                    else entry.qty_out += Math.abs(change)
+                    stockMap.set(d, entry)
+                })
+
+            setSalesTrend(range.map(date => ({ date, total: salesMap.get(date) || 0 })))
+            setPurchaseTrend(range.map(date => ({ date, total: purchaseMap.get(date) || 0 })))
+            setStockTrend(range.map(date => ({
+                date,
+                qty_in: stockMap.get(date)?.qty_in || 0,
+                qty_out: stockMap.get(date)?.qty_out || 0
+            })))
+        } catch (error) {
+            console.error('Error fetching trends:', error)
+            setSalesTrend([])
+            setPurchaseTrend([])
+            setStockTrend([])
+        } finally {
+            setTrendLoading(false)
+        }
+    }, [trendRangeDays])
+
     useEffect(() => {
         fetchMetrics()
         if (isOwner) {
@@ -147,7 +245,8 @@ export default function Dashboard({ isOwner }: { isOwner: boolean }) {
             setArAging(null)
             setApAging(null)
         }
-    }, [fetchMetrics, fetchPeriodStatus, fetchAgingSummary, refreshTrigger, isOwner])
+        fetchTrends()
+    }, [fetchMetrics, fetchPeriodStatus, fetchAgingSummary, fetchTrends, refreshTrigger, isOwner])
 
     const currentDate = new Date().toLocaleDateString('en-US', {
         weekday: 'long',
@@ -376,19 +475,19 @@ export default function Dashboard({ isOwner }: { isOwner: boolean }) {
             <Section title="Performance Overview" description="Key operational metrics for this month.">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                     {/* Sales Today */}
-                    <Card className="bg-gradient-to-br from-blue-50/50 to-white border-blue-100 shadow-sm">
+                    <Card className="bg-gradient-to-br from-blue-50/50 to-white border-blue-100 shadow-sm hover:shadow-md transition-all duration-300 group">
                         <CardContent className="p-6">
                             <div className="flex justify-between items-start">
                                 <div>
-                                    <p className="text-sm font-medium text-blue-600">Sales Today</p>
-                                    <h3 className="text-2xl font-bold text-slate-900 mt-1">{formatCurrency(metrics?.sales_today || 0)}</h3>
+                                    <p className="text-sm font-medium text-blue-600 tracking-wide uppercase">Sales Today</p>
+                                    <h3 className="text-2xl font-bold text-slate-900 mt-1 group-hover:scale-105 transition-transform duration-300 origin-left">{formatCurrency(metrics?.sales_today || 0)}</h3>
                                     <div className="flex items-center mt-1 gap-1">
                                         <Badge variant="outline" className="text-[10px] bg-blue-50 text-blue-700 px-1 py-0 border-blue-200">
                                             {metrics?.sales_count_today || 0} txns
                                         </Badge>
                                     </div>
                                 </div>
-                                <div className="p-2 bg-blue-50 rounded-lg text-blue-600">
+                                <div className="p-2 bg-blue-50 rounded-lg text-blue-600 group-hover:bg-blue-100 transition-colors">
                                     <Icons.Activity className="w-5 h-5" />
                                 </div>
                             </div>
@@ -396,15 +495,15 @@ export default function Dashboard({ isOwner }: { isOwner: boolean }) {
                     </Card>
 
                     {/* Sales Month */}
-                    <Card className="hover:border-slate-300 transition-colors shadow-sm">
+                    <Card className="hover:shadow-md transition-all duration-300 shadow-sm group">
                         <CardContent className="p-6">
                             <div className="flex justify-between items-start">
                                 <div>
-                                    <p className="text-sm font-medium text-slate-500">Sales (Month)</p>
-                                    <h3 className="text-2xl font-bold text-slate-900 mt-1">{formatCurrency(metrics?.sales_month || 0)}</h3>
+                                    <p className="text-sm font-medium text-slate-600 tracking-wide uppercase">Sales (Month)</p>
+                                    <h3 className="text-2xl font-bold text-slate-900 mt-1 group-hover:scale-105 transition-transform duration-300 origin-left">{formatCurrency(metrics?.sales_month || 0)}</h3>
                                     <p className="text-xs text-slate-400 mt-1">Revenue</p>
                                 </div>
-                                <div className="p-2 bg-slate-100 rounded-lg text-slate-500">
+                                <div className="p-2 bg-slate-100 rounded-lg text-slate-500 group-hover:bg-slate-200 transition-colors">
                                     <Icons.Chart className="w-5 h-5" />
                                 </div>
                             </div>
@@ -412,19 +511,19 @@ export default function Dashboard({ isOwner }: { isOwner: boolean }) {
                     </Card>
 
                     {/* Purchases Month */}
-                    <Card className="hover:border-slate-300 transition-colors shadow-sm">
+                    <Card className="hover:shadow-md transition-all duration-300 shadow-sm group">
                         <CardContent className="p-6">
                             <div className="flex justify-between items-start">
                                 <div>
-                                    <p className="text-sm font-medium text-slate-500">Purchases (Month)</p>
-                                    <h3 className="text-2xl font-bold text-slate-900 mt-1">{formatCurrency(metrics?.purchases_month || 0)}</h3>
+                                    <p className="text-sm font-medium text-slate-600 tracking-wide uppercase">Purchases (Month)</p>
+                                    <h3 className="text-2xl font-bold text-slate-900 mt-1 group-hover:scale-105 transition-transform duration-300 origin-left">{formatCurrency(metrics?.purchases_month || 0)}</h3>
                                     <div className="flex items-center mt-1 gap-1">
                                         <Badge variant="outline" className="text-[10px] bg-slate-50 text-slate-600 px-1 py-0">
                                             {metrics?.purchases_count_month || 0} txns
                                         </Badge>
                                     </div>
                                 </div>
-                                <div className="p-2 bg-slate-100 rounded-lg text-slate-500">
+                                <div className="p-2 bg-slate-100 rounded-lg text-slate-500 group-hover:bg-slate-200 transition-colors">
                                     <Icons.Cart className="w-5 h-5" />
                                 </div>
                             </div>
@@ -432,21 +531,230 @@ export default function Dashboard({ isOwner }: { isOwner: boolean }) {
                     </Card>
 
                     {/* Low Stock */}
-                    <Card className={`${(metrics?.low_stock_count || 0) > 0 ? "bg-red-50/50 border-red-200" : "bg-white border-slate-200"} shadow-sm transition-colors`}>
+                    <Card className={`${(metrics?.low_stock_count || 0) > 0 ? "bg-red-50/50 border-red-200" : "bg-white border-slate-200"} shadow-sm hover:shadow-md transition-all duration-300 group`}>
                         <CardContent className="p-6">
                             <div className="flex justify-between items-start">
                                 <div>
-                                    <p className={(metrics?.low_stock_count || 0) > 0 ? "text-sm font-medium text-red-600" : "text-sm font-medium text-slate-500"}>Low Stock Items</p>
-                                    <h3 className="text-2xl font-bold text-slate-900 mt-1">{metrics?.low_stock_count || 0}</h3>
+                                    <p className={(metrics?.low_stock_count || 0) > 0 ? "text-sm font-medium text-red-600 tracking-wide uppercase" : "text-sm font-medium text-slate-600 tracking-wide uppercase"}>Low Stock Items</p>
+                                    <h3 className="text-2xl font-bold text-slate-900 mt-1 group-hover:scale-105 transition-transform duration-300 origin-left">{metrics?.low_stock_count || 0}</h3>
                                     <p className="text-xs text-slate-400 mt-1">out of {metrics?.total_items || 0} items</p>
                                 </div>
-                                <div className={(metrics?.low_stock_count || 0) > 0 ? "p-2 bg-red-100 rounded-lg text-red-600" : "p-2 bg-slate-100 rounded-lg text-slate-500"}>
+                                <div className={(metrics?.low_stock_count || 0) > 0 ? "p-2 bg-red-100 rounded-lg text-red-600 group-hover:bg-red-200 transition-colors" : "p-2 bg-slate-100 rounded-lg text-slate-500 group-hover:bg-slate-200 transition-colors"}>
                                     <Icons.AlertCircle className="w-5 h-5" />
                                 </div>
                             </div>
                         </CardContent>
                     </Card>
                 </div>
+            </Section>
+
+            {/* OPERATIONAL TRENDS */}
+            <Section
+                title="Operational Trends"
+                description={`Last ${trendRangeDays} days sales & purchase activity.`}
+                action={
+                    <div className="flex items-center gap-1">
+                        {[7, 14, 30].map((days) => (
+                            <Button
+                                key={days}
+                                size="sm"
+                                variant={trendRangeDays === days ? 'primary' : 'outline'}
+                                onClick={() => setTrendRangeDays(days)}
+                                className="h-8 px-2.5"
+                            >
+                                {days}D
+                            </Button>
+                        ))}
+                    </div>
+                }
+            >
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    <Card className="border border-slate-200 shadow-sm">
+                        <CardHeader className="pb-2">
+                            <CardTitle className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                                <Icons.TrendingUp className="w-4 h-4 text-indigo-500" />
+                                Sales Trend
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent className="pt-2">
+                            {trendLoading ? (
+                                <div className="h-32 flex items-center justify-center text-xs text-slate-400">Loading...</div>
+                            ) : (
+                                <div className="relative">
+                                    <div className="flex items-end gap-1 h-32 relative">
+                                        {salesTrend.map((point, index) => {
+                                            const max = Math.max(...salesTrend.map(p => p.total), 1)
+                                            const heightPercent = (point.total / max) * 100
+                                            const heightPx = Math.max(8, (heightPercent / 100) * 128) // 128px = h-32
+                                            const isHovered = hoveredSalesIndex === index
+                                            return (
+                                                <div
+                                                    key={point.date}
+                                                    className="flex-1 flex flex-col items-center gap-1 relative group"
+                                                    onMouseEnter={() => setHoveredSalesIndex(index)}
+                                                    onMouseLeave={() => setHoveredSalesIndex(null)}
+                                                >
+                                                    <div
+                                                        className="w-full bg-gradient-to-t from-indigo-500 to-indigo-300 rounded-t transition-all duration-200 cursor-pointer"
+                                                        style={{
+                                                            height: `${heightPx}px`,
+                                                            transform: isHovered ? 'scaleY(1.05)' : 'scaleY(1)',
+                                                            transformOrigin: 'bottom',
+                                                            opacity: isHovered ? 1 : 0.85
+                                                        }}
+                                                    />
+                                                    {isHovered && (
+                                                        <div className="absolute -top-14 left-1/2 transform -translate-x-1/2 bg-slate-900 text-white text-xs px-2 py-1.5 rounded shadow-lg whitespace-nowrap z-10 animate-in fade-in slide-in-from-bottom-2 duration-200">
+                                                            <div className="font-semibold">{formatCurrency(point.total)}</div>
+                                                            <div className="text-[10px] text-slate-300">{new Date(point.date).toLocaleDateString('id-ID', { month: 'short', day: 'numeric' })}</div>
+                                                            <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-slate-900"></div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )
+                                        })}
+                                    </div>
+                                </div>
+                            )}
+                            <div className="flex justify-between text-[10px] text-slate-400 mt-3">
+                                <span>{salesTrend[0]?.date && new Date(salesTrend[0].date).toLocaleDateString('id-ID', { month: 'short', day: 'numeric' })}</span>
+                                <span className="text-slate-500 font-medium">Total: {formatCurrency(salesTrend.reduce((sum, p) => sum + p.total, 0))}</span>
+                                <span>{salesTrend[salesTrend.length - 1]?.date && new Date(salesTrend[salesTrend.length - 1].date).toLocaleDateString('id-ID', { month: 'short', day: 'numeric' })}</span>
+                            </div>
+                        </CardContent>
+                    </Card>
+                    <Card className="border border-slate-200 shadow-sm">
+                        <CardHeader className="pb-2">
+                            <CardTitle className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                                <Icons.Cart className="w-4 h-4 text-purple-500" />
+                                Purchase Trend
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent className="pt-2">
+                            {trendLoading ? (
+                                <div className="h-32 flex items-center justify-center text-xs text-slate-400">Loading...</div>
+                            ) : (
+                                <div className="relative">
+                                    <div className="flex items-end gap-1 h-32 relative">
+                                        {purchaseTrend.map((point, index) => {
+                                            const max = Math.max(...purchaseTrend.map(p => p.total), 1)
+                                            const heightPercent = (point.total / max) * 100
+                                            const heightPx = Math.max(8, (heightPercent / 100) * 128) // 128px = h-32
+                                            const isHovered = hoveredPurchaseIndex === index
+                                            return (
+                                                <div
+                                                    key={point.date}
+                                                    className="flex-1 flex flex-col items-center gap-1 relative group"
+                                                    onMouseEnter={() => setHoveredPurchaseIndex(index)}
+                                                    onMouseLeave={() => setHoveredPurchaseIndex(null)}
+                                                >
+                                                    <div
+                                                        className="w-full bg-gradient-to-t from-purple-500 to-purple-300 rounded-t transition-all duration-200 cursor-pointer"
+                                                        style={{
+                                                            height: `${heightPx}px`,
+                                                            transform: isHovered ? 'scaleY(1.05)' : 'scaleY(1)',
+                                                            transformOrigin: 'bottom',
+                                                            opacity: isHovered ? 1 : 0.85
+                                                        }}
+                                                    />
+                                                    {isHovered && (
+                                                        <div className="absolute -top-14 left-1/2 transform -translate-x-1/2 bg-slate-900 text-white text-xs px-2 py-1.5 rounded shadow-lg whitespace-nowrap z-10 animate-in fade-in slide-in-from-bottom-2 duration-200">
+                                                            <div className="font-semibold">{formatCurrency(point.total)}</div>
+                                                            <div className="text-[10px] text-slate-300">{new Date(point.date).toLocaleDateString('id-ID', { month: 'short', day: 'numeric' })}</div>
+                                                            <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-slate-900"></div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )
+                                        })}
+                                    </div>
+                                </div>
+                            )}
+                            <div className="flex justify-between text-[10px] text-slate-400 mt-3">
+                                <span>{purchaseTrend[0]?.date && new Date(purchaseTrend[0].date).toLocaleDateString('id-ID', { month: 'short', day: 'numeric' })}</span>
+                                <span className="text-slate-500 font-medium">Total: {formatCurrency(purchaseTrend.reduce((sum, p) => sum + p.total, 0))}</span>
+                                <span>{purchaseTrend[purchaseTrend.length - 1]?.date && new Date(purchaseTrend[purchaseTrend.length - 1].date).toLocaleDateString('id-ID', { month: 'short', day: 'numeric' })}</span>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </div>
+            </Section>
+
+            {/* INVENTORY MOVEMENT */}
+            <Section title="Inventory Movement" description={`Inbound vs outbound movement (last ${trendRangeDays} days).`}>
+                <Card className="border border-slate-200 shadow-sm">
+                    <CardContent className="pt-4">
+                        {trendLoading ? (
+                            <div className="h-32 flex items-center justify-center text-xs text-slate-400">Loading...</div>
+                        ) : (
+                            <div className="relative">
+                                <div className="flex items-end gap-1 h-32 relative">
+                                    {stockTrend.map((point, index) => {
+                                        const max = Math.max(...stockTrend.map(p => Math.max(p.qty_in, p.qty_out)), 1)
+                                        const inHeightPercent = (point.qty_in / max) * 100
+                                        const outHeightPercent = (point.qty_out / max) * 100
+                                        const inHeightPx = Math.max(6, (inHeightPercent / 100) * 128) // 128px = h-32
+                                        const outHeightPx = Math.max(6, (outHeightPercent / 100) * 128)
+                                        const isHovered = hoveredStockIndex === index
+                                        return (
+                                            <div
+                                                key={point.date}
+                                                className="flex-1 flex items-end gap-0.5 relative group"
+                                                onMouseEnter={() => setHoveredStockIndex(index)}
+                                                onMouseLeave={() => setHoveredStockIndex(null)}
+                                            >
+                                                <div
+                                                    className="flex-1 bg-gradient-to-t from-emerald-500 to-emerald-300 rounded-t transition-all duration-200 cursor-pointer"
+                                                    style={{
+                                                        height: `${inHeightPx}px`,
+                                                        transform: isHovered ? 'scaleY(1.05)' : 'scaleY(1)',
+                                                        transformOrigin: 'bottom',
+                                                        opacity: isHovered ? 1 : 0.85
+                                                    }}
+                                                />
+                                                <div
+                                                    className="flex-1 bg-gradient-to-t from-rose-500 to-rose-300 rounded-t transition-all duration-200 cursor-pointer"
+                                                    style={{
+                                                        height: `${outHeightPx}px`,
+                                                        transform: isHovered ? 'scaleY(1.05)' : 'scaleY(1)',
+                                                        transformOrigin: 'bottom',
+                                                        opacity: isHovered ? 1 : 0.85
+                                                    }}
+                                                />
+                                                {isHovered && (
+                                                    <div className="absolute -top-16 left-1/2 transform -translate-x-1/2 bg-slate-900 text-white text-xs px-2 py-1.5 rounded shadow-lg whitespace-nowrap z-10 animate-in fade-in slide-in-from-bottom-2 duration-200">
+                                                        <div className="flex items-center gap-2">
+                                                            <div>
+                                                                <div className="text-[10px] text-emerald-300">In: {point.qty_in}</div>
+                                                                <div className="text-[10px] text-rose-300">Out: {point.qty_out}</div>
+                                                            </div>
+                                                        </div>
+                                                        <div className="text-[10px] text-slate-300 mt-0.5">{new Date(point.date).toLocaleDateString('id-ID', { month: 'short', day: 'numeric' })}</div>
+                                                        <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-slate-900"></div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+                            </div>
+                        )}
+                        <div className="flex justify-between text-[10px] text-slate-400 mt-3">
+                            <span>{stockTrend[0]?.date && new Date(stockTrend[0].date).toLocaleDateString('id-ID', { month: 'short', day: 'numeric' })}</span>
+                            <div className="flex items-center gap-3">
+                                <div className="flex items-center gap-1">
+                                    <span className="w-2 h-2 bg-gradient-to-br from-emerald-500 to-emerald-300 rounded-sm" />
+                                    <span className="text-slate-500 font-medium">In: {stockTrend.reduce((sum, p) => sum + p.qty_in, 0)}</span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                    <span className="w-2 h-2 bg-gradient-to-br from-rose-500 to-rose-300 rounded-sm" />
+                                    <span className="text-slate-500 font-medium">Out: {stockTrend.reduce((sum, p) => sum + p.qty_out, 0)}</span>
+                                </div>
+                            </div>
+                            <span>{stockTrend[stockTrend.length - 1]?.date && new Date(stockTrend[stockTrend.length - 1].date).toLocaleDateString('id-ID', { month: 'short', day: 'numeric' })}</span>
+                        </div>
+                    </CardContent>
+                </Card>
             </Section>
 
             {/* INSIGHTS & ACTIVITY */}

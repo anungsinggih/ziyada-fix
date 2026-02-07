@@ -163,9 +163,15 @@ export function ItemImportDialog({ isOpen, onClose, onSuccess }: ImportDialogPro
                             <li>Fill in the data. New Brands, Categories, etc., will be created automatically.</li>
                             <li>Upload user the file below.</li>
                         </ul>
-                        <button onClick={downloadTemplate} className="mt-2 text-blue-600 underline hover:text-blue-800 text-xs font-semibold">
-                            Download Template
-                        </button>
+                        <div className="mt-3">
+                            <button
+                                onClick={downloadTemplate}
+                                className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-full shadow-md hover:shadow-lg transition-all transform hover:-translate-y-0.5"
+                            >
+                                <Icons.Download className="w-4 h-4" />
+                                Download Template
+                            </button>
+                        </div>
                     </div>
 
                     <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:bg-gray-50 transition-colors cursor-pointer" onClick={() => fileInputRef.current?.click()}>

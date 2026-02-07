@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react'
+import { Icons } from './Icons'
 
 interface DialogProps {
     isOpen: boolean
@@ -25,6 +26,12 @@ export function Dialog({ isOpen, onClose, children, contentClassName = '' }: Dia
             />
             {/* Content */}
             <div className={`relative w-full max-w-lg bg-white rounded-2xl shadow-2xl border border-[var(--border-light)] animate-in zoom-in-95 fade-in slide-in-from-bottom-2 duration-300 overflow-hidden ring-1 ring-black/5 ${contentClassName}`}>
+                <button
+                    onClick={onClose}
+                    className="absolute right-4 top-4 p-1 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors z-50"
+                >
+                    <Icons.Close className="w-5 h-5" />
+                </button>
                 {children}
             </div>
         </div>

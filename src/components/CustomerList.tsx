@@ -14,9 +14,11 @@ interface CustomerListProps {
     onEdit: (customer: Customer) => void
     onDelete: (id: string) => void
     onPrices: (customer: Customer) => void
+    onView: (customer: Customer) => void
+    onCreateSale: (customer: Customer) => void
 }
 
-export default function CustomerList({ customers, loading, onEdit, onDelete, onPrices }: CustomerListProps) {
+export default function CustomerList({ customers, loading, onEdit, onDelete, onPrices, onView, onCreateSale }: CustomerListProps) {
     const [searchTerm, setSearchTerm] = useState('')
 
     const filteredCustomers = customers.filter(c =>
@@ -55,7 +57,13 @@ export default function CustomerList({ customers, loading, onEdit, onDelete, onP
                             {loading ? <TableRow><TableCell colSpan={5} className="text-center">Loading...</TableCell></TableRow> : filteredCustomers.map(c => (
                                 <TableRow key={c.id} className={!c.is_active ? 'bg-gray-100 opacity-60' : ''}>
                                     <TableCell className="font-medium">
-                                        <CustomerBadge name={c.name} customerType={c.customer_type} />
+                                        <button
+                                            type="button"
+                                            onClick={() => onView(c)}
+                                            className="text-left text-slate-900 hover:text-blue-700"
+                                        >
+                                            <CustomerBadge name={c.name} customerType={c.customer_type} />
+                                        </button>
                                     </TableCell>
                                     <TableCell>{c.phone}</TableCell>
                                     <TableCell className="max-w-xs truncate">{c.address}</TableCell>
@@ -64,16 +72,26 @@ export default function CustomerList({ customers, loading, onEdit, onDelete, onP
                                             {c.is_active ? 'Active' : 'Inactive'}
                                         </Badge>
                                     </TableCell>
-                                    <TableCell className="space-x-2 flex">
-                                        {c.customer_type === 'CUSTOM' && (
+                                    <TableCell>
+                                        <div className="flex justify-end gap-1">
                                             <Button
                                                 size="sm"
                                                 variant="outline"
-                                                onClick={() => onPrices(c)}
-                                                icon={<Icons.Tag className="w-4 h-4" />}
-                                            />
-                                        )}
-                                        <div className="flex justify-end gap-1">
+                                                onClick={() => onCreateSale(c)}
+                                                className="h-9 w-9 p-0 text-slate-500 hover:text-indigo-600"
+                                            >
+                                                <Icons.Cart className="w-[20px] h-[20px]" />
+                                            </Button>
+                                            {c.customer_type === 'CUSTOM' && (
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    onClick={() => onPrices(c)}
+                                                    className="h-9 w-9 p-0 text-slate-500 hover:text-indigo-600"
+                                                >
+                                                    <Icons.Tag className="w-[20px] h-[20px]" />
+                                                </Button>
+                                            )}
                                             <Button size="sm" variant="ghost" onClick={() => onEdit(c)} className="h-9 w-9 p-0 text-slate-500 hover:text-indigo-600">
                                                 <Icons.Edit className="w-[22px] h-[22px]" />
                                             </Button>

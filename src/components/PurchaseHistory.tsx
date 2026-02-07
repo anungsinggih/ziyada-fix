@@ -48,6 +48,7 @@ export default function PurchaseHistory() {
   const [termsFilter, setTermsFilter] = useState<"ALL" | "CASH" | "CREDIT">("ALL");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [draftReturnCount, setDraftReturnCount] = useState(0);
   const navigate = useNavigate();
 
   const { page, setPage, pageSize, range } = usePagination();
@@ -128,9 +129,23 @@ export default function PurchaseHistory() {
     }
   }, [range, search, statusFilter, termsFilter, dateFrom, dateTo]);
 
+  const fetchReturnDraftCount = useCallback(async () => {
+    try {
+      const { count, error: countError } = await supabase
+        .from("purchase_returns")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "DRAFT");
+      if (countError) throw countError;
+      setDraftReturnCount(count || 0);
+    } catch {
+      setDraftReturnCount(0);
+    }
+  }, []);
+
   useEffect(() => {
     fetchPurchases();
-  }, [fetchPurchases]);
+    fetchReturnDraftCount();
+  }, [fetchPurchases, fetchReturnDraftCount]);
 
   async function handlePost(purchaseId: string) {
     if (
@@ -197,6 +212,18 @@ export default function PurchaseHistory() {
               icon={<Icons.Refresh className="w-4 h-4" />}
             >
               Refresh
+            </Button>
+            <Button
+              onClick={() => navigate("/purchase-returns/history")}
+              variant="outline"
+              icon={<Icons.RotateCw className="w-4 h-4" />}
+            >
+              Return List
+              {draftReturnCount > 0 && (
+                <span className="ml-2 inline-flex items-center justify-center rounded-full bg-amber-100 text-amber-800 border border-amber-200 text-[10px] font-semibold px-2 py-0.5">
+                  {draftReturnCount}
+                </span>
+              )}
             </Button>
             <Button
               onClick={() => navigate("/purchases")}
@@ -323,7 +350,11 @@ export default function PurchaseHistory() {
                 </TableHeader>
                 <TableBody>
                   {purchases.map((purchase) => (
-                    <TableRow key={purchase.id}>
+                    <TableRow
+                      key={purchase.id}
+                      className="cursor-pointer hover:bg-slate-50"
+                      onClick={() => navigate(`/purchases/${purchase.id}`)}
+                    >
                       <TableCell>{formatDate(purchase.purchase_date)}</TableCell>
                       <TableCell className="font-mono text-sm">
                         {safeDocNo(purchase.purchase_no, purchase.id)}
@@ -347,25 +378,16 @@ export default function PurchaseHistory() {
                         <StatusBadge status={purchase.status} />
                       </TableCell>
                       <TableCell>
-                        <div className="flex flex-wrap gap-2">
-                          <Button
-                            size="icon"
-                            variant="outline"
-                            onClick={() =>
-                              navigate(`/purchases/${purchase.id}`)
-                            }
-                            icon={<Icons.Eye className="w-4 h-4" />}
-                            aria-label="View purchase"
-                            title="View"
-                          />
+                        <div className="flex flex-wrap gap-2" onClick={(e) => e.stopPropagation()}>
                           {purchase.status === "DRAFT" && (
                             <>
                               <Button
                                 size="icon"
                                 variant="outline"
-                                onClick={() =>
-                                  navigate(`/purchases/${purchase.id}/edit`)
-                                }
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  navigate(`/purchases/${purchase.id}/edit`);
+                                }}
                                 icon={<Icons.Edit className="w-4 h-4" />}
                                 className="w-full sm:w-auto"
                                 aria-label="Edit purchase"
@@ -373,7 +395,10 @@ export default function PurchaseHistory() {
                               />
                               <Button
                                 size="sm"
-                                onClick={() => handlePost(purchase.id)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handlePost(purchase.id);
+                                }}
                                 disabled={postingId === purchase.id}
                                 isLoading={postingId === purchase.id}
                                 className="w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white"

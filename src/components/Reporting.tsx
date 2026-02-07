@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabaseClient'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from './ui/Tabs'
 import { Button } from './ui/Button'
@@ -37,8 +38,15 @@ type CashflowLine = {
 type Account = { id: string, name: string, code: string }
 
 export default function Reporting() {
-    const [startDate, setStartDate] = useState(new Date().getFullYear() + '-01-01')
-    const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0])
+    const navigate = useNavigate()
+    const [startDate, setStartDate] = useState(() => {
+        const d = new Date()
+        return new Date(d.getFullYear(), d.getMonth(), 1).toLocaleDateString('en-CA')
+    })
+    const [endDate, setEndDate] = useState(() => {
+        const d = new Date()
+        return new Date(d.getFullYear(), d.getMonth() + 1, 0).toLocaleDateString('en-CA')
+    })
     const [loading, setLoading] = useState(false)
     const [data, setData] = useState<AccountBalance[]>([])
     const [error, setError] = useState<string | null>(null)
@@ -54,57 +62,60 @@ export default function Reporting() {
     // Active tab tracking
     const [activeTab, setActiveTab] = useState('TB')
 
-    // Trigger fetch on tab change not needed if we pre-fetch or fetch on button
-    // But for GL account list we need it.
-    // Let's load accounts once on mount
+    // Trigger fetch on tab or filter change
     useEffect(() => {
         fetchAccounts()
     }, [])
 
+    useEffect(() => {
+        // Debounce or just fetch? Let's just fetch for now, maybe add small timeout if typing
+        // GL requires account selection, so only fetch if account is selected
+        if (activeTab === 'GL' && !glAccount) return
+
+        const fetchReportData = async () => {
+            setLoading(true)
+            setError(null)
+            // Keep previous data while loading for better UX? Or clear? 
+            // Clearing might cause layout shift. Let's keep and show loading overlay or spinner.
+
+            try {
+                if (activeTab === 'GL') {
+                    const { data, error } = await supabase.rpc('rpc_get_gl', {
+                        p_account_id: glAccount,
+                        p_start_date: startDate,
+                        p_end_date: endDate
+                    })
+                    if (error) throw error
+                    setGlData(data || [])
+                } else if (activeTab === 'CF') {
+                    const { data, error } = await supabase.rpc('rpc_get_cashflow', {
+                        p_start_date: startDate,
+                        p_end_date: endDate
+                    })
+                    if (error) throw error
+                    setCashflowData(data || [])
+                } else {
+                    // TB, BS, PL rely on Balances
+                    const { data, error } = await supabase.rpc('rpc_get_account_balances', {
+                        p_start_date: startDate,
+                        p_end_date: endDate
+                    })
+                    if (error) throw error
+                    setData(data || [])
+                }
+            } catch (err: unknown) {
+                setError(getErrorMessage(err))
+            } finally {
+                setLoading(false)
+            }
+        }
+
+        fetchReportData()
+    }, [activeTab, startDate, endDate, glAccount])
+
     async function fetchAccounts() {
         const { data } = await supabase.from('accounts').select('id, name, code').order('code')
         setAccounts(data || [])
-    }
-
-    async function handleRunReport(tabName?: string) {
-        const tab = tabName || activeTab
-        setLoading(true)
-        setError(null)
-        setData([])
-        setGlData([])
-        setCashflowData([])
-
-        try {
-            if (tab === 'GL') {
-                if (!glAccount) { setError("Select Account"); setLoading(false); return }
-                const { data, error } = await supabase.rpc('rpc_get_gl', {
-                    p_account_id: glAccount,
-                    p_start_date: startDate,
-                    p_end_date: endDate
-                })
-                if (error) throw error
-                setGlData(data || [])
-            } else if (tab === 'CF') {
-                const { data, error } = await supabase.rpc('rpc_get_cashflow', {
-                    p_start_date: startDate,
-                    p_end_date: endDate
-                })
-                if (error) throw error
-                setCashflowData(data || [])
-            } else {
-                // TB, BS, PL rely on Balances
-                const { data, error } = await supabase.rpc('rpc_get_account_balances', {
-                    p_start_date: startDate,
-                    p_end_date: endDate
-                })
-                if (error) throw error
-                setData(data || [])
-            }
-        } catch (err: unknown) {
-            setError(getErrorMessage(err))
-        } finally {
-            setLoading(false)
-        }
     }
 
     // UTILS
@@ -165,34 +176,49 @@ export default function Reporting() {
                     breadcrumbs={[{ label: "Dashboard", href: "/" }, { label: "Finance Reports" }]}
                     actions={
                         <div className="flex gap-2">
+                            <Button
+                                variant="outline"
+                                icon={<Icons.Calendar className="w-4 h-4" />}
+                                onClick={() => navigate('/period-lock')}
+                            >
+                                Period Management
+                            </Button>
                             <Button variant="outline" icon={<Icons.Printer className="w-4 h-4" />} onClick={() => window.print()}>Print</Button>
-                            <Button variant="primary" icon={<Icons.Refresh className="w-4 h-4" />} onClick={() => handleRunReport()}>Run Report</Button>
                         </div>
                     }
                 />
             </div>
 
             <Tabs defaultValue="TB" onValueChange={(val) => setActiveTab(val)} className="space-y-6 print:space-y-0">
-                <div className="print:hidden">
-                    <TabsList className="bg-white border border-slate-200 p-1 rounded-xl shadow-sm inline-flex gap-1">
-                        <TabsTrigger value="TB" className="data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700 px-4 py-2 rounded-lg transition-all flex items-center gap-2"><Icons.FileText className="w-4 h-4" /> Trial Balance</TabsTrigger>
-                        <TabsTrigger value="BS" className="data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700 px-4 py-2 rounded-lg transition-all flex items-center gap-2"><Icons.Chart className="w-4 h-4" /> Balance Sheet</TabsTrigger>
-                        <TabsTrigger value="PL" className="data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700 px-4 py-2 rounded-lg transition-all flex items-center gap-2"><Icons.TrendingUp className="w-4 h-4" /> Profit & Loss</TabsTrigger>
-                        <TabsTrigger value="CF" className="data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700 px-4 py-2 rounded-lg transition-all flex items-center gap-2"><Icons.DollarSign className="w-4 h-4" /> Cash Flow</TabsTrigger>
-                        <TabsTrigger value="GL" className="data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700 px-4 py-2 rounded-lg transition-all flex items-center gap-2"><Icons.History className="w-4 h-4" /> General Ledger</TabsTrigger>
+                <div className="print:hidden flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 bg-white border border-slate-200 p-2 rounded-xl shadow-sm">
+                    <TabsList className="bg-slate-100/50 p-1 rounded-lg inline-flex gap-1 overflow-x-auto max-w-full">
+                        <TabsTrigger value="TB" className="data-[state=active]:bg-white data-[state=active]:text-indigo-700 data-[state=active]:shadow-sm px-3 py-1.5 rounded-md transition-all flex items-center gap-2 text-sm whitespace-nowrap"><Icons.FileText className="w-4 h-4" /> Trial Balance</TabsTrigger>
+                        <TabsTrigger value="BS" className="data-[state=active]:bg-white data-[state=active]:text-indigo-700 data-[state=active]:shadow-sm px-3 py-1.5 rounded-md transition-all flex items-center gap-2 text-sm whitespace-nowrap"><Icons.Chart className="w-4 h-4" /> Balance Sheet</TabsTrigger>
+                        <TabsTrigger value="PL" className="data-[state=active]:bg-white data-[state=active]:text-indigo-700 data-[state=active]:shadow-sm px-3 py-1.5 rounded-md transition-all flex items-center gap-2 text-sm whitespace-nowrap"><Icons.TrendingUp className="w-4 h-4" /> Profit & Loss</TabsTrigger>
+                        <TabsTrigger value="CF" className="data-[state=active]:bg-white data-[state=active]:text-indigo-700 data-[state=active]:shadow-sm px-3 py-1.5 rounded-md transition-all flex items-center gap-2 text-sm whitespace-nowrap"><Icons.DollarSign className="w-4 h-4" /> Cash Flow</TabsTrigger>
+                        <TabsTrigger value="GL" className="data-[state=active]:bg-white data-[state=active]:text-indigo-700 data-[state=active]:shadow-sm px-3 py-1.5 rounded-md transition-all flex items-center gap-2 text-sm whitespace-nowrap"><Icons.History className="w-4 h-4" /> General Ledger</TabsTrigger>
                     </TabsList>
-                </div>
 
-                <div className="print:hidden">
-                    <Section title="Report Parameters" description="Select date range for the report." className="bg-white/50">
-                        <div className="flex flex-col sm:flex-row gap-4 items-end">
-                            <Input type="date" label="Start Date" value={startDate} onChange={e => setStartDate(e.target.value)} containerClassName="flex-1 !mb-0" />
-                            <Input type="date" label="End Date" value={endDate} onChange={e => setEndDate(e.target.value)} containerClassName="flex-1 !mb-0" />
-                            <div className="flex-none">
-                                {/* Button moved to Header Actions for better UX, but kept here for context if needed or removed */}
-                            </div>
+                    <div className="flex items-center gap-2 w-full xl:w-auto px-2 pb-2 xl:pb-0">
+                        <div className="flex items-center gap-2 w-full sm:w-auto">
+                            <span className="text-xs font-semibold text-slate-500 uppercase whitespace-nowrap">Period:</span>
+                            <Input
+                                type="date"
+                                value={startDate}
+                                onChange={e => setStartDate(e.target.value)}
+                                containerClassName="!mb-0 w-full sm:w-auto"
+                                className="h-9 text-sm py-1"
+                            />
+                            <span className="text-slate-400">-</span>
+                            <Input
+                                type="date"
+                                value={endDate}
+                                onChange={e => setEndDate(e.target.value)}
+                                containerClassName="!mb-0 w-full sm:w-auto"
+                                className="h-9 text-sm py-1"
+                            />
                         </div>
-                    </Section>
+                    </div>
                 </div>
 
                 {error && (
@@ -248,81 +274,85 @@ export default function Reporting() {
 
                         <TabsContent value="BS" className="print:block">
                             <PrintHeader title="Balance Sheet" />
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 print:grid-cols-2 print:gap-4">
-                                {/* ASSETS */}
-                                <Section title="Assets" description="What the company owns." className="border-t-4 border-t-emerald-500 h-full print:border-none print:shadow-none print:p-0">
-                                    <div className="space-y-4 print:space-y-2">
-                                        <div className="max-h-[500px] overflow-y-auto pr-2 custom-scrollbar print:max-h-none print:overflow-visible">
-                                            {assets.map(d => <AccountRow key={d.id} item={d} />)}
-                                            {assets.length === 0 && <p className="text-center text-slate-400 py-4 italic">No asset accounts found.</p>}
-                                        </div>
-                                        <div className="pt-4 border-t-2 border-slate-100 mt-4 bg-slate-50/50 p-4 rounded-lg flex justify-between items-center relative overflow-hidden group print:bg-transparent print:p-2 print:pt-4 print:mt-2">
-                                            <div className="absolute inset-0 bg-emerald-500/5 group-hover:bg-emerald-500/10 transition-colors print:hidden"></div>
-                                            <span className="font-bold text-slate-700 z-10 uppercase tracking-wide text-xs">Total Assets</span>
-                                            <span className="font-bold text-xl text-emerald-700 z-10 font-mono">{fmt(totalAsset)}</span>
-                                        </div>
-                                    </div>
-                                </Section>
-
-                                {/* LIABILITIES & EQUITY */}
-                                <Section title="Liabilities & Equity" description="What the company owes." className="border-t-4 border-t-purple-500 h-full print:border-none print:shadow-none print:p-0">
-                                    <div className="space-y-6 print:space-y-4">
-                                        {/* Liabilities */}
-                                        <div>
-                                            <h4 className="flex items-center gap-2 font-semibold text-xs uppercase text-slate-500 mb-3 tracking-wider print:mb-1">
-                                                <div className="w-1.5 h-1.5 rounded-full bg-rose-400 print:hidden"></div> Liabilities
-                                            </h4>
-                                            <div className="mb-2">
-                                                {liabs.map(d => <AccountRow key={d.id} item={d} invert />)}
-                                                {liabs.length === 0 && <p className="text-sm text-slate-400 italic px-2">No liability accounts.</p>}
+                            <div className="max-w-6xl mx-auto">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 print:grid-cols-2 print:gap-4">
+                                    {/* ASSETS */}
+                                    <Section title="Assets" description="What the company owns." className="border-t-4 border-t-emerald-500 h-full print:border-none print:shadow-none print:p-0">
+                                        <div className="flex flex-col h-[600px] print:h-auto">
+                                            <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
+                                                {assets.map(d => <AccountRow key={d.id} item={d} />)}
+                                                {assets.length === 0 && <p className="text-center text-slate-400 py-4 italic">No asset accounts found.</p>}
+                                            </div>
+                                            <div className="pt-4 border-t-2 border-slate-100 mt-4 bg-slate-50/50 p-4 rounded-lg flex justify-between items-center relative overflow-hidden group print:bg-transparent print:p-2 print:pt-4 print:mt-auto">
+                                                <div className="absolute inset-0 bg-emerald-500/5 group-hover:bg-emerald-500/10 transition-colors print:hidden"></div>
+                                                <span className="font-bold text-slate-700 z-10 uppercase tracking-wide text-xs">Total Assets</span>
+                                                <span className="font-bold text-xl text-emerald-700 z-10 font-mono">{fmt(totalAsset)}</span>
                                             </div>
                                         </div>
+                                    </Section>
 
-                                        {/* Equity */}
-                                        <div>
-                                            <h4 className="flex items-center gap-2 font-semibold text-xs uppercase text-slate-500 mb-3 tracking-wider print:mb-1">
-                                                <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 print:hidden"></div> Equity
-                                            </h4>
-                                            <div>
-                                                {equity.map(d => <AccountRow key={d.id} item={d} invert />)}
-                                                <div className="flex justify-between items-center py-2 border-b border-slate-50 px-2 rounded-sm bg-indigo-50/30 print:bg-transparent">
-                                                    <div className="flex items-center gap-3">
-                                                        <span className="font-mono text-xs text-indigo-400 bg-indigo-100 px-1.5 py-0.5 rounded print:bg-transparent print:text-slate-600">RET</span>
-                                                        <span className="text-sm text-indigo-900 font-medium print:text-slate-800">Current Year Earnings</span>
+                                    {/* LIABILITIES & EQUITY */}
+                                    <Section title="Liabilities & Equity" description="What the company owes." className="border-t-4 border-t-purple-500 h-full print:border-none print:shadow-none print:p-0">
+                                        <div className="flex flex-col h-[600px] print:h-auto">
+                                            <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-6">
+                                                {/* Liabilities */}
+                                                <div>
+                                                    <h4 className="flex items-center gap-2 font-semibold text-xs uppercase text-slate-500 mb-3 tracking-wider print:mb-1">
+                                                        <div className="w-1.5 h-1.5 rounded-full bg-rose-400 print:hidden"></div> Liabilities
+                                                    </h4>
+                                                    <div className="mb-2">
+                                                        {liabs.map(d => <AccountRow key={d.id} item={d} invert />)}
+                                                        {liabs.length === 0 && <p className="text-sm text-slate-400 italic px-2">No liability accounts.</p>}
                                                     </div>
-                                                    <span className={`font-mono text-sm font-bold ${retainedEarnings < 0 ? 'text-red-600' : 'text-indigo-700'}`}>
-                                                        {fmt(-retainedEarnings)}
-                                                    </span>
+                                                </div>
+
+                                                {/* Equity */}
+                                                <div>
+                                                    <h4 className="flex items-center gap-2 font-semibold text-xs uppercase text-slate-500 mb-3 tracking-wider print:mb-1">
+                                                        <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 print:hidden"></div> Equity
+                                                    </h4>
+                                                    <div>
+                                                        {equity.map(d => <AccountRow key={d.id} item={d} invert />)}
+                                                        <div className="flex justify-between items-center py-2 border-b border-slate-50 px-2 rounded-sm bg-indigo-50/30 print:bg-transparent">
+                                                            <div className="flex items-center gap-3">
+                                                                <span className="font-mono text-xs text-indigo-400 bg-indigo-100 px-1.5 py-0.5 rounded print:bg-transparent print:text-slate-600">RET</span>
+                                                                <span className="text-sm text-indigo-900 font-medium print:text-slate-800">Current Year Earnings</span>
+                                                            </div>
+                                                            <span className={`font-mono text-sm font-bold ${retainedEarnings < 0 ? 'text-red-600' : 'text-indigo-700'}`}>
+                                                                {fmt(-retainedEarnings)}
+                                                            </span>
+                                                        </div>
+                                                    </div>
                                                 </div>
                                             </div>
-                                        </div>
 
-                                        {/* Summary */}
-                                        <div className="pt-4 border-t-2 border-slate-100 mt-4 bg-slate-50/50 p-4 rounded-lg flex justify-between items-center relative overflow-hidden group print:bg-transparent print:p-2 print:pt-4 print:mt-2">
-                                            <div className="absolute inset-0 bg-purple-500/5 group-hover:bg-purple-500/10 transition-colors print:hidden"></div>
-                                            <span className="font-bold text-slate-700 z-10 uppercase tracking-wide text-xs">Total Liab & Equity</span>
-                                            <span className="font-bold text-xl text-purple-700 z-10 font-mono">{fmt(totalLiab + totalEquity)}</span>
+                                            {/* Summary */}
+                                            <div className="pt-4 border-t-2 border-slate-100 mt-4 bg-slate-50/50 p-4 rounded-lg flex justify-between items-center relative overflow-hidden group print:bg-transparent print:p-2 print:pt-4 print:mt-auto">
+                                                <div className="absolute inset-0 bg-purple-500/5 group-hover:bg-purple-500/10 transition-colors print:hidden"></div>
+                                                <span className="font-bold text-slate-700 z-10 uppercase tracking-wide text-xs">Total Liab & Equity</span>
+                                                <span className="font-bold text-xl text-purple-700 z-10 font-mono">{fmt(totalLiab + totalEquity)}</span>
+                                            </div>
                                         </div>
+                                    </Section>
+                                </div>
 
-                                        {/* Balance Check */}
-                                        <div className={`mt-4 p-3 rounded-lg border flex items-center justify-center gap-2 ${Math.abs(totalAsset - (totalLiab + totalEquity)) < 1
-                                            ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
-                                            : 'bg-red-50 border-red-200 text-red-700'
-                                            } print:bg-transparent print:border-slate-300 print:text-slate-800`}>
-                                            {Math.abs(totalAsset - (totalLiab + totalEquity)) < 1 ? (
-                                                <>
-                                                    <Icons.CheckCircle className="w-5 h-5 print:text-slate-600" />
-                                                    <span className="font-bold text-sm">Balance Sheet is Balanced</span>
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <Icons.AlertCircle className="w-5 h-5" />
-                                                    <span className="font-bold text-sm">Unbalanced: Diff {fmt(totalAsset - (totalLiab + totalEquity))}</span>
-                                                </>
-                                            )}
-                                        </div>
-                                    </div>
-                                </Section>
+                                {/* Balance Check - Moved Outside & Centered */}
+                                <div className={`mt-8 p-3 rounded-full border-2 flex items-center justify-center gap-3 w-fit mx-auto shadow-sm px-8 ${Math.abs(totalAsset - (totalLiab + totalEquity)) < 1
+                                    ? 'bg-emerald-50 border-emerald-100 text-emerald-800'
+                                    : 'bg-red-50 border-red-200 text-red-800'
+                                    } print:bg-transparent print:border-slate-300 print:text-slate-800 print:mt-4 print:shadow-none print:w-full print:rounded-lg`}>
+                                    {Math.abs(totalAsset - (totalLiab + totalEquity)) < 1 ? (
+                                        <>
+                                            <Icons.CheckCircle className="w-5 h-5 text-emerald-600 print:text-slate-600" />
+                                            <span className="font-bold text-sm uppercase tracking-wide">Balance Sheet is Balanced</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Icons.AlertCircle className="w-5 h-5" />
+                                            <span className="font-bold text-sm uppercase tracking-wide">Unbalanced: Diff {fmt(totalAsset - (totalLiab + totalEquity))}</span>
+                                        </>
+                                    )}
+                                </div>
                             </div>
                         </TabsContent>
 
@@ -412,7 +442,7 @@ export default function Reporting() {
 
                         <TabsContent value="CF" className="print:block">
                             <PrintHeader title="Cash Flow" />
-                            <Section title="Cash Flow Statement" description="Inflow and outflow of cash." className="border-t-4 border-t-cyan-500 print:border-none print:shadow-none print:p-0">
+                            <Section title="Cash Flow Statement" description="Inflow and outflow of cash." className="border-t-4 border-t-cyan-500 max-w-4xl mx-auto print:border-none print:shadow-none print:p-0 print:max-w-none">
                                 {cashflowData.length === 0 ? (
                                     <div className="py-20 text-center text-slate-400 bg-slate-50 rounded-lg border-2 border-dashed border-slate-200 print:bg-transparent">
                                         <Icons.DollarSign className="w-12 h-12 text-slate-300 mx-auto mb-3" />
@@ -461,14 +491,6 @@ export default function Reporting() {
                                             className="w-full !mb-0"
                                         />
                                     </div>
-                                    <Button
-                                        onClick={() => handleRunReport('GL')}
-                                        disabled={!glAccount}
-                                        className="w-full sm:w-auto"
-                                        variant={glAccount ? "primary" : "outline"}
-                                    >
-                                        Load Transactions
-                                    </Button>
                                 </div>
 
                                 {glData.length > 0 ? (

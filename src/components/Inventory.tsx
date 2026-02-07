@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { InventoryList } from "./InventoryList";
 import StockCard from "./StockCard";
 import StockAdjustment from "./StockAdjustment";
@@ -6,6 +7,7 @@ import { Icons } from "./ui/Icons";
 import { PageHeader } from "./ui/PageHeader";
 
 export default function Inventory() {
+    const navigate = useNavigate();
     const [view, setView] = useState<'list' | 'card'>('list');
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const [adjustItem, setAdjustItem] = useState<{ id: string; name: string } | null>(null);
@@ -22,6 +24,36 @@ export default function Inventory() {
                 title="Inventory Dashboard"
                 description="Monitor stock levels, view history, and perform adjustments in real-time."
                 breadcrumbs={[{ label: 'Dashboard', href: '/' }, { label: 'Inventory' }]}
+                actions={
+                    <div className="flex flex-wrap gap-2">
+                        {selectedId && (
+                            <button
+                                type="button"
+                                onClick={() => setSelectedId(null)}
+                                className="inline-flex items-center gap-2 px-4 h-10 text-sm rounded-lg border border-red-200 bg-red-50 hover:bg-red-100 text-red-700 font-medium transition-colors"
+                            >
+                                <Icons.Close className="w-4 h-4" />
+                                Clear Selection
+                            </button>
+                        )}
+                        <button
+                            type="button"
+                            onClick={() => navigate('/stock-adj')}
+                            className="inline-flex items-center gap-2 px-4 h-10 text-sm rounded-lg border border-[var(--border)] bg-white hover:bg-[var(--bg-surface-alt)] text-[var(--text-main)]"
+                        >
+                            <Icons.Edit className="w-4 h-4" />
+                            Stock Adjustment
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => navigate('/opening-stock')}
+                            className="inline-flex items-center gap-2 px-4 h-10 text-sm rounded-lg border border-[var(--border)] bg-white hover:bg-[var(--bg-surface-alt)] text-[var(--text-main)]"
+                        >
+                            <Icons.Plus className="w-4 h-4" />
+                            Opening Stock
+                        </button>
+                    </div>
+                }
             />
 
             {/* Mobile Tabs */}

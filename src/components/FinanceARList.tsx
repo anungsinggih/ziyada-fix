@@ -10,10 +10,11 @@ import {
 } from "./ui/Table";
 import { Button } from "./ui/Button";
 import { ResponsiveTable } from './ui/ResponsiveTable';
-import { Section } from "./ui/Section";
+// import { Section } from "./ui/Section";
 import { Icons } from "./ui/Icons";
-import { Input } from "./ui/Input";
-import { Card, CardContent, CardHeader, CardTitle } from "./ui/Card";
+// import { Input } from "./ui/Input";
+import { Card, CardContent } from "./ui/Card";
+// import { ButtonSelect } from "./ui/ButtonSelect";
 
 type AR = {
     id: string;
@@ -26,17 +27,37 @@ type AR = {
 };
 
 type Props = {
-    selectedId: string;
+    selectedId: string | null;
     onSelect: (id: string, amount: number) => void;
     refreshTrigger: number;
+    initialSelectedId?: string | null;
 };
 
-export function FinanceARList({ selectedId, onSelect, refreshTrigger }: Props) {
+export function FinanceARList({ selectedId, onSelect, refreshTrigger, initialSelectedId }: Props) {
     const [arList, setArList] = useState<AR[]>([]);
     const [loading, setLoading] = useState(false);
     const [search, setSearch] = useState("");
     const [dateFrom, setDateFrom] = useState("");
     const [dateTo, setDateTo] = useState("");
+    const [statusFilter, setStatusFilter] = useState("OUTSTANDING");
+
+    // Auto-search and select from prop (Deep Linking)
+    useEffect(() => {
+        if (initialSelectedId) {
+            setSearch(initialSelectedId);
+        }
+    }, [initialSelectedId]);
+
+    // Auto-open modal if initialSelectedId is found and loaded
+    useEffect(() => {
+        if (initialSelectedId && arList.length > 0) {
+            const item = arList.find(i => i.id === initialSelectedId);
+            if (item) {
+                // Trigger parent onSelect to open modal
+                onSelect(item.id, item.outstanding_amount);
+            }
+        }
+    }, [initialSelectedId, arList, onSelect]);
 
     const fetchAR = useCallback(async () => {
         setLoading(true);
@@ -44,8 +65,13 @@ export function FinanceARList({ selectedId, onSelect, refreshTrigger }: Props) {
             let query = supabase
                 .from("ar_invoices")
                 .select("*, customer:customers(name)")
-                .gt("outstanding_amount", 0)
                 .order("invoice_date", { ascending: true });
+
+            if (statusFilter === "OUTSTANDING") {
+                query = query.neq("status", "PAID").gt("outstanding_amount", 0);
+            } else if (statusFilter === "UNPAID" || statusFilter === "PARTIAL" || statusFilter === "PAID") {
+                query = query.eq("status", statusFilter);
+            }
 
             // Apply date filters
             if (dateFrom) query = query.gte("invoice_date", dateFrom);
@@ -72,94 +98,107 @@ export function FinanceARList({ selectedId, onSelect, refreshTrigger }: Props) {
         } finally {
             setLoading(false);
         }
-    }, [search, dateFrom, dateTo]);
+    }, [search, dateFrom, dateTo, statusFilter]);
 
     useEffect(() => {
         fetchAR();
     }, [fetchAR, refreshTrigger]);
 
     return (
-        <div className="space-y-6 h-full">
-            {/* Filter Section */}
-            <Section
-                title="Filter Invoices"
-                description="Find specific outstanding invoices."
-                className="border-l-4 border-l-indigo-500"
-            >
-                <div className="grid grid-cols-1 sm:grid-cols-12 gap-4 items-end">
-                    <div className="col-span-12 sm:col-span-6 lg:col-span-4">
-                        <Input
-                            label="Search"
-                            placeholder="Customer / Invoice No"
+        <div className="space-y-4 h-full">
+            {/* Compact Filter Toolbar */}
+            <div className="bg-white border border-slate-200 rounded-lg p-3 flex flex-col lg:flex-row gap-3 items-center justify-between shadow-sm">
+                <div className="flex flex-1 gap-2 w-full lg:w-auto overflow-x-auto no-scrollbar items-center">
+                    <div className="flex items-center gap-2 border-r border-slate-200 pr-3 mr-1">
+                        <Icons.Search className="w-4 h-4 text-slate-400" />
+                        <input
+                            type="text"
+                            placeholder="Search invoice..."
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
-                            containerClassName="!mb-0"
+                            className="bg-transparent border-none text-sm focus:ring-0 w-32 lg:w-48 placeholder:text-slate-400"
                         />
                     </div>
-                    <div className="col-span-6 sm:col-span-3 lg:col-span-3">
-                        <Input
-                            label="From"
+
+                    <div className="flex items-center gap-2">
+                        <span className="text-xs text-slate-500 font-medium">Date:</span>
+                        <input
                             type="date"
                             value={dateFrom}
                             onChange={(e) => setDateFrom(e.target.value)}
-                            containerClassName="!mb-0"
+                            className="h-8 text-xs border-slate-200 rounded-md focus:border-indigo-500 focus:ring-indigo-500"
                         />
-                    </div>
-                    <div className="col-span-6 sm:col-span-3 lg:col-span-3">
-                        <Input
-                            label="To"
+                        <span className="text-slate-300">-</span>
+                        <input
                             type="date"
                             value={dateTo}
                             onChange={(e) => setDateTo(e.target.value)}
-                            containerClassName="!mb-0"
+                            className="h-8 text-xs border-slate-200 rounded-md focus:border-indigo-500 focus:ring-indigo-500"
                         />
                     </div>
-                    <div className="col-span-12 sm:col-span-6 lg:col-span-2">
+
+                    <div className="h-6 w-px bg-slate-200 mx-1"></div>
+
+                    <div className="flex items-center gap-2">
+                        <span className="text-xs text-slate-500 font-medium">Status:</span>
+                        <select
+                            value={statusFilter}
+                            onChange={(e) => setStatusFilter(e.target.value)}
+                            className="h-8 text-xs border-slate-200 rounded-md focus:border-indigo-500 focus:ring-indigo-500 bg-slate-50"
+                        >
+                            <option value="OUTSTANDING">Outstanding</option>
+                            <option value="UNPAID">Unpaid</option>
+                            <option value="PARTIAL">Partial</option>
+                            <option value="PAID">Paid</option>
+                            <option value="ALL">All Status</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div className="flex items-center gap-2 w-full lg:w-auto">
+                    {(search || dateFrom || dateTo || statusFilter !== "OUTSTANDING") && (
                         <Button
-                            variant="outline"
-                            className="w-full"
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 text-slate-500 hover:text-slate-700"
                             onClick={() => {
                                 setSearch("");
                                 setDateFrom("");
                                 setDateTo("");
+                                setStatusFilter("OUTSTANDING");
                             }}
-                            icon={<Icons.Close className="w-4 h-4" />}
                         >
+                            <Icons.Close className="w-3 h-3 mr-1" />
                             Clear
                         </Button>
+                    )}
+                    <div className="px-3 py-1 bg-indigo-50 text-indigo-700 rounded-full text-xs font-semibold">
+                        {arList.length} Invoices
                     </div>
                 </div>
-            </Section>
+            </div>
 
             {/* Results Card */}
-            <Card className="h-full shadow-sm hover:shadow-md transition-shadow duration-200">
-                <CardHeader className="pb-2">
-                    <CardTitle className="text-lg flex justify-between items-center">
-                        <span>Outstanding Invoices</span>
-                        <span className="text-xs font-normal text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
-                            {arList.length} Found
-                        </span>
-                    </CardTitle>
-                </CardHeader>
+            <Card className="shadow-sm border border-slate-200 overflow-hidden">
                 <CardContent className="p-0">
                     <ResponsiveTable minWidth="640px">
                         <Table>
-                            <TableHeader>
-                                <TableRow className="hover:bg-transparent bg-gray-50/50">
-                                    <TableHead className="w-[120px]">Date</TableHead>
-                                    <TableHead>Customer</TableHead>
-                                    <TableHead className="text-right">Total</TableHead>
-                                    <TableHead className="text-right">Outstanding</TableHead>
-                                    <TableHead className="w-[100px] text-center">Action</TableHead>
+                            <TableHeader className="bg-slate-50 border-b border-slate-200">
+                                <TableRow className="hover:bg-transparent">
+                                    <TableHead className="w-[140px] font-semibold text-slate-600">Date / Due</TableHead>
+                                    <TableHead className="font-semibold text-slate-600">Customer Details</TableHead>
+                                    <TableHead className="text-right font-semibold text-slate-600">Total</TableHead>
+                                    <TableHead className="text-right font-semibold text-slate-600">Outstanding</TableHead>
+                                    <TableHead className="w-[100px] text-center font-semibold text-slate-600">Action</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
                                 {loading ? (
                                     <TableRow>
-                                        <TableCell colSpan={5} className="text-center py-12 text-slate-500">
-                                            <div className="flex justify-center items-center gap-2">
-                                                <div className="animate-spin w-4 h-4 border-2 border-indigo-600 border-t-transparent rounded-full"></div>
-                                                <span>Loading invoices...</span>
+                                        <TableCell colSpan={5} className="text-center py-20 text-slate-500">
+                                            <div className="flex flex-col justify-center items-center gap-3">
+                                                <div className="animate-spin w-6 h-6 border-2 border-indigo-600 border-t-transparent rounded-full"></div>
+                                                <span className="text-sm">Loading invoices...</span>
                                             </div>
                                         </TableCell>
                                     </TableRow>
@@ -167,53 +206,78 @@ export function FinanceARList({ selectedId, onSelect, refreshTrigger }: Props) {
                                     <TableRow>
                                         <TableCell
                                             colSpan={5}
-                                            className="text-center italic py-12 text-slate-500"
+                                            className="text-center italic py-20 text-slate-400"
                                         >
-                                            <div className="flex flex-col items-center gap-2">
-                                                <Icons.CheckCircle className="w-8 h-8 text-emerald-400 opacity-50" />
-                                                <span>No outstanding invoices. Good job!</span>
+                                            <div className="flex flex-col items-center gap-3">
+                                                <div className="p-3 bg-slate-50 rounded-full">
+                                                    <Icons.CheckCircle className="w-8 h-8 text-slate-300" />
+                                                </div>
+                                                <span>No invoices found matching criteria.</span>
                                             </div>
                                         </TableCell>
                                     </TableRow>
                                 ) : (
-                                    arList.map((item) => (
-                                        <TableRow
-                                            key={item.id}
-                                            className={`cursor-pointer transition-colors ${selectedId === item.id ? "bg-indigo-50 hover:bg-indigo-50 border-l-2 border-l-indigo-600" : "hover:bg-slate-50"}`}
-                                            onClick={() => onSelect(item.id, item.outstanding_amount)}
-                                        >
-                                            <TableCell className="font-medium text-slate-700">{new Date(item.invoice_date).toLocaleDateString()}</TableCell>
-                                            <TableCell className="font-medium text-slate-900">
-                                                <div className="flex flex-col">
-                                                    <span>{item.customer?.name}</span>
-                                                    {item.invoice_no && <span className="text-xs text-slate-500">{item.invoice_no}</span>}
-                                                </div>
-                                            </TableCell>
-                                            <TableCell className="text-right text-slate-600">{item.total_amount.toLocaleString()}</TableCell>
-                                            <TableCell className="text-right font-bold text-indigo-600">
-                                                {item.outstanding_amount.toLocaleString()}
-                                            </TableCell>
-                                            <TableCell className="text-center">
-                                                {selectedId === item.id ? (
-                                                    <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-indigo-100 text-indigo-600">
-                                                        <Icons.Check className="w-4 h-4" />
-                                                    </span>
-                                                ) : (
-                                                    <Button
-                                                        size="sm"
-                                                        variant="outline"
-                                                        className="h-7 px-3 text-xs"
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            onSelect(item.id, item.outstanding_amount);
-                                                        }}
-                                                    >
-                                                        Select
-                                                    </Button>
-                                                )}
-                                            </TableCell>
-                                        </TableRow>
-                                    ))
+                                    arList.map((item) => {
+                                        const isSelected = selectedId === item.id;
+                                        const isPaid = item.status === 'PAID';
+                                        return (
+                                            <TableRow
+                                                key={item.id}
+                                                className={`cursor-pointer transition-all border-b border-slate-100 last:border-0 ${isSelected ? "bg-indigo-50/60 hover:bg-indigo-50" : "hover:bg-slate-50"}`}
+                                                onClick={() => onSelect(item.id, item.outstanding_amount)}
+                                            >
+                                                <TableCell className="">
+                                                    <div className="flex flex-col">
+                                                        <span className="font-medium text-slate-700">{new Date(item.invoice_date).toLocaleDateString("id-ID", { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                                                        <span className={`text-[10px] font-bold mt-0.5 px-1.5 py-0.5 rounded w-fit ${item.status === 'PARTIAL' ? 'bg-orange-100 text-orange-700' : item.status === 'PAID' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
+                                                            {item.status}
+                                                        </span>
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <div className="flex flex-col">
+                                                        <span className="font-semibold text-slate-900">{item.customer?.name}</span>
+                                                        <span className="text-xs text-slate-500 flex items-center gap-1">
+                                                            <Icons.FileText className="w-3 h-3" />
+                                                            {item.invoice_no || '-'}
+                                                        </span>
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell className="text-right">
+                                                    <span className="text-slate-600 font-medium">Rp {item.total_amount.toLocaleString("id-ID")}</span>
+                                                </TableCell>
+                                                <TableCell className="text-right">
+                                                    {isPaid ? (
+                                                        <span className="text-emerald-600 font-bold text-xs">LUNAS</span>
+                                                    ) : (
+                                                        <span className="font-bold text-indigo-600">
+                                                            Rp {item.outstanding_amount.toLocaleString("id-ID")}
+                                                        </span>
+                                                    )}
+                                                </TableCell>
+                                                <TableCell className="text-center">
+                                                    {isSelected ? (
+                                                        <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 shadow-sm animate-in zoom-in duration-200">
+                                                            <Icons.Check className="w-5 h-5" />
+                                                        </span>
+                                                    ) : (
+                                                        <Button
+                                                            size="sm"
+                                                            variant="ghost"
+                                                            className="h-8 px-3 text-xs text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 font-medium"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                onSelect(item.id, item.outstanding_amount);
+                                                            }}
+                                                            disabled={isPaid}
+                                                        >
+                                                            Select
+                                                        </Button>
+                                                    )}
+                                                </TableCell>
+                                            </TableRow>
+                                        );
+                                    })
                                 )}
                             </TableBody>
                         </Table>

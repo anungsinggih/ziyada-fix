@@ -8,6 +8,7 @@ import { Badge } from "./ui/Badge";
 import { usePagination } from "../hooks/usePagination";
 import { Pagination } from "./ui/Pagination";
 import { Section } from "./ui/Section";
+import { ButtonSelect } from "./ui/ButtonSelect";
 
 type InventoryItem = {
     id: string
@@ -27,12 +28,14 @@ type Props = {
     selectedId: string | null
     onSelect: (id: string | null) => void
     onAdjust: (id: string, name: string) => void
+    onClearSelection?: () => void
     refreshTrigger: number
 }
 
 export function InventoryList({ selectedId, onSelect, onAdjust, refreshTrigger }: Props) {
     const [items, setItems] = useState<InventoryItem[]>([])
     const [search, setSearch] = useState("")
+    const [typeFilter, setTypeFilter] = useState("ALL")
     const [loading, setLoading] = useState(false)
 
     const { page, setPage, pageSize, range } = usePagination({ defaultPageSize: 20 });
@@ -48,6 +51,10 @@ export function InventoryList({ selectedId, onSelect, onAdjust, refreshTrigger }
 
         if (search) {
             query = query.or(`name.ilike.%${search}%,sku.ilike.%${search}%`)
+        }
+
+        if (typeFilter !== 'ALL') {
+            query = query.eq('type', typeFilter)
         }
 
         const { data, error, count } = await query
@@ -66,7 +73,7 @@ export function InventoryList({ selectedId, onSelect, onAdjust, refreshTrigger }
             setPageCount(count || 0)
         }
         setLoading(false)
-    }, [range, search])
+    }, [range, search, typeFilter])
 
     useEffect(() => {
         // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -76,7 +83,7 @@ export function InventoryList({ selectedId, onSelect, onAdjust, refreshTrigger }
     // Reset page on search
     useEffect(() => {
         setPage(1);
-    }, [search, setPage]);
+    }, [search, typeFilter, setPage]);
 
     // Derived state for display
     const filtered = items;
@@ -89,22 +96,31 @@ export function InventoryList({ selectedId, onSelect, onAdjust, refreshTrigger }
         >
             <div className="flex flex-col h-full">
                 <div className="p-4 border-b border-gray-100 bg-gray-50/50">
-                    <div className="relative">
-                        <Icons.Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-                        <Input
-                            placeholder="Search by SKU or Name..."
-                            value={search}
-                            onChange={e => setSearch(e.target.value)}
-                            className="pl-9 bg-white"
-                            containerClassName="!mb-0"
-                        />
-                        {selectedId && (
-                            <div className="absolute right-2 top-1/2 -translate-y-1/2">
-                                <Button variant="ghost" size="sm" onClick={() => onSelect(null)} className="h-7 text-xs">
-                                    Clear Selection
-                                </Button>
-                            </div>
-                        )}
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+                        <div className="relative flex-1">
+                            <Icons.Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                            <Input
+                                placeholder="Search by SKU or Name..."
+                                value={search}
+                                onChange={e => setSearch(e.target.value)}
+                                className="pl-9 bg-white"
+                                containerClassName="!mb-0"
+                            />
+                        </div>
+                        <div className="sm:min-w-[360px]">
+                            <ButtonSelect
+                                value={typeFilter}
+                                onChange={setTypeFilter}
+                                className="!mb-0"
+                                buttonClassName="h-9"
+                                options={[
+                                    { label: "All", value: "ALL" },
+                                    { label: "Raw Material", value: "RAW_MATERIAL" },
+                                    { label: "Traded", value: "TRADED" },
+                                    { label: "Finished Good", value: "FINISHED_GOOD" },
+                                ]}
+                            />
+                        </div>
                     </div>
                 </div>
 
@@ -163,14 +179,14 @@ export function InventoryList({ selectedId, onSelect, onAdjust, refreshTrigger }
                                                 <Button
                                                     size="sm"
                                                     variant="ghost"
-                                                    className="hover:bg-orange-50 hover:text-orange-600 h-8 w-8 p-0 rounded-full"
+                                                    className="hover:bg-red-50 text-red-600 hover:text-red-700 h-9 w-9 p-0 rounded-full"
                                                     onClick={(e) => {
                                                         e.stopPropagation();
                                                         onAdjust(item.id, item.name);
                                                     }}
                                                     title="Adjust Stock"
                                                 >
-                                                    <Icons.Edit className="w-3.5 h-3.5" />
+                                                    <Icons.Edit className="w-4 h-4" />
                                                 </Button>
                                             </TableCell>
                                         </TableRow>

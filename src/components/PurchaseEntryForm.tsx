@@ -1,23 +1,33 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import { supabase } from "../supabaseClient";
 import { Button } from "./ui/Button";
 import { Input } from "./ui/Input";
-import { Select } from "./ui/Select";
 import { ButtonSelect } from "./ui/ButtonSelect";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "./ui/Card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/Table";
 import { Textarea } from "./ui/Textarea";
 import { Icons } from "./ui/Icons";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { TotalFooter } from "./ui/TotalFooter";
+// import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/Dialog";
+// import VendorForm from "./VendorForm"; 
+import { Combobox } from "./ui/Combobox";
 
-type Vendor = { id: string; name: string };
+type Vendor = {
+    id: string;
+    name: string;
+    phone: string;
+    address: string;
+    is_active: boolean;
+};
+
 type Item = {
     id: string;
     name: string;
     sku: string;
     uom: string;
     default_price_buy: number;
+    type: string; // Added type for filtering
 };
 type PurchaseLine = {
     item_id: string;
@@ -39,6 +49,7 @@ type Props = {
 
 export function PurchaseEntryForm({ onSuccess, onError, onSaved, redirectOnSave = true, initialPurchaseId }: Props) {
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
     const [vendors, setVendors] = useState<Vendor[]>([]);
     const [items, setItems] = useState<Item[]>([]);
     const [loading, setLoading] = useState(false);
@@ -53,24 +64,56 @@ export function PurchaseEntryForm({ onSuccess, onError, onSaved, redirectOnSave 
     const [discountAmount, setDiscountAmount] = useState(0);
     const [lines, setLines] = useState<PurchaseLine[]>([]);
 
-    // Item Input State
+    // Line Input State
     const [selectedItemId, setSelectedItemId] = useState("");
+    const [costPrice, setCostPrice] = useState<number | null>(null);
     const [qty, setQty] = useState(1);
-    const [costPrice, setCostPrice] = useState(0);
+    const [itemFilter, setItemFilter] = useState<"ALL" | "RAW_MATERIAL" | "TRADED">("ALL");
 
-    const getErrorMessage = (error: unknown) =>
-        error instanceof Error ? error.message : String(error);
+    // Refs for Accessibility
+    // const itemSelectRef = useRef<HTMLButtonElement>(null); // Replaced by Combobox
+    const costInputRef = useRef<HTMLInputElement>(null);
+
+    const getErrorMessage = (error: unknown) => {
+        if (error instanceof Error) return error.message;
+        if (typeof error === "object" && error !== null) {
+            const err = error as { message?: string };
+            return err.message || JSON.stringify(error);
+        }
+        return String(error);
+    };
+
+    const normalizeLines = useCallback((source: PurchaseLine[]) => {
+        const map = new Map<string, PurchaseLine>();
+        source.forEach((line) => {
+            const key = `${line.item_id}::${line.cost_price}::${line.uom}`;
+            const existing = map.get(key);
+            if (!existing) {
+                map.set(key, { ...line });
+                return;
+            }
+            const mergedQty = existing.qty + line.qty;
+            map.set(key, {
+                ...existing,
+                qty: mergedQty,
+                subtotal: existing.subtotal + line.subtotal
+            });
+        });
+        return Array.from(map.values());
+    }, []);
+
+    const presetVendorId = searchParams.get("vendor") || "";
 
     const fetchMasterData = useCallback(async () => {
         try {
             const { data: venData, error: venError } = await supabase
                 .from("vendors")
-                .select("id, name")
+                .select("id, name, phone, address, is_active")
                 .eq("is_active", true);
             if (venError) throw venError;
             const { data: itemData, error: itemError } = await supabase
                 .from("items")
-                .select("id, name, sku, uom, default_price_buy")
+                .select("id, name, sku, uom, default_price_buy, type") // Added type column
                 .eq("is_active", true);
             if (itemError) throw itemError;
 
@@ -81,17 +124,23 @@ export function PurchaseEntryForm({ onSuccess, onError, onSaved, redirectOnSave 
                 .order("code", { ascending: true });
             if (methodError) throw methodError;
 
-            setVendors(venData || []);
+            setVendors((venData as unknown as Vendor[]) || []);
             setItems(itemData || []);
             setPaymentMethods(methodData || []);
         } catch (err: unknown) {
-            onError(getErrorMessage(err));
+            onError(getErrorMessage(err)); // Fixed argument count
         }
     }, [onError]);
 
     useEffect(() => {
         fetchMasterData();
     }, [fetchMasterData]);
+
+    useEffect(() => {
+        if (!initialPurchaseId && presetVendorId && !vendorId) {
+            setVendorId(presetVendorId);
+        }
+    }, [presetVendorId, vendorId, initialPurchaseId]);
 
     useEffect(() => {
         if (!initialPurchaseId) return;
@@ -151,7 +200,8 @@ export function PurchaseEntryForm({ onSuccess, onError, onSaved, redirectOnSave 
                         };
                     }) || [];
 
-                setLines(loadedLines);
+                const uniqueLines = normalizeLines(loadedLines);
+                setLines(uniqueLines);
             } catch (err: unknown) {
                 onError(getErrorMessage(err));
             } finally {
@@ -160,7 +210,7 @@ export function PurchaseEntryForm({ onSuccess, onError, onSaved, redirectOnSave 
         };
 
         loadPurchase();
-    }, [initialPurchaseId, onError]);
+    }, [initialPurchaseId, onError, normalizeLines]);
 
     useEffect(() => {
         if (terms === "CREDIT") {
@@ -189,7 +239,7 @@ export function PurchaseEntryForm({ onSuccess, onError, onSaved, redirectOnSave 
         if (!selectedItemId) return;
         const item = items.find((i) => i.id === selectedItemId);
         if (!item) return;
-        if (costPrice < 0) {
+        if (costPrice === null || costPrice < 0) { // Check for null
             alert("Cost must be >= 0");
             return;
         }
@@ -206,10 +256,30 @@ export function PurchaseEntryForm({ onSuccess, onError, onSaved, redirectOnSave 
             cost_price: safeCost,
             subtotal: safeQty * safeCost,
         };
-        setLines([...lines, newLine]);
+        setLines((prev) => {
+            const existingIndex = prev.findIndex(
+                (l) => l.item_id === newLine.item_id && l.cost_price === newLine.cost_price
+            );
+            if (existingIndex === -1) return [...prev, newLine];
+            const next = [...prev];
+            const existing = next[existingIndex];
+            const mergedQty = existing.qty + newLine.qty;
+            next[existingIndex] = {
+                ...existing,
+                qty: mergedQty,
+                subtotal: mergedQty * existing.cost_price,
+            };
+            return next;
+        });
         setSelectedItemId("");
         setQty(1);
-        setCostPrice(0);
+        setCostPrice(null); // Reset to null
+
+        // Auto-focus back to item select
+        setTimeout(() => {
+            const btn = document.querySelector('button[role="combobox"]');
+            if (btn instanceof HTMLElement) btn.focus();
+        }, 0);
     }
 
     function removeLine(index: number) {
@@ -219,7 +289,7 @@ export function PurchaseEntryForm({ onSuccess, onError, onSaved, redirectOnSave 
     const itemsTotal = lines.reduce((sum, l) => sum + l.subtotal, 0);
     const totalAmount = itemsTotal - (discountAmount || 0);
 
-    async function handleSaveDraft() {
+    const handleSaveDraft = useCallback(async () => {
         if (!vendorId) {
             onError("Select Vendor");
             return;
@@ -256,14 +326,13 @@ export function PurchaseEntryForm({ onSuccess, onError, onSaved, redirectOnSave 
 
                 if (headerError) throw headerError;
 
-                const { error: deleteError } = await supabase
-                    .from("purchase_items")
-                    .delete()
-                    .eq("purchase_id", initialPurchaseId);
+                const normalizedLines = normalizeLines(lines);
+                if (normalizedLines.length !== lines.length) {
+                    setLines(normalizedLines);
+                }
 
-                if (deleteError) throw deleteError;
-
-                const lineData = lines.map((l) => ({
+                // Use RPC for Atomic Update (Prevents Duplicate Items Bug)
+                const lineData = normalizedLines.map((l) => ({
                     purchase_id: initialPurchaseId,
                     item_id: l.item_id,
                     qty: l.qty,
@@ -271,10 +340,13 @@ export function PurchaseEntryForm({ onSuccess, onError, onSaved, redirectOnSave 
                     subtotal: l.subtotal,
                     uom_snapshot: l.uom,
                 }));
-                const { error: linesError } = await supabase
-                    .from("purchase_items")
-                    .insert(lineData);
-                if (linesError) throw linesError;
+
+                const { error: rpcError } = await supabase.rpc('rpc_update_purchase_draft_items', {
+                    p_purchase_id: initialPurchaseId,
+                    p_items: lineData
+                });
+
+                if (rpcError) throw rpcError;
 
                 onSuccess(`Draft Updated! ID: ${initialPurchaseId}`);
                 onSaved?.(initialPurchaseId);
@@ -302,7 +374,12 @@ export function PurchaseEntryForm({ onSuccess, onError, onSaved, redirectOnSave 
                 if (purError) throw purError;
                 const purId = purData.id;
 
-                const lineData = lines.map((l) => ({
+                const normalizedLines = normalizeLines(lines);
+                if (normalizedLines.length !== lines.length) {
+                    setLines(normalizedLines);
+                }
+
+                const lineData = normalizedLines.map((l) => ({
                     purchase_id: purId,
                     item_id: l.item_id,
                     qty: l.qty,
@@ -332,7 +409,45 @@ export function PurchaseEntryForm({ onSuccess, onError, onSaved, redirectOnSave 
         } finally {
             setLoading(false);
         }
-    }
+    }, [
+        vendorId,
+        onError,
+        terms,
+        paymentMethodCode,
+        lines,
+        totalAmount,
+        discountAmount,
+        normalizeLines,
+        initialPurchaseId,
+        purchaseDate,
+        notes,
+        onSuccess,
+        onSaved,
+        redirectOnSave,
+        navigate
+    ]);
+
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === "F2") {
+                e.preventDefault();
+                handleSaveDraft();
+            }
+            if (e.key === "F4") {
+                e.preventDefault();
+                const btn = document.querySelector('button[role="combobox"]');
+                if (btn instanceof HTMLElement) {
+                    btn.focus();
+                    btn.click();
+                }
+            }
+        };
+
+        document.addEventListener("keydown", handleKeyDown);
+        return () => {
+            document.removeEventListener("keydown", handleKeyDown);
+        };
+    }, [handleSaveDraft]);
 
     return (
         <>
@@ -342,17 +457,29 @@ export function PurchaseEntryForm({ onSuccess, onError, onSaved, redirectOnSave 
                         {initialPurchaseId ? "Edit Purchase (DRAFT)" : "New Purchase Order"}
                     </CardTitle>
                 </CardHeader>
-                <CardContent className="pt-6">
+                <CardContent className="pt-6" onKeyDown={(e) => {
+                    if (e.key === "F2") {
+                        e.preventDefault();
+                        handleSaveDraft();
+                    }
+                    if (e.key === "F4") {
+                        e.preventDefault();
+                        const btn = document.querySelector('button[role="combobox"]');
+                        if (btn instanceof HTMLElement) {
+                            btn.focus();
+                            btn.click();
+                        }
+                    }
+                }}>
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                         <div className="lg:col-span-1 space-y-4">
-                            <Select
+                            <Combobox
                                 label="Vendor"
                                 value={vendorId}
-                                onChange={(e) => setVendorId(e.target.value)}
-                                options={[
-                                    { label: "-- Select Vendor --", value: "" },
-                                    ...vendors.map((v) => ({ label: v.name, value: v.id })),
-                                ]}
+                                onChange={(val) => setVendorId(val)}
+                                placeholder="-- Select Vendor --"
+                                searchPlaceholder="Search vendor..."
+                                options={vendors.map((v) => ({ label: v.name, value: v.id }))}
                             />
                             <Input
                                 label="Date"
@@ -363,7 +490,7 @@ export function PurchaseEntryForm({ onSuccess, onError, onSaved, redirectOnSave 
                             <ButtonSelect
                                 label="Terms"
                                 value={terms}
-                                onChange={(val) => setTerms(val as "CASH" | "CREDIT")}
+                                onChange={(val: string) => setTerms(val as "CASH" | "CREDIT")}
                                 options={[
                                     { label: "CASH", value: "CASH" },
                                     { label: "CREDIT", value: "CREDIT" },
@@ -373,7 +500,7 @@ export function PurchaseEntryForm({ onSuccess, onError, onSaved, redirectOnSave 
                                 <ButtonSelect
                                     label="Payment Method"
                                     value={paymentMethodCode}
-                                    onChange={(val) => setPaymentMethodCode(val)}
+                                    onChange={(val: string) => setPaymentMethodCode(val)}
                                     options={paymentMethods.map((m) => ({
                                         label: `${m.name} (${m.code})`,
                                         value: m.code,
@@ -406,28 +533,63 @@ export function PurchaseEntryForm({ onSuccess, onError, onSaved, redirectOnSave 
                                 </h4>
                                 <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 items-stretch sm:items-end">
                                     <div className="flex-grow">
-                                        <Select
-                                            label="Product"
-                                            value={selectedItemId}
-                                            onChange={(e) => {
-                                                const newItemId = e.target.value;
-                                                setSelectedItemId(newItemId);
-                                                const selectedItem = items.find(
-                                                    (i) => i.id === newItemId,
-                                                );
-                                                if (selectedItem) {
-                                                    setCostPrice(selectedItem.default_price_buy || 0);
-                                                }
-                                            }}
-                                            options={[
-                                                { label: "-- Select Item --", value: "" },
-                                                ...items.map((i) => ({
-                                                    label: `${i.sku} - ${i.name}`,
-                                                    value: i.id,
-                                                })),
-                                            ]}
-                                            className="!mb-0"
-                                        />
+                                        <div className="flex flex-col gap-1.5 mb-1">
+                                            <div className="flex justify-between items-center">
+                                                <label className="text-sm font-medium text-[var(--text-main)]">Product (F4)</label>
+                                                <div className="flex bg-gray-100 p-0.5 rounded-lg">
+                                                    {(["ALL", "RAW_MATERIAL", "TRADED"] as const).map(type => (
+                                                        <button
+                                                            key={type}
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setItemFilter(type);
+                                                                setSelectedItemId(""); // Reset to avoid stale ID
+                                                                setCostPrice(null);    // Also reset cost
+                                                            }}
+                                                            className={`px-2 py-0.5 text-[10px] uppercase font-bold rounded-md transition-all ${itemFilter === type
+                                                                ? "bg-white text-purple-700 shadow-sm"
+                                                                : "text-gray-400 hover:text-gray-600"
+                                                                }`}
+                                                        >
+                                                            {type === "RAW_MATERIAL" ? "RAW" : type}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                            <Combobox
+                                                value={selectedItemId}
+                                                onChange={(val) => {
+                                                    const newItemId = val;
+                                                    setSelectedItemId(newItemId);
+
+                                                    // Auto-fill cost price if enabled
+                                                    if (newItemId) {
+                                                        const item = items.find((i) => i.id === newItemId);
+                                                        if (item) {
+                                                            setCostPrice(item.default_price_buy || 0);
+                                                        }
+
+                                                        // Auto focus to Cost Price
+                                                        setTimeout(() => costInputRef.current?.focus(), 0);
+                                                    }
+                                                }}
+                                                placeholder="Select Item..."
+                                                searchPlaceholder="Search User, SKU or Name..."
+                                                options={items
+                                                    .filter(i => itemFilter === "ALL" ? true : i.type === itemFilter)
+                                                    .map((i) => ({
+                                                        label: `${i.sku} - ${i.name}`,
+                                                        value: i.id,
+                                                        keywords: [i.sku, i.name],
+                                                        content: (
+                                                            <div className="flex justify-between w-full">
+                                                                <span><span className="font-mono text-gray-500 mr-2">{i.sku}</span>{i.name}</span>
+                                                            </div>
+                                                        )
+                                                    }))}
+                                                className="!mb-0"
+                                            />
+                                        </div>
                                     </div>
                                     <div className="w-24">
                                         <Input
@@ -448,7 +610,7 @@ export function PurchaseEntryForm({ onSuccess, onError, onSaved, redirectOnSave 
                                             type="number"
                                             inputMode="decimal"
                                             step="1"
-                                            value={costPrice === 0 ? "" : costPrice}
+                                            value={costPrice === null || costPrice === 0 ? "" : costPrice}
                                             placeholder="0"
                                             min={0}
                                             onFocus={(e) => e.target.select()}
@@ -468,8 +630,8 @@ export function PurchaseEntryForm({ onSuccess, onError, onSaved, redirectOnSave 
                                             Add Item
                                         </Button>
                                     </div>
-                                </div>
-                            </div>
+                                </div >
+                            </div >
 
                             <div className="border border-gray-200 rounded-lg overflow-hidden shadow-sm">
                                 <Table>
@@ -526,9 +688,9 @@ export function PurchaseEntryForm({ onSuccess, onError, onSaved, redirectOnSave 
                                 <TotalFooter label="Diskon" amount={discountAmount || 0} />
                                 <TotalFooter label="Total Amount" amount={totalAmount} amountClassName="text-purple-600" />
                             </div>
-                        </div>
-                    </div>
-                </CardContent>
+                        </div >
+                    </div >
+                </CardContent >
                 <CardFooter className="bg-gray-50 border-t border-gray-100 p-4 hidden md:flex">
                     <Button
                         onClick={handleSaveDraft}
@@ -539,7 +701,7 @@ export function PurchaseEntryForm({ onSuccess, onError, onSaved, redirectOnSave 
                         {loading ? "Saving..." : "Save Draft"}
                     </Button>
                 </CardFooter>
-            </Card>
+            </Card >
 
             <div className="md:hidden fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 backdrop-blur px-4 py-3 shadow-lg">
                 <Button

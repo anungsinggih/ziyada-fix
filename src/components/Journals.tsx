@@ -1,12 +1,12 @@
 import { useEffect, useState, useCallback } from 'react'
 import { supabase } from '../supabaseClient'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/Card'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/Table'
 import { Input } from './ui/Input'
-import { Badge } from './ui/Badge'
 import { Button } from './ui/Button'
 import { Icons } from './ui/Icons'
 import { useLocation, useNavigate } from 'react-router-dom'
+import { usePagination } from '../hooks/usePagination'
+import { Pagination } from './ui/Pagination'
 import { formatCurrency, formatDate } from '../lib/format'
 import { getErrorMessage } from '../lib/errors'
 
@@ -18,6 +18,7 @@ type JournalEntry = {
     memo: string
     created_at: string
     lines: JournalLine[]
+    ref_display?: string
 }
 
 type JournalLine = {
@@ -29,131 +30,138 @@ type JournalLine = {
 }
 
 // --- SUB-COMPONENT: JOURNAL ITEM WITH ACCORDION ---
-function JournalEntryItem({ journal, formatCurrency, getRefTypeBadge }: {
-    journal: JournalEntry,
-    formatCurrency: (n: number) => string,
+function JournalEntryItem({
+    journal,
+    formatCurrency,
+    getRefTypeBadge,
+    isExpanded,
+    onToggle
+}: {
+    journal: JournalEntry
+    formatCurrency: (n: number) => string
     getRefTypeBadge: (t: string) => React.ReactNode
+    isExpanded: boolean
+    onToggle: () => void
 }) {
-    const [isExpanded, setIsExpanded] = useState(false)
-    const totalDebit = journal.lines.reduce((sum, line) => sum + line.debit, 0)
-    const totalCredit = journal.lines.reduce((sum, line) => sum + line.credit, 0)
+    const totalDebit = journal.lines.reduce((sum, line) => sum + (line.debit || 0), 0)
+    const totalCredit = journal.lines.reduce((sum, line) => sum + (line.credit || 0), 0)
     const isBalanced = Math.abs(totalDebit - totalCredit) < 0.01
-    const docNoMatch = journal.memo?.match(/[A-Z]{3}-\d{6,}/)
-    const docNo = docNoMatch?.[0]
-    const cleanedMemo = journal.memo
-        ? journal.memo.replace(/^POST\\s+/i, '').replace(docNo || '', '').trim()
-        : ''
+
+    // Extract reference info from memo if available (e.g. "Sales INV-001")
+    const memo = journal.memo || ''
+    const docNo = journal.ref_display || journal.ref_id
+
+    // Clean memo to remove auto-generated prefixes if any, or just keep as is
+    const cleanedMemo = memo
 
     return (
-        <Card className="shadow-md transition-all hover:shadow-lg">
-            <CardHeader
-                className="bg-gray-50 border-b border-gray-200 cursor-pointer hover:bg-gray-100 transition-colors py-4"
-                onClick={() => setIsExpanded(!isExpanded)}
+        <div className={`bg-white rounded-lg border transition-all duration-200 ${isExpanded ? 'shadow-md ring-1 ring-indigo-500/20 border-indigo-200' : 'hover:shadow-sm border-slate-200'}`}>
+            <div
+                className="p-4 cursor-pointer flex items-start gap-4 group"
+                onClick={onToggle}
             >
-                <div className="flex items-center gap-4">
-                    {/* Icon Column */}
-                    <div className="flex-shrink-0">
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            className={`
-                                p-0 h-10 w-10 rounded-xl transition-all duration-200 border shadow-sm
-                                ${isExpanded
-                                    ? 'bg-blue-50 text-blue-700 border-blue-200 rotate-0'
-                                    : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50 hover:text-gray-900 hover:border-gray-300'
-                                }
-                            `}
-                        >
-                            {isExpanded ? <Icons.ChevronDown className="w-6 h-6" /> : <Icons.ChevronRight className="w-6 h-6" />}
-                        </Button>
-                    </div>
-
-                    {/* Content Column */}
-                    <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-3 mb-1 flex-wrap">
-                            <h3 className="text-lg font-semibold text-gray-900">
-                                {docNo || cleanedMemo || `Journal ${journal.id.substring(0, 8)}`}
-                            </h3>
-                            {getRefTypeBadge(journal.ref_type)}
-                            {isBalanced ? (
-                                <Badge className="bg-green-100 text-green-800 flex items-center gap-1"><Icons.Check className="w-3 h-3" /> Balanced</Badge>
-                            ) : (
-                                <Badge className="bg-red-100 text-red-800 flex items-center gap-1"><Icons.Warning className="w-3 h-3" /> Unbalanced</Badge>
-                            )}
-                        </div>
-                        <p className="text-sm text-gray-600 truncate">
-                            {cleanedMemo || `Ref: ${journal.ref_id.substring(0, 8)}`}
-                        </p>
-                    </div>
-
-                    {/* Right Info Column */}
-                    <div className="text-right flex-shrink-0 pl-2">
-                        <p className="text-sm font-medium text-gray-900">
-                            {formatDate(journal.journal_date)}
-                        </p>
-                        <p className="text-xs text-gray-500 mb-1">
-                            {new Date(journal.created_at).toLocaleString('id-ID')}
-                        </p>
-                        <p className="font-bold text-gray-700">
-                            {formatCurrency(totalDebit)}
-                        </p>
+                {/* Icon Column */}
+                <div className="flex-shrink-0 pt-1">
+                    <div className={`
+                        w-8 h-8 rounded-full flex items-center justify-center border transition-colors
+                        ${isExpanded ? 'bg-indigo-50 border-indigo-200 text-indigo-600' : 'bg-slate-50 border-slate-200 text-slate-400 group-hover:border-indigo-300 group-hover:text-indigo-500'}
+                    `}>
+                        <Icons.ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
                     </div>
                 </div>
-            </CardHeader>
 
-            {isExpanded && (
-                <CardContent className="pt-0 animate-in slide-in-from-top-2 duration-200">
-                    <div className="overflow-x-auto border-t border-gray-200">
-                        <Table>
-                            <TableHeader className="bg-gray-50/50">
-                                <TableRow>
-                                    <TableHead className="pl-6">Account Code</TableHead>
-                                    <TableHead>Account Name</TableHead>
-                                    <TableHead className="text-right">Debit</TableHead>
-                                    <TableHead className="text-right pr-6">Credit</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {journal.lines.map((line) => (
-                                    <TableRow key={line.id}>
-                                        <TableCell className="font-mono text-sm pl-6">{line.account_code}</TableCell>
-                                        <TableCell>{line.account_name}</TableCell>
-                                        <TableCell className="text-right font-medium">
-                                            {line.debit > 0 ? formatCurrency(line.debit) : '-'}
-                                        </TableCell>
-                                        <TableCell className="text-right font-medium pr-6">
-                                            {line.credit > 0 ? formatCurrency(line.credit) : '-'}
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
-                                {/* Totals Row */}
-                                <TableRow className="bg-gray-50 font-bold border-t-2 border-gray-300">
-                                    <TableCell colSpan={2} className="text-right">TOTAL:</TableCell>
-                                    <TableCell className="text-right">{formatCurrency(totalDebit)}</TableCell>
-                                    <TableCell className="text-right pr-6">{formatCurrency(totalCredit)}</TableCell>
-                                </TableRow>
-                            </TableBody>
-                        </Table>
+                {/* Main Content */}
+                <div className="flex-1 min-w-0">
+                    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-y-2.5 gap-x-4">
+                        <div className="space-y-1.5">
+                            <div className="flex items-center gap-2.5 flex-wrap">
+                                <span className="text-sm font-semibold text-slate-900">{formatDate(journal.journal_date)}</span>
+                                <span className="text-slate-300">|</span>
+                                <span className="font-mono text-[11px] text-slate-600 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                                    {docNo || `JRN-${journal.id.substring(0, 8)}`}
+                                </span>
+                                {getRefTypeBadge(journal.ref_type)}
+                            </div>
+                            <h3 className="text-sm font-medium text-slate-700 leading-snug">
+                                {cleanedMemo || <span className="italic text-slate-400">No description</span>}
+                            </h3>
+                            {!isBalanced && (
+                                <div className="flex items-center gap-1.5 text-xs text-rose-600 font-medium bg-rose-50 px-2 py-1 rounded-md w-fit">
+                                    <Icons.Warning className="w-3.5 h-3.5" />
+                                    Unbalanced Entry
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Amount Column */}
+                        <div className="text-left sm:text-right flex-shrink-0">
+                            <div className="text-base font-bold text-slate-900">
+                                {formatCurrency(totalDebit)}
+                            </div>
+                            <div className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold mt-0.5">
+                                Total Amount
+                            </div>
+                        </div>
                     </div>
-                </CardContent>
+                </div>
+            </div>
+
+            {/* Expanded Details */}
+            {isExpanded && (
+                <div className="border-t border-slate-100 bg-slate-50/50 rounded-b-lg overflow-hidden animate-in slide-in-from-top-2 duration-200">
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-sm text-left">
+                            <thead className="text-xs text-slate-500 uppercase bg-slate-100/80 border-b border-slate-200">
+                                <tr>
+                                    <th className="px-4 py-2 font-medium w-[50%]">Account</th>
+                                    <th className="px-4 py-2 font-medium text-right w-[25%]">Debit</th>
+                                    <th className="px-4 py-2 font-medium text-right w-[25%]">Credit</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                                {journal.lines.map((line) => (
+                                    <tr key={line.id} className="hover:bg-white transition-colors">
+                                        <td className="px-4 py-3 text-sm font-medium text-slate-700">
+                                            <span className="text-slate-500 font-mono text-xs">{line.account_code}</span>
+                                            <span className="text-slate-400 mx-1.5">·</span>
+                                            <span>{line.account_name}</span>
+                                        </td>
+                                        <td className="px-4 py-3 text-right font-mono text-sm text-slate-700">
+                                            {line.debit > 0 ? formatCurrency(line.debit) : '-'}
+                                        </td>
+                                        <td className="px-4 py-3 text-right font-mono text-sm text-slate-700">
+                                            {line.credit > 0 ? formatCurrency(line.credit) : '-'}
+                                        </td>
+                                    </tr>
+                                ))}
+                                <tr className="bg-slate-100/50 font-bold text-slate-800 border-t border-slate-200">
+                                    <td className="px-4 py-2 text-right text-xs uppercase tracking-wider">Total</td>
+                                    <td className="px-4 py-2 text-right font-mono border-t border-slate-300/50">{formatCurrency(totalDebit)}</td>
+                                    <td className="px-4 py-2 text-right font-mono border-t border-slate-300/50">{formatCurrency(totalCredit)}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             )}
-        </Card>
+        </div>
     )
 }
 
 export default function Journals() {
     const [journals, setJournals] = useState<JournalEntry[]>([])
-    // ... (rest of the component state is fine, just replacing the return block mostly)
-
-    // ... (keep fetchJournals and other hooks)
     const [filteredJournals, setFilteredJournals] = useState<JournalEntry[]>([])
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
     const [searchTerm, setSearchTerm] = useState('')
     const [startDate, setStartDate] = useState('')
     const [endDate, setEndDate] = useState('')
+    const [openJournalId, setOpenJournalId] = useState<string | null>(null)
     const location = useLocation()
     const navigate = useNavigate()
+
+    const { page, setPage, pageSize, range } = usePagination({ defaultPageSize: 25 })
+    const [totalCount, setTotalCount] = useState(0)
 
     const filterJournals = useCallback(() => {
         let filtered = [...journals]
@@ -164,7 +172,8 @@ export default function Journals() {
                 j.id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                 j.memo?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                 j.ref_type?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                j.ref_id?.toLowerCase().includes(searchTerm.toLowerCase())
+                j.ref_id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                j.ref_display?.toLowerCase().includes(searchTerm.toLowerCase())
             )
         }
 
@@ -179,42 +188,22 @@ export default function Journals() {
         setFilteredJournals(filtered)
     }, [journals, searchTerm, startDate, endDate])
 
-    useEffect(() => {
-        fetchJournals()
-        // Set default date range to current month
-        const now = new Date()
-        const firstDay = new Date(now.getFullYear(), now.getMonth(), 1)
-        setStartDate(firstDay.toISOString().split('T')[0])
-        setEndDate(now.toISOString().split('T')[0])
-    }, [])
-
-    useEffect(() => {
-        const params = new URLSearchParams(location.search)
-        const q = params.get('q')
-        if (q) {
-            setSearchTerm(q)
-            setStartDate('')
-            setEndDate('')
-        }
-    }, [location.search])
-
-    useEffect(() => {
-        filterJournals()
-    }, [filterJournals])
-
-    async function fetchJournals() {
+    const fetchJournals = useCallback(async () => {
         setLoading(true)
         setError(null)
 
         try {
             // Fetch journals with their lines
-            const { data: journalsData, error: journalsError } = await supabase
+            const { data: journalsData, error: journalsError, count } = await supabase
                 .from('journals')
-                .select('*')
+                .select('*', { count: 'exact' })
                 .order('journal_date', { ascending: false })
                 .order('created_at', { ascending: false })
+                .range(range[0], range[1])
 
             if (journalsError) throw journalsError
+
+            setTotalCount(count || 0)
 
             // Fetch all journal lines
             const { data: linesData, error: linesError } = await supabase
@@ -251,11 +240,78 @@ export default function Journals() {
                 })
             })
 
+            const normalizeRefType = (refType?: string) => (refType || '').toLowerCase()
+            const shortId = (id?: string | null) => (id ? id.substring(0, 8) : '')
+
+            const journalsList = journalsData || []
+            const collectIds = (type: string) =>
+                journalsList
+                    .filter(j => normalizeRefType(j.ref_type) === type)
+                    .map(j => j.ref_id)
+                    .filter(Boolean)
+
+            const salesIds = collectIds('sales')
+            const purchaseIds = collectIds('purchase')
+            const salesReturnIds = collectIds('sales_return')
+            const purchaseReturnIds = collectIds('purchase_return')
+            const receiptIds = collectIds('receipt')
+            const paymentIds = collectIds('payment')
+            const periodIds = collectIds('period_close_hpp')
+
+            const [salesNos, purchaseNos, salesReturnNos, purchaseReturnNos, receiptNos, paymentNos, periodNames] = await Promise.all([
+                salesIds.length
+                    ? supabase.from('sales').select('id,sales_no').in('id', salesIds)
+                    : Promise.resolve({ data: [] }),
+                purchaseIds.length
+                    ? supabase.from('purchases').select('id,purchase_no').in('id', purchaseIds)
+                    : Promise.resolve({ data: [] }),
+                salesReturnIds.length
+                    ? supabase.from('sales_returns').select('id,return_no').in('id', salesReturnIds)
+                    : Promise.resolve({ data: [] }),
+                purchaseReturnIds.length
+                    ? supabase.from('purchase_returns').select('id,return_no').in('id', purchaseReturnIds)
+                    : Promise.resolve({ data: [] }),
+                receiptIds.length
+                    ? supabase.from('receipts').select('id,receipt_no').in('id', receiptIds)
+                    : Promise.resolve({ data: [] }),
+                paymentIds.length
+                    ? supabase.from('payments').select('id,payment_no').in('id', paymentIds)
+                    : Promise.resolve({ data: [] }),
+                periodIds.length
+                    ? supabase.from('accounting_periods').select('id,name').in('id', periodIds)
+                    : Promise.resolve({ data: [] }),
+            ])
+
+            const salesMap = new Map((salesNos.data || []).map(row => [row.id, row.sales_no]))
+            const purchaseMap = new Map((purchaseNos.data || []).map(row => [row.id, row.purchase_no]))
+            const salesReturnMap = new Map((salesReturnNos.data || []).map(row => [row.id, row.return_no]))
+            const purchaseReturnMap = new Map((purchaseReturnNos.data || []).map(row => [row.id, row.return_no]))
+            const receiptMap = new Map((receiptNos.data || []).map(row => [row.id, row.receipt_no]))
+            const paymentMap = new Map((paymentNos.data || []).map(row => [row.id, row.payment_no]))
+            const periodMap = new Map((periodNames.data || []).map(row => [row.id, row.name]))
+
+            const resolveRefDisplay = (journal: { id: string; ref_type: string; ref_id: string }) => {
+                const refType = normalizeRefType(journal.ref_type)
+                const refId = journal.ref_id
+                if (refType === 'sales') return salesMap.get(refId) || `SAL-${shortId(refId)}`
+                if (refType === 'purchase') return purchaseMap.get(refId) || `PUR-${shortId(refId)}`
+                if (refType === 'sales_return') return salesReturnMap.get(refId) || `SRET-${shortId(refId)}`
+                if (refType === 'purchase_return') return purchaseReturnMap.get(refId) || `PRET-${shortId(refId)}`
+                if (refType === 'receipt') return receiptMap.get(refId) || `RCPT-${shortId(refId)}`
+                if (refType === 'payment') return paymentMap.get(refId) || `PAY-${shortId(refId)}`
+                if (refType === 'period_close_hpp') return periodMap.get(refId) || `HPP-${shortId(refId)}`
+                if (refType === 'opening_stock') return `OPEN-${shortId(refId)}`
+                if (refType === 'adjustment') return `ADJ-${shortId(refId)}`
+                if (refType === 'manual') return `MAN-${shortId(refId)}`
+                return shortId(refId) || `JRN-${shortId(journal.id)}`
+            }
+
             // Combine journals with their lines
-            const enrichedJournals = journalsData?.map(journal => ({
+            const enrichedJournals = journalsList.map(journal => ({
                 ...journal,
+                ref_display: resolveRefDisplay(journal),
                 lines: linesMap[journal.id] || []
-            })) || []
+            }))
 
             setJournals(enrichedJournals)
             setFilteredJournals(enrichedJournals)
@@ -264,22 +320,51 @@ export default function Journals() {
         } finally {
             setLoading(false)
         }
-    }
+    }, [range])
+
+    useEffect(() => {
+        fetchJournals()
+    }, [fetchJournals])
+
+    useEffect(() => {
+        setPage(1)
+    }, [searchTerm, startDate, endDate, setPage])
+
+    useEffect(() => {
+        const params = new URLSearchParams(location.search)
+        const q = params.get('q')
+        if (q) {
+            setSearchTerm(q)
+            setStartDate('')
+            setEndDate('')
+        }
+    }, [location.search])
+
+    useEffect(() => {
+        filterJournals()
+    }, [filterJournals])
+
 
     function getRefTypeBadge(refType: string) {
         const normalized = (refType || '').toUpperCase()
-        const colors: { [key: string]: string } = {
-            'SALES': 'bg-green-100 text-green-800',
-            'PURCHASE': 'bg-blue-100 text-blue-800',
-            'SALES_RETURN': 'bg-yellow-100 text-yellow-800',
-            'RECEIPT': 'bg-purple-100 text-purple-800',
-            'PAYMENT': 'bg-red-100 text-red-800',
-            'ADJUSTMENT': 'bg-gray-100 text-gray-800'
+        const config: { [key: string]: { class: string, icon: React.ReactNode, label: string } } = {
+            'SALES': { class: 'bg-emerald-50 text-emerald-700 border-emerald-200 ring-emerald-500/20', icon: <Icons.TrendingUp className="w-3 h-3" />, label: 'Sales' },
+            'PURCHASE': { class: 'bg-blue-50 text-blue-700 border-blue-200 ring-blue-500/20', icon: <Icons.TrendingDown className="w-3 h-3" />, label: 'Purchase' },
+            'SALES_RETURN': { class: 'bg-amber-50 text-amber-700 border-amber-200 ring-amber-500/20', icon: <Icons.RotateCcw className="w-3 h-3" />, label: 'Sale Return' },
+            'PURCHASE_RETURN': { class: 'bg-orange-50 text-orange-700 border-orange-200 ring-orange-500/20', icon: <Icons.RotateCw className="w-3 h-3" />, label: 'Purch Return' },
+            'RECEIPT': { class: 'bg-sky-50 text-sky-700 border-sky-200 ring-sky-500/20', icon: <Icons.ArrowDownLeft className="w-3 h-3" />, label: 'Receipt' },
+            'PAYMENT': { class: 'bg-rose-50 text-rose-700 border-rose-200 ring-rose-500/20', icon: <Icons.ArrowUpRight className="w-3 h-3" />, label: 'Payment' },
+            'ADJUSTMENT': { class: 'bg-violet-50 text-violet-700 border-violet-200 ring-violet-500/20', icon: <Icons.Sliders className="w-3 h-3" />, label: 'Adjustment' },
+            'GENERAL': { class: 'bg-slate-50 text-slate-700 border-slate-200 ring-slate-500/20', icon: <Icons.FileText className="w-3 h-3" />, label: 'General' }
         }
+
+        const style = config[normalized] || { class: 'bg-slate-50 text-slate-600 border-slate-200', icon: null, label: normalized }
+
         return (
-            <Badge className={colors[normalized] || 'bg-gray-100 text-gray-800'}>
-                {normalized}
-            </Badge>
+            <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border ring-1 ring-inset ${style.class}`}>
+                {style.icon}
+                {style.label}
+            </span>
         )
     }
 
@@ -293,7 +378,7 @@ export default function Journals() {
     }
 
     return (
-        <div className="w-full space-y-6">
+        <div className="w-full max-w-6xl mx-auto space-y-6 px-3 sm:px-4 lg:px-6">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <h2 className="hidden md:block text-3xl font-bold tracking-tight text-gray-900">Journal Entries</h2>
                 <div className="flex gap-2">
@@ -308,7 +393,7 @@ export default function Journals() {
                         onClick={() => navigate('/journals/manual')}
                         icon={<Icons.Edit className="w-4 h-4" />}
                     >
-                        Jurnal Umum
+                        Add Journal
                     </Button>
                 </div>
             </div>
@@ -374,10 +459,22 @@ export default function Journals() {
                             journal={journal}
                             formatCurrency={formatCurrency}
                             getRefTypeBadge={getRefTypeBadge}
+                            isExpanded={openJournalId === journal.id}
+                            onToggle={() => {
+                                setOpenJournalId(prev => (prev === journal.id ? null : journal.id))
+                            }}
                         />
                     ))
                 )}
             </div>
+
+            <Pagination
+                currentPage={page}
+                totalCount={totalCount}
+                pageSize={pageSize}
+                onPageChange={setPage}
+                isLoading={loading}
+            />
         </div>
     )
 }

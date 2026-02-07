@@ -227,6 +227,11 @@ export default function StockCard({ itemId }: { itemId?: string | null }) {
                             )}
                         </div>
                     </CardTitle>
+                    {!itemId && (
+                        <p className="text-xs text-slate-500 font-normal pl-7">
+                            Monitor all stock movements across the system in real-time.
+                        </p>
+                    )}
                 </CardHeader>
                 <div className="flex-1 overflow-y-auto">
                     <Table>

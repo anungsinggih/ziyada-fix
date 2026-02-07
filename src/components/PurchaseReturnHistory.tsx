@@ -129,7 +129,11 @@ export default function PurchaseReturnHistory() {
                                 </TableHeader>
                                 <TableBody>
                                     {returns.map((ret) => (
-                                        <TableRow key={ret.id}>
+                                        <TableRow
+                                            key={ret.id}
+                                            className="cursor-pointer hover:bg-slate-50"
+                                            onClick={() => navigate(`/purchase-returns/${ret.id}`)}
+                                        >
                                             <TableCell>{formatDate(ret.return_date)}</TableCell>
                                             <TableCell className="font-mono text-sm">
                                                 {ret.return_no}
@@ -143,25 +147,20 @@ export default function PurchaseReturnHistory() {
                                             </TableCell>
                                             <TableCell><StatusBadge status={ret.status} /></TableCell>
                                             <TableCell>
-                                                <div className="flex gap-2">
+                                                <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
                                                     {ret.status === 'DRAFT' && (
                                                         <Button
                                                             size="sm"
                                                             variant="outline"
-                                                            onClick={() => navigate(`/purchase-return?draft=${ret.id}`)}
+                                                            onClick={(e) => {
+                                                                e.stopPropagation()
+                                                                navigate(`/purchase-return?draft=${ret.id}`)
+                                                            }}
                                                             icon={<Icons.Edit className="w-4 h-4" />}
                                                         >
                                                             Edit
                                                         </Button>
                                                     )}
-                                                    <Button
-                                                        size="sm"
-                                                        variant="outline"
-                                                        onClick={() => navigate(`/purchase-returns/${ret.id}`)}
-                                                        icon={<Icons.Eye className="w-4 h-4" />}
-                                                    >
-                                                        View
-                                                    </Button>
                                                 </div>
                                             </TableCell>
                                         </TableRow>

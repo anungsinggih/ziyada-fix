@@ -12,6 +12,7 @@ type Props = {
     paymentMethods: { code: string; name: string }[];
     onSuccess: (message: string) => void;
     onError: (message: string) => void;
+    embedded?: boolean;
 };
 
 export function FinanceReceiptForm({
@@ -20,6 +21,7 @@ export function FinanceReceiptForm({
     paymentMethods,
     onSuccess,
     onError,
+    embedded = false,
 }: Props) {
     const [trxDate, setTrxDate] = useState(
         new Date().toISOString().split("T")[0]
@@ -129,61 +131,69 @@ export function FinanceReceiptForm({
                 { label: "BANK", value: "BANK" },
             ];
 
+    const content = (
+        <>
+            <div className="text-xs text-gray-500 font-mono mb-2">
+                REF: {invoiceId}
+            </div>
+            <Input
+                label="Date"
+                type="date"
+                value={trxDate}
+                onChange={(e) => setTrxDate(e.target.value)}
+            />
+            <Input
+                label="Amount Received"
+                type="number"
+                step="1"
+                value={amount === 0 ? "" : amount}
+                max={isPettyCash ? Math.min(initialAmount, 500000) : initialAmount}
+                onChange={(e) => handleAmountChange(e.target.value)}
+            />
+            <div className="text-[11px] text-gray-500 flex items-center justify-between">
+                <span>Outstanding: {initialAmount.toLocaleString()}</span>
+                <span>Remaining: {Math.max(initialAmount - amount, 0).toLocaleString()}</span>
+            </div>
+            <Select
+                label="Method"
+                value={method}
+                onChange={(e) => setMethod(e.target.value)}
+                options={methodOptions}
+                disabled={isPettyCash}
+            />
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2 mt-2">
+                <Switch
+                    label="Petty Cash"
+                    checked={isPettyCash}
+                    onCheckedChange={(checked) => setIsPettyCash(checked)}
+                />
+                <p className="text-xs text-gray-500">
+                    {isPettyCash
+                        ? "Petty cash hanya untuk Kas dan maksimal Rp 500.000."
+                        : "Gunakan toggle ini bila ingin mencatat petty cash receipt."}
+                </p>
+            </div>
+            <Button
+                className="w-full mt-4 bg-green-600 hover:bg-green-700"
+                onClick={handleSubmit}
+                disabled={submitting}
+                isLoading={submitting}
+            >
+                Confirm Receipt
+            </Button>
+        </>
+    );
+
+    if (embedded) {
+        return <div className="space-y-4">{content}</div>;
+    }
+
     return (
         <Card className="border-green-200 shadow-md sticky top-6">
             <CardHeader className="bg-green-100/50 border-b border-green-100">
                 <CardTitle className="text-green-900">Process Receipt</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4 pt-6">
-                <div className="text-xs text-gray-500 font-mono mb-2">
-                    REF: {invoiceId}
-                </div>
-                <Input
-                    label="Date"
-                    type="date"
-                    value={trxDate}
-                    onChange={(e) => setTrxDate(e.target.value)}
-                />
-                <Input
-                    label="Amount Received"
-                    type="number"
-                    step="1"
-                    value={amount === 0 ? "" : amount}
-                    max={isPettyCash ? Math.min(initialAmount, 500000) : initialAmount}
-                    onChange={(e) => handleAmountChange(e.target.value)}
-                />
-                <div className="text-[11px] text-gray-500 flex items-center justify-between">
-                    <span>Outstanding: {initialAmount.toLocaleString()}</span>
-                    <span>Remaining: {Math.max(initialAmount - amount, 0).toLocaleString()}</span>
-                </div>
-                <Select
-                    label="Method"
-                    value={method}
-                    onChange={(e) => setMethod(e.target.value)}
-                    options={methodOptions}
-                    disabled={isPettyCash}
-                />
-                <div className="flex flex-col sm:flex-row sm:items-center gap-2 mt-2">
-                    <Switch
-                        label="Petty Cash"
-                        checked={isPettyCash}
-                        onCheckedChange={(checked) => setIsPettyCash(checked)}
-                    />
-                    <p className="text-xs text-gray-500">
-                        {isPettyCash
-                            ? "Petty cash hanya untuk Kas dan maksimal Rp 500.000."
-                            : "Gunakan toggle ini bila ingin mencatat petty cash receipt."}
-                    </p>
-                </div>
-                <Button
-                    className="w-full mt-4 bg-green-600 hover:bg-green-700"
-                    onClick={handleSubmit}
-                    disabled={submitting}
-                    isLoading={submitting}
-                >
-                    Confirm Receipt
-                </Button>
-            </CardContent>
+            <CardContent className="space-y-4 pt-6">{content}</CardContent>
         </Card>
     );
 }

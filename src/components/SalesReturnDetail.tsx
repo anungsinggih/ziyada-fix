@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../supabaseClient'
 import { getErrorMessage } from "../lib/errors";
 import { useNavigate, useParams } from 'react-router-dom'
@@ -39,14 +39,33 @@ export default function SalesReturnDetail() {
     const [items, setItems] = useState<ReturnItem[]>([])
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
+    const [posting, setPosting] = useState(false)
 
-    useEffect(() => {
-        if (id) {
-            fetchReturnDetail(id)
-        }
-    }, [id])
+    const normalizeItems = useCallback((rows: ReturnItem[]) => {
+        const map = new Map<string, ReturnItem>()
+        rows.forEach((row) => {
+            const key = `${row.item_id}::${row.unit_price}::${row.uom_snapshot}`
+            const existing = map.get(key)
+            if (!existing) {
+                map.set(key, { ...row })
+                return
+            }
+            const totalQty = existing.qty + row.qty
+            const totalSubtotal = existing.subtotal + row.subtotal
+            const weightedCost = totalQty > 0
+                ? ((existing.cost_snapshot * existing.qty) + (row.cost_snapshot * row.qty)) / totalQty
+                : existing.cost_snapshot
+            map.set(key, {
+                ...existing,
+                qty: totalQty,
+                subtotal: totalSubtotal,
+                cost_snapshot: Number(weightedCost.toFixed(4))
+            })
+        })
+        return Array.from(map.values())
+    }, [])
 
-    async function fetchReturnDetail(returnId: string) {
+    const fetchReturnDetail = useCallback(async (returnId: string) => {
         setLoading(true)
         setError(null)
 
@@ -100,15 +119,39 @@ export default function SalesReturnDetail() {
 
             if (itemsError) throw itemsError
 
-            setItems(itemsData?.map(item => ({
+            const mappedItems = itemsData?.map(item => ({
                 ...item,
                 item_name: (item.items as unknown as { name: string })?.name || 'Unknown',
                 sku: (item.items as unknown as { sku: string })?.sku || ''
-            })) || [])
+            })) || []
+            setItems(normalizeItems(mappedItems))
         } catch (err: unknown) {
             setError(getErrorMessage(err, 'Failed to fetch return detail'))
         } finally {
             setLoading(false)
+        }
+    }, [normalizeItems])
+
+    useEffect(() => {
+        if (id) {
+            fetchReturnDetail(id)
+        }
+    }, [id, fetchReturnDetail])
+
+    async function handlePost() {
+        if (!returnDoc) return
+        if (!confirm("Confirm POST Return? This handles Stock, AR & Journals.")) return
+
+        setPosting(true)
+        try {
+            const { error: postError } = await supabase.rpc('rpc_post_sales_return', { p_return_id: returnDoc.id })
+            if (postError) throw postError
+            alert("Return POSTED Successfully!")
+            fetchReturnDetail(returnDoc.id)
+        } catch (err: unknown) {
+            setError(getErrorMessage(err, 'Unknown error'))
+        } finally {
+            setPosting(false)
         }
     }
 
@@ -197,9 +240,16 @@ export default function SalesReturnDetail() {
         <div className="w-full space-y-6">
             <div className="flex justify-between items-center">
                 <h2 className="hidden md:block text-3xl font-bold tracking-tight text-gray-900">Sales Return</h2>
-                <Button onClick={() => navigate('/sales-returns/history')} variant="outline">
-                    ← Back to List
-                </Button>
+                <div className="flex gap-2 no-print">
+                    <Button onClick={() => navigate('/sales-returns/history')} variant="outline">
+                        ← Back to List
+                    </Button>
+                    {returnDoc.status === 'DRAFT' && (
+                        <Button onClick={handlePost} disabled={posting} className="bg-green-600 hover:bg-green-700 text-white">
+                            {posting ? 'Posting...' : 'POST Return'}
+                        </Button>
+                    )}
+                </div>
             </div>
 
             <DocumentHeaderCard

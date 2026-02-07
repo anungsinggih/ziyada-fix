@@ -427,7 +427,7 @@ export default function CompanySettings() {
                                 <div>{userMessage.text}</div>
                             </div>
                         )}
-                        <form onSubmit={handleSaveUser} className="space-y-6 max-w-lg">
+                        <form onSubmit={handleSaveUser} className="space-y-6">
                             <div className="space-y-3">
                                 <Input
                                     label="Display Name"
@@ -437,7 +437,7 @@ export default function CompanySettings() {
                                 />
                                 <p className="text-xs text-slate-500">This name will be displayed in the sidebar and navigation.</p>
                             </div>
-                            <div className="pt-2">
+                            <div className="pt-2 flex justify-end">
                                 <Button type="submit" disabled={userSaving}>
                                     {userSaving ? 'Saving...' : 'Save Changes'}
                                 </Button>

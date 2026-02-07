@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "../supabaseClient";
 import { useNavigate, useParams } from "react-router-dom";
 import { Button } from "./ui/Button";
+import { Card, CardContent, CardHeader, CardTitle } from "./ui/Card";
 import { Badge } from "./ui/Badge";
 import { Alert } from "./ui/Alert";
 import { Icons } from "./ui/Icons";
@@ -9,9 +10,18 @@ import { formatCurrency, formatDate, safeDocNo } from "../lib/format";
 import DocumentHeaderCard from "./shared/DocumentHeaderCard";
 import LineItemsTable from "./shared/LineItemsTable";
 import RelatedDocumentsCard, { type RelatedDocumentItem } from "./shared/RelatedDocumentsCard";
-import { getErrorMessage } from "../lib/errors";
 import { PurchaseInvoicePrint } from "./print/PurchaseInvoicePrint";
 import { toPng } from "html-to-image";
+
+// Helper for error message if shared util not sufficient or local override needed
+const getErrorMessageLocal = (error: unknown) => {
+  if (error instanceof Error) return error.message;
+  if (typeof error === 'object' && error !== null) {
+    const err = error as { message?: string };
+    return err.message || JSON.stringify(error);
+  }
+  return String(error);
+};
 
 type PurchaseDetail = {
   id: string;
@@ -164,7 +174,7 @@ export default function PurchaseDetail() {
 
       if (itemsError) throw itemsError;
 
-      setItems(
+      const mappedItems =
         itemsData?.map((item) => ({
           ...item,
           item_name: (item.items as unknown as { name: string })?.name || "Unknown",
@@ -175,8 +185,22 @@ export default function PurchaseDetail() {
           color_name:
             (item.items as unknown as { colors?: { name: string } })?.colors?.name ||
             undefined,
-        })) || [],
+        })) || [];
+
+      const mergedItems = Object.values(
+        mappedItems.reduce((acc, item) => {
+          const key = `${item.item_id}-${item.unit_cost}`;
+          if (!acc[key]) {
+            acc[key] = { ...item };
+            return acc;
+          }
+          acc[key].qty += item.qty;
+          acc[key].subtotal += item.subtotal;
+          return acc;
+        }, {} as Record<string, PurchaseItem>),
       );
+
+      setItems(mergedItems);
 
       // Fetch related documents (only if POSTED)
       if (purchaseData.status === "POSTED") {
@@ -229,7 +253,7 @@ export default function PurchaseDetail() {
         setRelatedDocs(related);
       }
     } catch (err: unknown) {
-      setError(getErrorMessage(err, "Failed to fetch purchase detail"));
+      setError(getErrorMessageLocal(err));
     } finally {
       setLoading(false);
     }
@@ -556,6 +580,22 @@ export default function PurchaseDetail() {
             Purchase Detail
           </h2>
           <div className="flex gap-2 no-print flex-wrap">
+            {/* Register Payment Action */}
+            {purchase.status === "POSTED" &&
+              purchase.terms === "CREDIT" &&
+              relatedDocs.ap_status !== "PAID" && (
+                <Button
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
+                  onClick={() => {
+                    if (relatedDocs.ap_bill_id) {
+                      navigate(`/finance?ap=${relatedDocs.ap_bill_id}`);
+                    }
+                  }}
+                  icon={<Icons.DollarSign className="w-4 h-4" />}
+                >
+                  Register Payment
+                </Button>
+              )}
             <Button
               onClick={() => window.print()}
               variant="outline"
@@ -570,6 +610,15 @@ export default function PurchaseDetail() {
             >
               Download Image
             </Button>
+            {purchase.status === "POSTED" && (
+              <Button
+                onClick={() => navigate(`/purchase-return?purchase=${purchase.id}`)}
+                variant="outline"
+                icon={<Icons.Plus className="w-4 h-4" />}
+              >
+                Create Return
+              </Button>
+            )}
             <Button
               onClick={() => navigate("/purchases/history")}
               variant="outline"
@@ -608,6 +657,34 @@ export default function PurchaseDetail() {
             )}
           </div>
         </div>
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 bg-white border border-slate-200 rounded-lg p-4">
+          <div className="space-y-1">
+            <p className="text-[11px] uppercase tracking-wide text-slate-500">Doc No</p>
+            <p className="font-semibold text-slate-900">{purchase.purchase_no || purchase.id.substring(0, 8)}</p>
+          </div>
+          <div className="space-y-1">
+            <p className="text-[11px] uppercase tracking-wide text-slate-500">Status</p>
+            <div>
+              <Badge className={purchase.status === "POSTED" ? "bg-green-100 text-green-800" : purchase.status === "DRAFT" ? "bg-gray-100 text-gray-800" : "bg-red-100 text-red-800"}>
+                {purchase.status}
+              </Badge>
+            </div>
+          </div>
+          <div className="space-y-1">
+            <p className="text-[11px] uppercase tracking-wide text-slate-500">Date</p>
+            <p className="font-semibold text-slate-900">
+              {new Date(purchase.purchase_date).toLocaleDateString("id-ID")}
+            </p>
+          </div>
+          <div className="space-y-1">
+            <p className="text-[11px] uppercase tracking-wide text-slate-500">Vendor</p>
+            <p className="font-semibold text-slate-900">{purchase.vendor_name}</p>
+          </div>
+          <div className="space-y-1 md:text-right">
+            <p className="text-[11px] uppercase tracking-wide text-slate-500">Total</p>
+            <p className="font-semibold text-slate-900">{formatCurrency(displayTotal)}</p>
+          </div>
+        </div>
         {(deleteError || deleteSuccess || postError || postSuccess || downloadError) && (
           <div className="w-full">
             {postError && (
@@ -639,22 +716,72 @@ export default function PurchaseDetail() {
 
 
 
-      <DocumentHeaderCard
-        className="print:hidden"
-        title="Purchase Document"
-        docNo={safeDocNo(purchase.purchase_no, purchase.id, true)}
-        status={purchase.status}
-        fields={headerFields}
-        notes={purchase.notes}
-      />
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 print:hidden">
+        <div className="xl:col-span-2 space-y-6">
+          <DocumentHeaderCard
+            title="Purchase Document"
+            docNo={safeDocNo(purchase.purchase_no, purchase.id, true)}
+            status={purchase.status}
+            fields={headerFields}
+            notes={purchase.notes}
+          />
 
-      <LineItemsTable
-        className="print:hidden"
-        rows={items}
-        columns={lineItemColumns}
-        totalValue={formatCurrency(displayTotal)}
-        emptyLabel="No items added"
-      />
+          <LineItemsTable
+            rows={items}
+            columns={lineItemColumns}
+            totalValue={formatCurrency(displayTotal)}
+            emptyLabel="No items added"
+          />
+        </div>
+
+        <div className="xl:col-span-1 space-y-6">
+          <div className="xl:sticky xl:top-6 space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Summary</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Items Subtotal</span>
+                  <span className="font-medium">{formatCurrency(itemsTotal)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Diskon</span>
+                  <span className="font-medium text-red-600">-{formatCurrency(purchase.discount_amount || 0)}</span>
+                </div>
+                <div className="flex justify-between border-t pt-3">
+                  <span className="text-gray-700 font-semibold">Total</span>
+                  <span className="font-bold">{formatCurrency(displayTotal)}</span>
+                </div>
+                <div className="pt-2 border-t">
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Terms</span>
+                    <span className="font-medium">{purchase.terms}</span>
+                  </div>
+                  {purchase.terms === "CASH" && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Payment</span>
+                      <span className="font-medium">{paymentMethodName || purchase.payment_method_code || "-"}</span>
+                    </div>
+                  )}
+                  {purchase.terms === "CREDIT" && relatedDocs.ap_outstanding != null && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Outstanding</span>
+                      <span className="font-semibold text-amber-600">
+                        {formatCurrency(relatedDocs.ap_outstanding)}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            {purchase.status === "POSTED" && (
+              <RelatedDocumentsCard items={relatedItems} />
+            )}
+          </div>
+        </div>
+      </div>
 
       <div
         ref={printRef}
@@ -681,9 +808,6 @@ export default function PurchaseDetail() {
         />
       </div>
 
-      {purchase.status === "POSTED" && (
-        <RelatedDocumentsCard className="print:hidden" items={relatedItems} />
-      )}
     </div>
   );
 }

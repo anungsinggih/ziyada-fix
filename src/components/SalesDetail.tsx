@@ -99,6 +99,10 @@ export default function SalesDetail() {
   const [isPosting, setIsPosting] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const printRef = useRef<HTMLDivElement | null>(null);
+  const itemsTotal = useMemo(
+    () => items.reduce((sum, item) => sum + (item.subtotal || 0), 0),
+    [items],
+  );
 
   useEffect(() => {
     if (id) {
@@ -172,7 +176,7 @@ export default function SalesDetail() {
 
       if (itemsError) throw itemsError;
 
-      setItems(
+      const normalizedItems =
         itemsData?.map((item) => ({
           ...item,
           item_name: (item.items as unknown as { name: string })?.name || "Unknown",
@@ -183,8 +187,26 @@ export default function SalesDetail() {
           color_name:
             (item.items as unknown as { colors?: { name: string } })?.colors?.name ||
             undefined,
-        })) || [],
-      );
+        })) || [];
+
+      // Merge duplicate lines (same item + price) for cleaner draft view
+      const mergedMap = new Map<string, SalesItem>();
+      normalizedItems.forEach((item) => {
+        const key = `${item.item_id}::${item.unit_price}`;
+        const existing = mergedMap.get(key);
+        if (!existing) {
+          mergedMap.set(key, { ...item });
+          return;
+        }
+        const mergedQty = existing.qty + item.qty;
+        mergedMap.set(key, {
+          ...existing,
+          qty: mergedQty,
+          subtotal: existing.subtotal + item.subtotal,
+        });
+      });
+
+      setItems(Array.from(mergedMap.values()));
 
       // Fetch related documents (only if POSTED)
       if (saleData.status === "POSTED") {
@@ -438,10 +460,27 @@ export default function SalesDetail() {
   return (
     <div className="w-full space-y-6">
       <div className="flex flex-col gap-3 print:hidden">
-        <h2 className="text-3xl font-bold tracking-tight text-gray-900">
-          Sales Detail
-        </h2>
-        <div className="flex gap-2 no-print flex-wrap">
+        <div className="flex justify-between items-center">
+          <h2 className="text-3xl font-bold tracking-tight text-gray-900">
+            Sales Detail
+          </h2>
+          <div className="flex gap-2 no-print flex-wrap">
+          {/* Register Payment Action */}
+          {sale.status === "POSTED" &&
+            sale.terms === "CREDIT" &&
+            relatedDocs.ar_status !== "PAID" && (
+              <Button
+                className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
+                onClick={() => {
+                  if (relatedDocs.ar_invoice_id) {
+                    navigate(`/finance?ar=${relatedDocs.ar_invoice_id}`);
+                  }
+                }}
+                icon={<Icons.DollarSign className="w-4 h-4" />}
+              >
+                Register Payment
+              </Button>
+            )}
           <Button
             onClick={() => window.print()}
             variant="outline"
@@ -456,6 +495,15 @@ export default function SalesDetail() {
           >
             Download Image
           </Button>
+          {sale.status === "POSTED" && (
+            <Button
+              onClick={() => navigate(`/sales-return?sales=${sale.id}`)}
+              variant="outline"
+              icon={<Icons.Plus className="w-4 h-4" />}
+            >
+              Create Return
+            </Button>
+          )}
           <Button
             onClick={() => navigate("/sales/history")}
             variant="outline"
@@ -492,6 +540,33 @@ export default function SalesDetail() {
               Delete Draft
             </Button>
           )}
+          </div>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 bg-white border border-slate-200 rounded-lg p-4">
+          <div className="space-y-1">
+            <p className="text-[11px] uppercase tracking-wide text-slate-500">Doc No</p>
+            <p className="font-semibold text-slate-900">{sale.sales_no || sale.id.substring(0, 8)}</p>
+          </div>
+          <div className="space-y-1">
+            <p className="text-[11px] uppercase tracking-wide text-slate-500">Status</p>
+            <div>{getStatusBadge(sale.status)}</div>
+          </div>
+          <div className="space-y-1">
+            <p className="text-[11px] uppercase tracking-wide text-slate-500">Date</p>
+            <p className="font-semibold text-slate-900">
+              {new Date(sale.sales_date).toLocaleDateString("id-ID")}
+            </p>
+          </div>
+          <div className="space-y-1">
+            <p className="text-[11px] uppercase tracking-wide text-slate-500">Customer</p>
+            <div className="font-semibold text-slate-900">
+              <CustomerBadge name={sale.customer_name} customerType={sale.customer_type} />
+            </div>
+          </div>
+          <div className="space-y-1 md:text-right">
+            <p className="text-[11px] uppercase tracking-wide text-slate-500">Total</p>
+            <p className="font-semibold text-slate-900">{formatCurrency(sale.total_amount)}</p>
+          </div>
         </div>
         {(deleteError || deleteSuccess) && (
           <div className="w-full">
@@ -528,216 +603,265 @@ export default function SalesDetail() {
         )}
       </div>
 
-      {/* Print Logo */}
-      {/* Header Card */}
-      <Card className="print:hidden">
-        <CardHeader className="bg-gray-50">
-          <div className="flex justify-between items-start">
-            <div>
-              <CardTitle>Sales Document</CardTitle>
-              <p className="text-sm text-gray-600 mt-1">
-                {sale.sales_no || `ID: ${sale.id.substring(0, 8)}`}
-              </p>
-            </div>
-            {getStatusBadge(sale.status)}
-          </div>
-        </CardHeader>
-        <CardContent className="pt-6">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-            <div>
-              <p className="text-gray-600">Date</p>
-              <p className="font-medium">
-                {new Date(sale.sales_date).toLocaleDateString("id-ID")}
-              </p>
-            </div>
-            <div>
-              <p className="text-gray-600">Customer</p>
-              <div className="font-medium mt-1">
-                <CustomerBadge name={sale.customer_name} customerType={sale.customer_type} />
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        <div className="xl:col-span-2 space-y-6">
+          {/* Header Card */}
+          <Card className="print:hidden">
+            <CardHeader className="bg-gray-50">
+              <div className="flex justify-between items-start">
+                <div>
+                  <CardTitle>Sales Document</CardTitle>
+                  <p className="text-sm text-gray-600 mt-1">
+                    {sale.sales_no || `ID: ${sale.id.substring(0, 8)}`}
+                  </p>
+                </div>
+                {getStatusBadge(sale.status)}
               </div>
-            </div>
-            <div>
-              <p className="text-gray-600">Terms</p>
-              <p className="font-medium">
-                <Badge
-                  className={
-                    sale.terms === "CASH"
-                      ? "bg-blue-100 text-blue-800"
-                      : "bg-orange-100 text-orange-800"
-                  }
-                >
-                  {sale.terms}
-                </Badge>
-              </p>
-            </div>
-            <div>
-              <p className="text-gray-600">Total</p>
-              <p className="font-bold text-lg">
-                {formatCurrency(sale.total_amount)}
-              </p>
-            </div>
-          </div>
-          {sale.notes && (
-            <div className="mt-4 pt-4 border-t">
-              <p className="text-gray-600 text-sm">Notes</p>
-              <p className="text-sm mt-1">{sale.notes}</p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Items Table */}
-      <Card className="print:hidden">
-        <CardHeader>
-          <CardTitle>Line Items</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>SKU</TableHead>
-                <TableHead>Item Name</TableHead>
-                <TableHead>UoM</TableHead>
-                <TableHead className="text-right">Qty</TableHead>
-                <TableHead className="text-right">Unit Price</TableHead>
-                <TableHead className="text-right">Subtotal</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {items.map((item) => (
-                <TableRow key={item.id}>
-                  <TableCell className="font-mono text-sm">
-                    {item.sku}
-                  </TableCell>
-                  <TableCell>
-                    <div>{item.item_name}</div>
-                    {(item.size_name || item.color_name) && (
-                      <div className="text-xs text-gray-500">
-                        {[item.size_name, item.color_name].filter(Boolean).join(" • ")}
-                      </div>
-                    )}
-                  </TableCell>
-                  <TableCell>{item.uom_snapshot}</TableCell>
-                  <TableCell className="text-right">{item.qty}</TableCell>
-                  <TableCell className="text-right">
-                    {formatCurrency(item.unit_price)}
-                  </TableCell>
-                  <TableCell className="text-right font-medium">
-                    {formatCurrency(item.subtotal)}
-                  </TableCell>
-                </TableRow>
-              ))}
-              {(sale.shipping_fee || 0) > 0 && (
-                <TableRow className="bg-gray-50">
-                  <TableCell colSpan={5} className="text-right">
-                    Ongkir
-                  </TableCell>
-                  <TableCell className="text-right font-medium">
-                    {formatCurrency(sale.shipping_fee || 0)}
-                  </TableCell>
-                </TableRow>
+            </CardHeader>
+            <CardContent className="pt-6">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                <div>
+                  <p className="text-gray-600">Date</p>
+                  <p className="font-medium">
+                    {new Date(sale.sales_date).toLocaleDateString("id-ID")}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-gray-600">Customer</p>
+                  <div className="font-medium mt-1">
+                    <CustomerBadge name={sale.customer_name} customerType={sale.customer_type} />
+                  </div>
+                </div>
+                <div>
+                  <p className="text-gray-600">Terms</p>
+                  <p className="font-medium">
+                    <Badge
+                      className={
+                        sale.terms === "CASH"
+                          ? "bg-blue-100 text-blue-800"
+                          : "bg-orange-100 text-orange-800"
+                      }
+                    >
+                      {sale.terms}
+                    </Badge>
+                  </p>
+                </div>
+                <div>
+                  <p className="text-gray-600">Total</p>
+                  <p className="font-bold text-lg">
+                    {formatCurrency(sale.total_amount)}
+                  </p>
+                </div>
+              </div>
+              {sale.notes && (
+                <div className="mt-4 pt-4 border-t">
+                  <p className="text-gray-600 text-sm">Notes</p>
+                  <p className="text-sm mt-1">{sale.notes}</p>
+                </div>
               )}
-              {(sale.discount_amount || 0) > 0 && (
-                <TableRow className="bg-gray-50">
-                  <TableCell colSpan={5} className="text-right">
-                    Diskon
-                  </TableCell>
-                  <TableCell className="text-right font-medium">
-                    -{formatCurrency(sale.discount_amount || 0)}
-                  </TableCell>
-                </TableRow>
-              )}
-              <TableRow className="bg-gray-50 font-bold border-t-2">
-                <TableCell colSpan={5} className="text-right">
-                  TOTAL:
-                </TableCell>
-                <TableCell className="text-right">
-                  {formatCurrency(sale.total_amount)}
-                </TableCell>
-              </TableRow>
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
 
-      {/* Related Documents (POSTED only) */}
-      {sale.status === "POSTED" && (
-        <div className="print:hidden">
-          <RelatedDocumentsCard
-            items={[
-              ...(relatedDocs.journal_id
-                ? [
-                  {
-                    id: relatedDocs.journal_id,
-                    title: "Journal Entry",
-                    description: (
-                      <p>
-                        ID: {relatedDocs.journal_id.substring(0, 8)} | Date:{" "}
-                        {new Date(relatedDocs.journal_date!).toLocaleDateString(
-                          "id-ID",
+          {/* Items Table */}
+          <Card className="print:hidden">
+            <CardHeader>
+              <CardTitle>Line Items</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>SKU</TableHead>
+                    <TableHead>Item Name</TableHead>
+                    <TableHead>UoM</TableHead>
+                    <TableHead className="text-right">Qty</TableHead>
+                    <TableHead className="text-right">Unit Price</TableHead>
+                    <TableHead className="text-right">Subtotal</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {items.map((item) => (
+                    <TableRow key={item.id}>
+                      <TableCell className="font-mono text-sm">
+                        {item.sku}
+                      </TableCell>
+                      <TableCell>
+                        <div>{item.item_name}</div>
+                        {(item.size_name || item.color_name) && (
+                          <div className="text-xs text-gray-500">
+                            {[item.size_name, item.color_name].filter(Boolean).join(" • ")}
+                          </div>
                         )}
-                      </p>
-                    ),
-                    icon: <Icons.FileText className="w-5 h-5" />,
-                    toneClassName: "bg-blue-50",
-                    iconClassName: "text-blue-500",
-                    actionLabel: "Open",
-                    onAction: () =>
-                      navigate(
-                        `/journals?q=${encodeURIComponent(
-                          sale.sales_no || relatedDocs.journal_id!
-                        )}`
-                      ),
-                  } as RelatedDocumentItem,
-                ]
-                : []),
-              ...(relatedDocs.receipt_id
-                ? [
-                  {
-                    id: relatedDocs.receipt_id,
-                    title: "Receipt (CASH)",
-                    description: (
-                      <p>
-                        ID: {relatedDocs.receipt_id.substring(0, 8)} | Amount:{" "}
-                        {formatCurrency(relatedDocs.receipt_amount!)}
-                      </p>
-                    ),
-                    icon: <Icons.DollarSign className="w-5 h-5" />,
-                    toneClassName: "bg-green-50",
-                    iconClassName: "text-green-500",
-                  } as RelatedDocumentItem,
-                ]
-                : []),
-              ...(relatedDocs.ar_invoice_id
-                ? [
-                  {
-                    id: relatedDocs.ar_invoice_id,
-                    title: "AR Invoice (CREDIT)",
-                    description: (
-                      <p>
-                        ID: {relatedDocs.ar_invoice_id.substring(0, 8)} | Total:{" "}
-                        {formatCurrency(relatedDocs.ar_total!)} | Outstanding:{" "}
-                        {formatCurrency(relatedDocs.ar_outstanding!)} | Status:{" "}
-                        <Badge className="ml-1">{relatedDocs.ar_status}</Badge>
-                      </p>
-                    ),
-                    icon: <Icons.FileText className="w-5 h-5" />,
-                    toneClassName: "bg-orange-50",
-                    iconClassName: "text-orange-500",
-                    actionLabel: "Open AR",
-                    onAction: () =>
-                      navigate(
-                        `/finance?ar=${encodeURIComponent(
-                          relatedDocs.ar_invoice_id!
-                        )}`
-                      ),
-                  } as RelatedDocumentItem,
-                ]
-                : []),
-            ]}
-          />
+                      </TableCell>
+                      <TableCell>{item.uom_snapshot}</TableCell>
+                      <TableCell className="text-right">{item.qty}</TableCell>
+                      <TableCell className="text-right">
+                        {formatCurrency(item.unit_price)}
+                      </TableCell>
+                      <TableCell className="text-right font-medium">
+                        {formatCurrency(item.subtotal)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {(sale.shipping_fee || 0) > 0 && (
+                    <TableRow className="bg-gray-50">
+                      <TableCell colSpan={5} className="text-right">
+                        Ongkir
+                      </TableCell>
+                      <TableCell className="text-right font-medium">
+                        {formatCurrency(sale.shipping_fee || 0)}
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  {(sale.discount_amount || 0) > 0 && (
+                    <TableRow className="bg-gray-50">
+                      <TableCell colSpan={5} className="text-right">
+                        Diskon
+                      </TableCell>
+                      <TableCell className="text-right font-medium">
+                        -{formatCurrency(sale.discount_amount || 0)}
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  <TableRow className="bg-gray-50 font-bold border-t-2">
+                    <TableCell colSpan={5} className="text-right">
+                      TOTAL:
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {formatCurrency(sale.total_amount)}
+                    </TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
         </div>
-      )}
+
+        <div className="xl:col-span-1 space-y-6 print:hidden">
+          <div className="xl:sticky xl:top-6 space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Summary</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Items Subtotal</span>
+                  <span className="font-medium">{formatCurrency(itemsTotal)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Ongkir</span>
+                  <span className="font-medium">{formatCurrency(sale.shipping_fee || 0)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Diskon</span>
+                  <span className="font-medium text-red-600">-{formatCurrency(sale.discount_amount || 0)}</span>
+                </div>
+                <div className="flex justify-between border-t pt-3">
+                  <span className="text-gray-700 font-semibold">Total</span>
+                  <span className="font-bold">{formatCurrency(sale.total_amount)}</span>
+                </div>
+                <div className="pt-2 border-t">
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Terms</span>
+                    <span className="font-medium">{sale.terms}</span>
+                  </div>
+                  {sale.terms === "CASH" && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Payment</span>
+                      <span className="font-medium">{sale.payment_method_code || "-"}</span>
+                    </div>
+                  )}
+                  {sale.terms === "CREDIT" && relatedDocs.ar_outstanding != null && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Outstanding</span>
+                      <span className="font-semibold text-amber-600">
+                        {formatCurrency(relatedDocs.ar_outstanding)}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Related Documents (POSTED only) */}
+            {sale.status === "POSTED" && (
+              <RelatedDocumentsCard
+                items={[
+                  ...(relatedDocs.journal_id
+                    ? [
+                      {
+                        id: relatedDocs.journal_id,
+                        title: "Journal Entry",
+                        description: (
+                          <p>
+                            ID: {relatedDocs.journal_id.substring(0, 8)} | Date:{" "}
+                            {new Date(relatedDocs.journal_date!).toLocaleDateString(
+                              "id-ID",
+                            )}
+                          </p>
+                        ),
+                        icon: <Icons.FileText className="w-5 h-5" />,
+                        toneClassName: "bg-blue-50",
+                        iconClassName: "text-blue-500",
+                        actionLabel: "Open",
+                        onAction: () =>
+                          navigate(
+                            `/journals?q=${encodeURIComponent(
+                              sale.sales_no || relatedDocs.journal_id!
+                            )}`
+                          ),
+                      } as RelatedDocumentItem,
+                    ]
+                    : []),
+                  ...(relatedDocs.receipt_id
+                    ? [
+                      {
+                        id: relatedDocs.receipt_id,
+                        title: "Receipt (CASH)",
+                        description: (
+                          <p>
+                            ID: {relatedDocs.receipt_id.substring(0, 8)} | Amount:{" "}
+                            {formatCurrency(relatedDocs.receipt_amount!)}
+                          </p>
+                        ),
+                        icon: <Icons.DollarSign className="w-5 h-5" />,
+                        toneClassName: "bg-green-50",
+                        iconClassName: "text-green-500",
+                      } as RelatedDocumentItem,
+                    ]
+                    : []),
+                  ...(relatedDocs.ar_invoice_id
+                    ? [
+                      {
+                        id: relatedDocs.ar_invoice_id,
+                        title: "AR Invoice (CREDIT)",
+                        description: (
+                          <p>
+                            ID: {relatedDocs.ar_invoice_id.substring(0, 8)} | Total:{" "}
+                            {formatCurrency(relatedDocs.ar_total!)} | Outstanding:{" "}
+                            {formatCurrency(relatedDocs.ar_outstanding!)} | Status:{" "}
+                            <Badge className="ml-1">{relatedDocs.ar_status}</Badge>
+                          </p>
+                        ),
+                        icon: <Icons.FileText className="w-5 h-5" />,
+                        toneClassName: "bg-orange-50",
+                        iconClassName: "text-orange-500",
+                        actionLabel: "Open AR",
+                        onAction: () =>
+                          navigate(
+                            `/finance?ar=${encodeURIComponent(
+                              relatedDocs.ar_invoice_id!
+                            )}`
+                          ),
+                      } as RelatedDocumentItem,
+                    ]
+                    : []),
+                ]}
+              />
+            )}
+          </div>
+        </div>
+      </div>
 
       {/* --- PRINT ONLY SECTION --- */}
       {sale && (
